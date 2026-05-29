@@ -3934,9 +3934,11 @@ Alpine.data('explorer', () => ({
 
     // Token-authed fetch from the canonical GitHub repo (works even when the
     // clone's own HTTPS remote can't read credentials non-interactively).
+    // GIT_TERMINAL_PROMPT=0 ⇒ git errors out instead of hanging if it ever
+    // needs to prompt for credentials.
     async _gitFetchAuthed(cache, ownerRepo, refspec) {
         const token = await GIT.ghToken();
-        const args = ['git', '-C', cache];
+        const args = ['env', 'GIT_TERMINAL_PROMPT=0', 'git', '-C', cache];
         let url = 'origin';
         if (token && ownerRepo) {
             url = 'https://github.com/' + ownerRepo + '.git';
@@ -3950,7 +3952,7 @@ Alpine.data('explorer', () => ({
     // Token-authed push to the canonical GitHub repo.
     async _gitPushAuthed(cache, ownerRepo, branch) {
         const token = await GIT.ghToken();
-        const args = ['git', '-C', cache];
+        const args = ['env', 'GIT_TERMINAL_PROMPT=0', 'git', '-C', cache];
         let url = 'origin';
         if (token && ownerRepo) {
             url = 'https://github.com/' + ownerRepo + '.git';
@@ -4308,23 +4310,23 @@ Alpine.data('explorer', () => ({
 
     async repoPush(tab) {
         // Pre-check: fetch, then look for divergence
-        const op = this._beginOp('Push ' + tab.gitInfo.branch);
+        const op = this._beginOp('Push ' + tab.gitInfo.branch + ' — checking remote');
         const owner = this._repoOwnerForTab(tab);
         try {
             await this._gitFetchAuthed(tab.path, owner, '+refs/heads/*:refs/remotes/origin/*');
             const st = await GIT.status(tab.path);
+            this._endOp(op, 'done'); // pre-check finished (always — was previously only ended on divergence, which left it hung)
             if (st && st.behind > 0) {
-                this._endOp(op, 'done'); // pre-check done
                 const choice = await this.askPushConflict(tab, st);
                 if (choice === 'cancel' || choice === 'keep') return;
                 if (choice === 'discard') {
-                    const op2 = this._beginOp('Discard local changes on ' + st.branch);
+                    const opd = this._beginOp('Discard local changes on ' + st.branch);
                     try {
                         await cockpit.spawn(['git', '-C', tab.path, 'reset', '--hard', 'origin/' + st.branch], { err: 'message' });
-                        this._endOp(op2, 'done');
+                        this._endOp(opd, 'done');
                         this._refreshAllGitInfo();
                         this.reload(tab);
-                    } catch (e) { this._failOp(op2, e); }
+                    } catch (e) { this._failOp(opd, e); }
                     return;
                 }
             }
