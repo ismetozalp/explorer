@@ -363,7 +363,10 @@
                     <button class="btn btn-sm btn-outline-light ms-1" @click="closeTab(tab.id)">Close</button>
                 </div>
             </div>
-            <div class="output-pane-body" x-text="tab.outputLines.join('')"></div>
+            <div class="output-pane-body"
+                 x-init="$el._stick = true; $el.addEventListener('scroll', () => { $el._stick = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 40; })"
+                 x-effect="tab.outputLines.length; if ($el._stick) $nextTick(() => { $el.scrollTop = $el.scrollHeight; })"
+                 x-text="tab.outputLines.join('')"></div>
             <div class="output-pane-status">
                 <code x-text="tab.outputCommand"></code>
                 <span x-text="tab.outputStatus"></span>
@@ -405,6 +408,15 @@
 <div class="context-menu" x-show="ctxMenu.open" :style="`left:${ctxMenu.x}px;top:${ctxMenu.y}px`" @click.stop>
     <template x-if="ctxMenu.kind === 'file' || ctxMenu.kind === 'empty'">
         <ul class="ctx-list" @click="closeContextMenu()">
+            <!-- Custom actions (kept at the TOP so a long list isn't clipped off
+                 the bottom of the viewport by a submenu) -->
+            <template x-for="action in applicableActions(ctxMenu.target)" :key="action.id">
+                <li @click="runCustomAction(action)" class="ctx-action-item">
+                    <span class="ctx-action-label" x-text="action.label"></span>
+                    <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
+                </li>
+            </template>
+            <li class="ctx-sep" x-show="applicableActions(ctxMenu.target).length"></li>
             <li x-show="ctxMenu.kind === 'file'" @click="openSelected()">Open</li>
             <li x-show="ctxMenu.kind === 'file' && isTextLike(ctxMenu.target)" @click="openEditor(ctxMenu.target)">Edit</li>
             <li x-show="ctxMenu.kind === 'file' && isPreviewable(ctxMenu.target)" @click="openPreview(ctxMenu.target)">Preview (Space)</li>
@@ -433,19 +445,6 @@
                 x-text="(ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? 'Open folder in new terminal tab' : 'Open in new terminal tab'"></li>
             <li @click="openInTerminal((ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)">Open in Cockpit terminal</li>
             <li x-show="ctxMenu.kind === 'file' && selectedFiles().length === 1" @click="propertiesSelected()">Permissions…</li>
-            <!-- Custom actions submenu -->
-            <li class="ctx-sep" x-show="applicableActions(ctxMenu.target).length"></li>
-            <li class="ctx-has-sub" x-show="applicableActions(ctxMenu.target).length">
-                Custom actions ▸
-                <ul class="ctx-list ctx-sub">
-                    <template x-for="action in applicableActions(ctxMenu.target)" :key="action.id">
-                        <li @click="runCustomAction(action)" class="ctx-action-item">
-                            <span class="ctx-action-label" x-text="action.label"></span>
-                            <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
-                        </li>
-                    </template>
-                </ul>
-            </li>
         </ul>
     </template>
     <template x-if="ctxMenu.kind === 'tab'">

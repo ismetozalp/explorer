@@ -288,6 +288,7 @@ selection, sort order, search, and git strip.
 
 ### Right-click context menu (file or empty area)
 
+> ***Custom actions*** (only the ones that apply to the current selection) — listed at the **top** of the menu
 > *Open · Edit · Preview (Space)*
 > *Copy · Cut · Paste*
 > *Rename · Delete*
@@ -296,7 +297,9 @@ selection, sort order, search, and git strip.
 > *Compress · Extract here · Extract to…*
 > *Open in new tab · Properties*
 > *Open terminal here (split) · Open in new terminal tab · Open in Cockpit terminal* — always available; on a folder they open that folder, on a file or empty space they open the current pane's folder
-> ***Custom actions ▸*** (only the ones that apply to the current selection)
+
+Custom actions sit at the top of the menu (rather than in a submenu) so a
+long list of them is never clipped off the bottom of the screen.
 
 **Paste-as-name.** When you paste (Ctrl-V or the menu) a *single* file or
 folder, the plugin asks for the name it should have in the destination —
@@ -810,7 +813,10 @@ mode these edit the document text for you).
 - **`tray`** — runs in the operations tray; click *View output* (TODO).
 - **`pane`** — opens a **new tab** that streams the output live as
   the command runs. The tab stays open and shows the exit status.
-  Best for `tail -f`, build logs, long-running scripts.
+  Best for `tail -f`, build logs, long-running scripts. The pane
+  **auto-tails** — it keeps scrolling to the newest line as output
+  streams; scroll up to read back and it stops following, scroll to the
+  bottom again to resume.
 
 ### Example actions
 
