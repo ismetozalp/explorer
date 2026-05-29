@@ -4,8 +4,8 @@ INSTALL_DIR = $(PREFIX)/$(NAME)
 SYSCONF ?= /etc/cockpit/$(NAME)
 VERSION := $(shell cat VERSION)
 
-FILES = manifest.json index.html README.md VERSION \
-        css js actions
+FILES = manifest.json index.html README.md VERSION Makefile \
+        css js actions screenshots
 
 .PHONY: all install uninstall zip clean help version
 
