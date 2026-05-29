@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <!-- modal header -->
+  <rect x="0" y="0" width="900" height="40" fill="#23262b"/>
+  <text x="20" y="26" fill="#f0f0f0" font-size="16" font-weight="bold">GitHub</text>
+  <rect x="92" y="12" width="84" height="18" rx="9" fill="#3a3f44"/>
+  <text x="104" y="25" fill="#f0f0f0" font-size="11">@demo</text>
+  <text x="872" y="26" fill="#a6a6a6" font-size="16">×</text>
+
+  <!-- token warning -->
+  <rect x="14" y="48" width="872" height="34" rx="5" fill="#2a2410" stroke="#7a6010"/>
+  <text x="26" y="69" fill="#f0ab00" font-size="11">⚠ This token has broad scopes. Consider a fine-grained PAT limited to specific repos.</text>
+
+  <!-- left: repo list -->
+  <rect x="14" y="92" width="250" height="40" rx="4" fill="#23262b" stroke="#444649"/>
+  <text x="26" y="116" fill="#a6a6a6" font-size="12">Search repos…</text>
+  <rect x="14" y="138" width="250" height="60" rx="4" fill="#1e3a5f" stroke="#75b6fd"/>
+  <text x="26" y="158" fill="#f0f0f0" font-size="13" font-weight="bold">acme/widgets</text>
+  <text x="26" y="174" fill="#a6a6a6" font-size="10">PRIVATE · JavaScript</text>
+  <text x="26" y="190" fill="#5cb85c" font-size="10">✓ 2 local copies</text>
+  <rect x="14" y="204" width="250" height="50" rx="4" fill="#23262b"/>
+  <text x="26" y="224" fill="#f0f0f0" font-size="13">acme/widgets-api</text>
+  <text x="26" y="240" fill="#a6a6a6" font-size="10">PRIVATE · Go</text>
+  <rect x="14" y="260" width="250" height="50" rx="4" fill="#23262b"/>
+  <text x="26" y="280" fill="#f0f0f0" font-size="13">acme/docs-site</text>
+  <text x="26" y="296" fill="#a6a6a6" font-size="10">PUBLIC · TypeScript</text>
+
+  <!-- right: detail -->
+  <text x="286" y="108" fill="#f0f0f0" font-size="14">acme/widgets</text>
+  <!-- tabs -->
+  <text x="286" y="138" fill="#75b6fd" font-size="13" font-weight="bold">Branches</text>
+  <line x1="286" y1="146" x2="350" y2="146" stroke="#75b6fd" stroke-width="2"/>
+  <text x="372" y="138" fill="#a6a6a6" font-size="13">Pull requests</text>
+  <text x="486" y="138" fill="#a6a6a6" font-size="13">Local checkout</text>
+  <line x1="286" y1="146" x2="886" y2="146" stroke="#444649"/>
+
+  <!-- branch rows -->
+  <g font-size="13">
+    <!-- main -->
+    <text x="290" y="176" fill="#f0f0f0" font-weight="bold">main</text>
+    <rect x="332" y="164" width="62" height="16" rx="8" fill="#1f6feb"/>
+    <text x="340" y="176" fill="#fff" font-size="10">protected</text>
+    <text x="290" y="194" fill="#75b6fd" font-size="11">⌂ widgets — /home/demo/projects/widgets</text>
+    <text x="760" y="176" fill="#c060d0" font-size="12" font-family="monospace">a1b2c3d</text>
+    <text x="828" y="176" fill="#75b6fd" font-size="11">Commits</text>
+    <line x1="286" y1="206" x2="886" y2="206" stroke="#33373c"/>
+
+    <!-- develop -->
+    <text x="290" y="232" fill="#f0f0f0" font-weight="bold">develop</text>
+    <text x="290" y="250" fill="#75b6fd" font-size="11">⌂ widgets-dev — /home/demo/projects/widgets-dev</text>
+    <text x="760" y="232" fill="#c060d0" font-size="12" font-family="monospace">e4f5a6b</text>
+    <text x="828" y="232" fill="#75b6fd" font-size="11">Commits</text>
+    <line x1="286" y1="262" x2="886" y2="262" stroke="#33373c"/>
+
+    <!-- feature.login -->
+    <text x="290" y="288" fill="#f0f0f0" font-weight="bold">feature.login</text>
+    <text x="760" y="288" fill="#c060d0" font-size="12" font-family="monospace">7c8d9e0</text>
+    <text x="828" y="288" fill="#75b6fd" font-size="11">Commits</text>
+    <line x1="286" y1="306" x2="886" y2="306" stroke="#33373c"/>
+
+    <!-- release.2026 -->
+    <text x="290" y="332" fill="#f0f0f0" font-weight="bold">release.2026</text>
+    <text x="760" y="332" fill="#c060d0" font-size="12" font-family="monospace">b1c2d3e</text>
+    <text x="828" y="332" fill="#75b6fd" font-size="11">Commits</text>
+  </g>
+
+  <!-- actions hint -->
+  <rect x="286" y="360" width="600" height="1" fill="#444649"/>
+  <text x="290" y="384" fill="#a6a6a6" font-size="11">Each branch row also has: Checkout · Update · Branch from this · Delete</text>
+  <rect x="290" y="398" width="180" height="22" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+  <text x="302" y="413" fill="#75b6fd" font-size="11">+ Check out a new copy…</text>
+</svg>

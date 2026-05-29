@@ -1,0 +1,22 @@
+{
+  "actions": [
+    {
+      "id": "explorer-self-update",
+      "label": "Update Explorer plugin from this archive",
+      "command": "set -e\nexport PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\necho \"== Explorer plugin self-update ==\"\necho \"Installed: {oldVersion}   ->   Archive: {newVersion}\"\ncommand -v unzip >/dev/null 2>&1 || { echo \"ERROR: 'unzip' is not installed.\"; exit 1; }\ncommand -v make  >/dev/null 2>&1 || { echo \"ERROR: 'make' is not installed.\"; exit 1; }\nTMP=\"$(mktemp -d)\"\necho \"Extracting {name} to $TMP ...\"\nunzip -oq {path} -d \"$TMP\"\nDIR=\"$TMP/explorer\"\n[ -f \"$DIR/Makefile\" ] || { echo \"ERROR: archive has no explorer/Makefile inside\"; rm -rf \"$TMP\"; exit 1; }\necho \"Running make install (as administrator) ...\"\nmake -C \"$DIR\" install\nrm -rf \"$TMP\"\nNEW=\"$(cat /usr/share/cockpit/explorer/VERSION 2>/dev/null || echo '?')\"\necho \"Installed version on disk is now: $NEW\"\necho \"Restarting Cockpit so the new version loads (you will be disconnected briefly)...\"\nif command -v systemd-run >/dev/null 2>&1; then\n  systemd-run --no-block --collect /bin/sh -c 'sleep 2; systemctl restart cockpit || systemctl restart cockpit.socket' >/dev/null 2>&1 || \\\n  setsid /bin/sh -c 'sleep 2; systemctl restart cockpit || systemctl restart cockpit.socket' </dev/null >/dev/null 2>&1 &\nelse\n  setsid /bin/sh -c 'sleep 2; systemctl restart cockpit || systemctl restart cockpit.socket' </dev/null >/dev/null 2>&1 &\nfi\necho \"Done. When Cockpit comes back, reload this page (Ctrl+Shift+R). The version badge should read v$NEW.\"",
+      "appliesTo": "file",
+      "pattern": "^explorer-\\d+\\.\\d+(\\.\\d+)?\\.zip$",
+      "output": "pane",
+      "privilege": "require",
+      "confirm": true,
+      "confirmMessage": "Update the Explorer Cockpit plugin?\n\nInstalled version: {oldVersion}\nArchive version:   {newVersion}\n\nThis extracts {name}, runs 'make install' as administrator, and restarts Cockpit. You may be briefly disconnected — reload the page afterwards.",
+      "preCommand": "rm -rf {home}/.config/cockpit/explorer",
+      "preConfirm": "Reset Explorer to default settings as part of this update?\n\n• Delete settings: removes {home}/.config/cockpit/explorer (saved tabs, preferences, and your USER custom actions).\n• Skip: keep all your current settings.\n\n(System actions in /etc/cockpit/explorer are not affected either way.)",
+      "preConfirmLabel": "Delete settings",
+      "postCommand": "",
+      "postConfirm": "",
+      "postConfirmLabel": "",
+      "multi": false
+    }
+  ]
+}

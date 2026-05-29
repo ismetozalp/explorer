@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <!-- header -->
+  <rect x="0" y="0" width="900" height="34" fill="#23262b"/>
+  <text x="16" y="22" fill="#f0f0f0" font-size="13" font-weight="bold">Commits:</text>
+  <text x="84" y="22" fill="#c060d0" font-size="13">acme/widgets</text>
+  <text x="184" y="22" fill="#f0f0f0" font-size="13" font-weight="bold">/ develop</text>
+  <text x="270" y="22" fill="#a6a6a6" font-size="11">(/home/demo/projects/widgets-dev)</text>
+  <text x="872" y="22" fill="#a6a6a6" font-size="15">×</text>
+
+  <!-- column headers -->
+  <rect x="0" y="34" width="260" height="22" fill="#292d31"/>
+  <rect x="260" y="34" width="220" height="22" fill="#292d31"/>
+  <rect x="480" y="34" width="420" height="22" fill="#292d31"/>
+  <text x="12" y="49" fill="#a6a6a6" font-size="10">COMMITS</text>
+  <text x="272" y="49" fill="#a6a6a6" font-size="10">FILES CHANGED</text>
+  <text x="492" y="49" fill="#a6a6a6" font-size="10">DIFF</text>
+  <line x1="260" y1="34" x2="260" y2="540" stroke="#444649"/>
+  <line x1="480" y1="34" x2="480" y2="540" stroke="#444649"/>
+
+  <!-- commit list -->
+  <rect x="0" y="56" width="260" height="48" fill="#1e3a5f"/>
+  <text x="12" y="74" fill="#f0f0f0" font-size="12">add login form validation</text>
+  <text x="12" y="92" fill="#c060d0" font-size="10" font-family="monospace">7c8d9e0</text>
+  <text x="80" y="92" fill="#a6a6a6" font-size="10">demo · 2d ago</text>
+  <g font-size="12" fill="#f0f0f0">
+    <text x="12" y="124">refactor auth service</text>
+    <text x="12" y="142" fill="#c060d0" font-size="10" font-family="monospace">a1b2c3d</text><text x="80" y="142" fill="#a6a6a6" font-size="10">demo · 3d ago</text>
+    <text x="12" y="174">fix token refresh</text>
+    <text x="12" y="192" fill="#c060d0" font-size="10" font-family="monospace">e4f5a6b</text><text x="80" y="192" fill="#a6a6a6" font-size="10">demo · 3d ago</text>
+    <text x="12" y="224">initial commit</text>
+    <text x="12" y="242" fill="#c060d0" font-size="10" font-family="monospace">b1c2d3e</text><text x="80" y="242" fill="#a6a6a6" font-size="10">demo · 5d ago</text>
+  </g>
+
+  <!-- files changed -->
+  <rect x="260" y="56" width="220" height="40" fill="#1e3a5f"/>
+  <text x="272" y="74" fill="#f0f0f0" font-size="11">src/auth/LoginForm.js</text>
+  <text x="272" y="90" fill="#5cb85c" font-size="10">+24</text><text x="304" y="90" fill="#fb6e6e" font-size="10">-3</text>
+  <g font-size="11" fill="#f0f0f0">
+    <text x="272" y="118">src/auth/validators.js</text>
+    <text x="272" y="134" fill="#5cb85c" font-size="10">+12</text><text x="300" y="134" fill="#fb6e6e" font-size="10">-0</text>
+    <text x="272" y="162">tests/login.test.js</text>
+    <text x="272" y="178" fill="#5cb85c" font-size="10">+40</text><text x="300" y="178" fill="#fb6e6e" font-size="10">-1</text>
+  </g>
+
+  <!-- diff -->
+  <rect x="480" y="56" width="420" height="20" fill="#1f3550"/>
+  <text x="492" y="70" fill="#f0f0f0" font-size="10" font-family="monospace">@@ -41,7 +41,9 @@ export function LoginForm()</text>
+  <g font-family="monospace" font-size="11">
+    <!-- context -->
+    <text x="492" y="92" fill="#a6a6a6">41  const [user, setUser] = useState('');</text>
+    <!-- deletion -->
+    <rect x="480" y="98" width="420" height="16" fill="#4a1f1f"/>
+    <text x="492" y="110" fill="#ffb3b3">42 - <tspan fill="#fff" >submit</tspan>(data);</text>
+    <!-- addition -->
+    <rect x="480" y="116" width="420" height="16" fill="#143b1f"/>
+    <text x="492" y="128" fill="#b3ffb3">42 + <tspan fill="#fff">validateAndSubmit</tspan>(data);</text>
+    <text x="492" y="146" fill="#a6a6a6">43  return ok;</text>
+    <!-- addition block -->
+    <rect x="480" y="152" width="420" height="16" fill="#143b1f"/>
+    <text x="492" y="164" fill="#b3ffb3">44 + if (!data.email) throw Error();</text>
+    <text x="492" y="182" fill="#a6a6a6">45  }</text>
+  </g>
+  <text x="492" y="210" fill="#a6a6a6" font-size="10">Side-by-side / Unified toggle · loads remote commits via the GitHub API</text>
+</svg>

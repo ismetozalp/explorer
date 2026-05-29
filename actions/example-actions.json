@@ -1,0 +1,159 @@
+{
+    "actions": [
+        {
+            "id": "open-terminal-here",
+            "label": "Open terminal here",
+            "command": "echo 'Open the Terminal app in Cockpit, then run: cd '{dir}",
+            "appliesTo": "",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "tail-log",
+            "label": "Tail -f",
+            "command": "tail -f {path}",
+            "appliesTo": "file",
+            "pattern": "\\.log$",
+            "output": "pane",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "checksum-sha256",
+            "label": "SHA-256 checksum",
+            "command": "sha256sum {paths}",
+            "appliesTo": "file",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": true
+        },
+        {
+            "id": "file-type",
+            "label": "Identify file type",
+            "command": "file -b {paths}",
+            "appliesTo": "file",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": true
+        },
+        {
+            "id": "du-sh",
+            "label": "Disk usage (du -sh)",
+            "command": "du -sh {paths}",
+            "appliesTo": "",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": true
+        },
+        {
+            "id": "systemd-reload",
+            "label": "Install as systemd unit and reload",
+            "command": "cp {path} /etc/systemd/system/ && systemctl daemon-reload && echo 'Installed: {name}'",
+            "appliesTo": "file",
+            "pattern": "\\.(service|timer|socket|mount|target)$",
+            "output": "modal",
+            "privilege": "require",
+            "confirm": true,
+            "multi": false
+        },
+        {
+            "id": "make-executable",
+            "label": "Make executable (chmod +x)",
+            "command": "chmod +x {paths}",
+            "appliesTo": "file",
+            "pattern": "",
+            "output": "toast",
+            "privilege": "try",
+            "confirm": false,
+            "multi": true
+        },
+        {
+            "id": "git-status-here",
+            "label": "git status",
+            "command": "cd {path} && git status",
+            "appliesTo": "dir",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "git-pull-here",
+            "label": "git pull",
+            "command": "cd {path} && git pull",
+            "appliesTo": "dir",
+            "pattern": "",
+            "output": "pane",
+            "privilege": "user",
+            "confirm": true,
+            "multi": false
+        },
+        {
+            "id": "find-large-files",
+            "label": "Find large files (>100MB) here",
+            "command": "find {path} -type f -size +100M -exec ls -lh {} +",
+            "appliesTo": "dir",
+            "pattern": "",
+            "output": "pane",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "tar-list",
+            "label": "List archive contents",
+            "command": "case '{name}' in *.zip) unzip -l {path};; *.tar*|*.tgz|*.tbz|*.txz) tar -tvf {path};; *) echo 'Unsupported archive type';; esac",
+            "appliesTo": "archive",
+            "pattern": "",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "image-thumb",
+            "label": "Generate thumbnail (200px)",
+            "command": "convert {path} -thumbnail 200x200 {dir}/thumb_{name}",
+            "appliesTo": "file",
+            "pattern": "\\.(jpe?g|png|gif|webp|bmp|tiff?)$",
+            "output": "toast",
+            "privilege": "user",
+            "confirm": false,
+            "multi": true
+        },
+        {
+            "id": "syntax-check-sh",
+            "label": "sh syntax check",
+            "command": "sh -n {path} && echo 'OK: no syntax errors'",
+            "appliesTo": "file",
+            "pattern": "\\.(sh|bash)$",
+            "output": "modal",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false
+        },
+        {
+            "id": "ls-la-here",
+            "label": "ls -la here (allowed on repo caches)",
+            "command": "ls -la {path}",
+            "appliesTo": "dir",
+            "pattern": "",
+            "output": "tray",
+            "privilege": "user",
+            "confirm": false,
+            "multi": false,
+            "allowOnRepoCache": true
+        }
+    ]
+}

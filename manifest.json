@@ -1,0 +1,15 @@
+{
+    "version": 0,
+    "name": "explorer",
+    "requires": {
+        "cockpit": "215"
+    },
+    "tools": {
+        "index": {
+            "label": "Explorer",
+            "path": "index.html",
+            "order": 50
+        }
+    },
+    "content-security-policy": "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; object-src 'self' blob:; frame-src 'self' blob:; worker-src 'self' blob:"
+}
