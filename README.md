@@ -788,6 +788,8 @@ mode these edit the document text for you).
 | `postConfirm` | string (optional)                                              | If set, asks before `postCommand` with **Run / Skip**.                  |
 | `postConfirmLabel` | string (optional)                                         | Label for the "Run" button of the post-step prompt.                     |
 | `multi`      | bool                                                            | Allow when multiple files are selected.                                 |
+| `interactive`| bool                                                            | Run the command in an interactive pane that understands the **Script Prompt Protocol** (below). Output is always a streaming pane. |
+| `script`     | string (filename)                                               | A shell script uploaded to the scope's `scripts/` folder. Used to build `{script}`; usually set by the **Shell script** upload in the form editor. |
 
 ### Placeholders
 
@@ -800,10 +802,100 @@ mode these edit the document text for you).
 | `{home}`   | The current user's home directory.                               |
 | `{oldVersion}` | The currently installed Explorer version.                    |
 | `{newVersion}` | Version parsed from an `explorer-X.Y[.Z].zip` filename.      |
+| `{scripts}` | The scope's scripts folder (`~/.config/cockpit/explorer/scripts` for user, `/etc/cockpit/explorer/scripts` for system). |
+| `{script}`  | Full path to this action's uploaded `script` inside `{scripts}`. |
 
 > Placeholders work in `command`, `preCommand`, `postCommand`, and in the
 > confirmation messages. In commands the values are shell-quoted; in
 > messages they are inserted as plain text.
+
+### Interactive scripts — the Script Prompt Protocol
+
+An action with `"interactive": true` runs its command in a streaming pane
+with **stdin kept open**, so a shell script can ask the user questions
+mid-run. To prompt, the script writes a small YAML block between two
+sentinel lines to stdout, then reads **one line** from stdin — that line
+is the user's answer:
+
+```
+===EXPLORER-PROMPT===
+type: radio          # radio (single-select) | text (free text / textbox)
+title: Deploy        # dialog title (optional)
+message: Pick env    # text shown above the control (optional)
+options: [dev, staging, prod]   # required for type: radio
+default: staging     # optional (preselected radio / prefilled textbox)
+===EXPLORER-END===
+```
+
+The plugin parses the block, shows the dialog, and writes the chosen
+value (radio) or typed text (text) followed by a newline to the script's
+stdin — exactly as if the user typed it and pressed Enter. The script's
+`read` unblocks and continues. A script may prompt as many times as it
+likes. **Cancelling** a dialog aborts the script (its channel is closed).
+
+User-scope scripts live in the **home** directory at
+`~/.config/cockpit/explorer/scripts` (next to the user `actions.json`) —
+never under `/etc`. System-scope scripts live at
+`/etc/cockpit/explorer/scripts`.
+
+#### Display messages (no input)
+
+A block whose `type` is a display type — `message`, `info`, `note`,
+`notify`, `progress`, `status`, or `log` — is **shown to the user and the
+script keeps running** (it must *not* read stdin for these). Use it for
+progress/status updates. You may open the block with `===EXPLORER-PROMPT===`
+or the clearer alias `===EXPLORER-MESSAGE===`:
+
+```
+===EXPLORER-MESSAGE===
+type: progress
+text: Building image…       # the message (also accepts `message:`)
+level: info                 # info | success | warning | error (optional)
+toast: false                # also pop a toast? (default false → pane line only)
+===EXPLORER-END===
+```
+
+Display messages appear in the pane as a `» …` line; `success`/`warning`/
+`error` levels (or `toast: true`) also pop a toast. Because they don't
+wait for input, you can stream as many as you like.
+
+Example script (`deploy.sh`), uploaded via the **Shell script** picker in
+the action editor (which stores it under `scripts/` and sets the command
+to `bash {script}`):
+
+```bash
+#!/usr/bin/env bash
+echo "===EXPLORER-PROMPT==="
+echo "type: radio"
+echo "title: Environment"
+echo "options: [dev, staging, prod]"
+echo "===EXPLORER-END==="
+read -r ENV
+
+echo "===EXPLORER-MESSAGE==="
+echo "type: progress"
+echo "text: Deploying to $ENV …"
+echo "===EXPLORER-END==="
+
+echo "===EXPLORER-PROMPT==="
+echo "type: text"
+echo "title: Release notes"
+echo "===EXPLORER-END==="
+read -r NOTES
+
+echo "===EXPLORER-MESSAGE==="
+echo "type: message"
+echo "level: success"
+echo "text: Done ($NOTES)"
+echo "toast: true"
+echo "===EXPLORER-END==="
+```
+
+> Lines other than prompt blocks are shown in the pane as normal output;
+> the value the plugin sends back is echoed as a `‹ …` transcript line.
+> If your script's stdout is buffered (e.g. Python), flush it before
+> reading so the prompt reaches the UI; `echo`/`printf` in `sh`/`bash`
+> are fine.
 
 ### Output modes
 

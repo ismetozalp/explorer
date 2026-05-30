@@ -1,0 +1,58 @@
+--- js/app.js
++++ js/app.js
+@@ -15,6 +15,16 @@ const DEFAULT_SETTINGS = {
+ 
+ const USER_ACTIONS_PATH_SUFFIX = '/.config/cockpit/explorer/actions.json';
+ const SYSTEM_ACTIONS_PATH = '/etc/cockpit/explorer/actions.json';
++const USER_SCRIPTS_DIR_SUFFIX = '/.config/cockpit/explorer/scripts';
++const SYSTEM_SCRIPTS_DIR = '/etc/cockpit/explorer/scripts';
++// Explorer Script Prompt Protocol: a script asks for input by printing a YAML
++// block between these two sentinel lines, then reading one line from stdin.
++// A block whose `type` is a display type (message/info/progress/…) is shown
++// without asking for input; ===EXPLORER-MESSAGE=== is an alias start marker.
++const PROMPT_START = '===EXPLORER-PROMPT===';
++const MSG_START = '===EXPLORER-MESSAGE===';
++const PROMPT_END = '===EXPLORER-END===';
++const DISPLAY_TYPES = ['message', 'info', 'note', 'notify', 'progress', 'status', 'log'];
+ const LS_KEY_TABS = 'explorer:tabs';
+ const LS_KEY_SETTINGS = 'explorer:settings';
+ 
+@@ -2081,6 +2091,8 @@ Alpine.data('explorer', () => ({
+             postCommand: a.postCommand || '',
+             postConfirm: a.postConfirm || '',
+             postConfirmLabel: a.postConfirmLabel || '',
++            interactive: !!a.interactive,
++            script: a.script || '',
+             multi: a.multi !== false,
+         };
+     },
+@@ -2263,6 +2300,8 @@ Alpine.data('explorer', () => ({
+                 postCommand: a.postCommand || '',
+                 postConfirm: a.postConfirm || '',
+                 postConfirmLabel: a.postConfirmLabel || '',
++                interactive: !!a.interactive,
++                script: a.script || '',
+                 multi: a.multi !== false,
+             });
+         }
+@@ -2508,11 +2547,18 @@ Alpine.data('explorer', () => ({
+         }
+ 
+         // 3) Main command (per-file when there is no {paths} token).
++        const scope = this._actionScope(action);
++        const scriptsDir = this._scriptsDir(scope);
++        const scriptPath = action.script ? Util.joinPath(scriptsDir, action.script) : '';
+         const hasPathsToken = /\{paths\}/.test(action.command);
+         const groups = (sel.length > 1 && !hasPathsToken) ? sel.map(f => [f]) : [sel];
+         for (const group of groups) {
+-            const cmd = Util.fillTemplate(action.command, this._actionContext(group));
+-            await this._runActionCmd(action, cmd, group);
++            const ctx = this._actionContext(group);
++            ctx.scripts = scriptsDir;
++            ctx.script = scriptPath;
++            const cmd = Util.fillTemplate(action.command, ctx);
++            if (action.interactive) await this._runInteractivePane(action, cmd, group);
++            else await this._runActionCmd(action, cmd, group);
+         }
+ 
+         // 4) Post-run command, with optional confirmation (Run / Skip).

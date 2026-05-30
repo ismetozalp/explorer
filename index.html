@@ -850,7 +850,7 @@
                         <template x-if="actionsMgr.editingIdx !== null && customActions[actionsMgr.scope][actionsMgr.editingIdx]">
                             <div>
                                 <div class="mb-2"><label class="form-label">Label</label><input class="form-control" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].label"></div>
-                                <div class="mb-2"><label class="form-label">Command (use {path}, {paths}, {dir}, {name}, {base}, {ext})</label><textarea class="form-control font-monospace" rows="3" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].command"></textarea></div>
+                                <div class="mb-2"><label class="form-label">Command (use {path}, {paths}, {dir}, {name}, {base}, {ext}, {script}, {scripts})</label><textarea class="form-control font-monospace" rows="3" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].command"></textarea></div>
                                 <div class="row">
                                     <div class="col-6 mb-2">
                                         <label class="form-label">Applies to</label>
@@ -895,6 +895,26 @@
                                     <small class="form-text text-muted">Shown in the confirm dialog. Supports {name} {base} {ext} {dir} {path} {home} {oldVersion} {newVersion}.</small>
                                 </div>
                                 <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'multi-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].multi"><label class="form-check-label" :for="'multi-' + actionsMgr.editingIdx">Allow on multiple selection</label></div>
+
+                                <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'intr-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].interactive"><label class="form-check-label" :for="'intr-' + actionsMgr.editingIdx">Interactive — script can prompt for input (radio / textbox) via the Explorer prompt protocol</label></div>
+                                <div class="mb-3">
+                                    <label class="form-label">Shell script <small class="text-muted">(uploaded to <code x-text="actionsMgr.scope === 'system' ? '/etc/cockpit/explorer/scripts' : '~/.config/cockpit/explorer/scripts'"></code>)</small></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="file" class="form-control" @change="uploadActionScript($event)">
+                                        <span class="input-group-text" x-show="customActions[actionsMgr.scope][actionsMgr.editingIdx].script" x-text="customActions[actionsMgr.scope][actionsMgr.editingIdx].script"></span>
+                                    </div>
+                                    <small class="form-text text-muted">Uploading sets the command to <code>bash {script}</code> and turns on Interactive. Reference it in the command with <code>{script}</code> (this script) or <code>{scripts}</code> (the folder).</small>
+                                </div>
+
+                                <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'intr-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].interactive"><label class="form-check-label" :for="'intr-' + actionsMgr.editingIdx">Interactive — script can prompt for input (radio / textbox) via the Explorer prompt protocol</label></div>
+                                <div class="mb-3">
+                                    <label class="form-label">Shell script <small class="text-muted">(uploaded to <code x-text="actionsMgr.scope === 'system' ? '/etc/cockpit/explorer/scripts' : '~/.config/cockpit/explorer/scripts'"></code>)</small></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="file" class="form-control" @change="uploadActionScript($event)">
+                                        <span class="input-group-text" x-show="customActions[actionsMgr.scope][actionsMgr.editingIdx].script" x-text="customActions[actionsMgr.scope][actionsMgr.editingIdx].script"></span>
+                                    </div>
+                                    <small class="form-text text-muted">Uploading sets the command to <code>bash {script}</code> and turns on Interactive. Reference it in the command with <code>{script}</code> (this script) or <code>{scripts}</code> (the folder).</small>
+                                </div>
 
                                 <details class="mb-3">
                                     <summary class="text-muted">Pre / post-run steps (optional)</summary>
