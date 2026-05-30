@@ -207,6 +207,7 @@
                 <button class="btn btn-outline-secondary" @click="repoStageCommit(activePane(tab), false)" :disabled="!activePane(tab).gitInfo?.dirty" title="Commit staged changes locally (no network)">Commit…</button>
                 <button class="btn btn-outline-secondary" x-show="gh.state === 'authed'" @click="repoStageCommit(activePane(tab), true)" :disabled="!activePane(tab).gitInfo?.dirty">Commit &amp; Push…</button>
                 <button class="btn btn-outline-primary" x-show="gh.state === 'authed'" @click="repoPush(activePane(tab))">Push</button>
+                <button class="btn btn-outline-danger" x-show="activePane(tab).gitInfo?.dirty" @click="repoRollback(activePane(tab))" title="Discard ALL uncommitted changes (reset --hard + remove untracked files)">Rollback</button>
                 <button class="btn btn-outline-warning" x-show="gh.state !== 'authed'" @click="openGithubPanel(tab)" title="Set up GitHub (gh CLI) to enable Fetch / Pull / Push">Set up GitHub…</button>
             </span>
         </div>

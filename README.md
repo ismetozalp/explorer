@@ -544,6 +544,12 @@ checkout's folder. Five actions:
     (after a count of what will be lost).
   - **Keep local, don't push** — no-op, resolve manually in a terminal.
   - **Cancel** — close the dialog.
+- **Rollback** — a red button that appears **only when the working tree is
+  dirty**. After a confirmation (showing the path and how many changes are
+  affected), it discards *all* uncommitted changes: `git reset --hard HEAD`
+  on tracked files plus `git clean -fd` to remove new/untracked
+  (non-ignored) files and directories. Works offline (no GitHub needed) and
+  cannot be undone.
 
 All network operations (Fetch, Pull, Push, Update, Commits) authenticate
 with the gh token, and on login the panel runs `gh auth setup-git` so

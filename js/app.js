@@ -4765,6 +4765,29 @@ Alpine.data('explorer', () => ({
         } catch (e) { this._failOp(op, e); }
     },
 
+    // Discard ALL uncommitted changes: reset tracked files to HEAD and remove
+    // untracked (non-ignored) files/dirs. Only meaningful when the tree is dirty.
+    async repoRollback(tab) {
+        const info = tab.gitInfo;
+        if (!info || !info.dirty) return;
+        const n = info.dirtyCount || 0;
+        const ok = await this.askConfirm('Roll back all changes',
+            'Discard ALL uncommitted changes in:\n' + tab.path + '\n\n' +
+            'This resets tracked files to the last commit (' + (info.branch || 'HEAD') + ') and deletes new/untracked files' +
+            (n ? (' — ' + n + ' change(s) affected') : '') + '.\n\nThis cannot be undone.',
+            'Discard everything');
+        if (!ok) return;
+        const op = this._beginOp('Roll back ' + (info.branch || 'changes'));
+        try {
+            await cockpit.spawn(['git', '-C', tab.path, 'reset', '--hard', 'HEAD'], { err: 'message' });
+            await cockpit.spawn(['git', '-C', tab.path, 'clean', '-fd'], { err: 'message' });
+            this._endOp(op, 'done');
+            this._refreshAllGitInfo();
+            this.reload(tab);
+            this.toast('Rolled back all changes.', 'success');
+        } catch (e) { this._failOp(op, e); this.toast('Rollback failed: ' + (e.message || e), 'danger'); }
+    },
+
     askCommitMsg(fileCount, push) {
         return new Promise(resolve => {
             this.commitMsg = { message: '', fileCount, push, resolve };
