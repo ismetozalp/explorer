@@ -1268,6 +1268,11 @@ body {
     gap: 10px;
 }
 .ctx-action-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-action-item.ctx-action-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.ctx-action-item.ctx-action-disabled:hover { background: transparent; }
 .ca-badge {
     flex-shrink: 0;
     font-size: 9.5px;

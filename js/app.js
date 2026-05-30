@@ -147,6 +147,8 @@ Alpine.data('explorer', () => ({
     pluginVersion: '',
     actionsModalEl: null,
 
+    globalActionsModalEl: null,
+
     settingsModalEl: null,
 
     toasts: [],
@@ -2101,6 +2103,7 @@ Alpine.data('explorer', () => ({
             postConfirmLabel: a.postConfirmLabel || '',
             interactive: !!a.interactive,
             script: a.script || '',
+            requiresGh: !!a.requiresGh,
             multi: a.multi !== false,
         };
     },
@@ -2247,6 +2250,7 @@ Alpine.data('explorer', () => ({
             if (a.confirmMessage) o.confirmMessage = a.confirmMessage;
             if (a.interactive) o.interactive = true;
             if (a.script) o.script = a.script;
+            if (a.requiresGh) o.requiresGh = true;
             if (a.preCommand) o.preCommand = a.preCommand;
             if (a.preConfirm) o.preConfirm = a.preConfirm;
             if (a.preConfirmLabel) o.preConfirmLabel = a.preConfirmLabel;
@@ -2312,6 +2316,7 @@ Alpine.data('explorer', () => ({
                 postConfirmLabel: a.postConfirmLabel || '',
                 interactive: !!a.interactive,
                 script: a.script || '',
+                requiresGh: !!a.requiresGh,
                 multi: a.multi !== false,
             });
         }
@@ -2456,6 +2461,7 @@ Alpine.data('explorer', () => ({
         return ({
             '': 'all items', both: 'files & directories', file: 'files',
             dir: 'directories', symlink: 'symlinks', archive: 'archives',
+            global: 'global (toolbar)',
         })[v || ''] || (v || 'all items');
     },
 
@@ -2477,6 +2483,7 @@ Alpine.data('explorer', () => ({
         const targets = sel.length > 0 ? sel : (file ? [file] : []);
         const anyInCache = targets.some(t => this.insideAnyRepoCache(t.path));
         return tagged.filter(({ a }) => {
+            if (a.appliesTo === 'global') return false;   // toolbar-only; never in the file menu
             if (!file && sel.length === 0) return false;
             if (targets.length > 1 && !a.multi) return false;
             if (a.appliesTo) {
@@ -2524,6 +2531,10 @@ Alpine.data('explorer', () => ({
     },
 
     async runCustomAction(action) {
+        if (action.requiresGh && this.gh.state !== 'authed') {
+            this.toast('"' + (action.label || 'This action') + '" requires GitHub (gh) — set it up first.', 'warning');
+            return;
+        }
         const tab = this.currentPane();
         const sel = this.selectedFiles(tab);
         if (!sel.length) return;
@@ -2586,6 +2597,57 @@ Alpine.data('explorer', () => ({
         }
     },
 
+    // ── Global (file-independent) actions — run from the toolbar ──────────
+    // All actions whose appliesTo === 'global', tagged with their source.
+    globalActions() {
+        const builtin = this.customActions.builtin || [];
+        const builtinIds = new Set(builtin.map(a => a.id));
+        return [
+            ...builtin.map(a => ({ a, source: 'system' })),
+            ...this.customActions.system.filter(a => !builtinIds.has(a.id)).map(a => ({ a, source: 'system' })),
+            ...this.customActions.user.filter(a => !builtinIds.has(a.id)).map(a => ({ a, source: 'user' })),
+        ].filter(({ a }) => a.appliesTo === 'global').map(({ a, source }) => ({ ...a, _source: source }));
+    },
+    // Context for a global action: no file, {dir} is the active pane's folder.
+    _globalContext(action) {
+        const pane = this.currentPane();
+        const dir = (pane && pane.path) || this.homePath || '/';
+        const scope = this._actionScope(action);
+        const scriptsDir = this._scriptsDir(scope);
+        return {
+            path: '', paths: [], dir, name: '', base: '', ext: '',
+            home: this.homePath || '', oldVersion: this.pluginVersion || '(unknown)', newVersion: '',
+            scripts: scriptsDir, script: action.script ? Util.joinPath(scriptsDir, action.script) : '',
+        };
+    },
+    openGlobalActions() {
+        bootstrap.Modal.getOrCreateInstance(this.globalActionsModalEl).show();
+    },
+    // Confirm, then run a global action (optionally with pre/post + interactive).
+    async runGlobalAction(action) {
+        if (action.requiresGh && this.gh.state !== 'authed') {
+            this.toast('"' + (action.label || 'This action') + '" requires GitHub (gh) — set it up first.', 'warning');
+            return;
+        }
+        const ctx = this._globalContext(action);
+        // Close the picker first so the confirm/output isn't stacked behind it.
+        try { bootstrap.Modal.getOrCreateInstance(this.globalActionsModalEl).hide(); } catch (e) {}
+        const msg = action.confirmMessage
+            ? Util.fillText(action.confirmMessage, ctx)
+            : `Run "${action.label || 'action'}"?`;
+        const ok = await this.askConfirm(action.label || 'Run action', msg, 'Run');
+        if (!ok) return;
+        if (action.preCommand && action.preCommand.trim()) {
+            await this._runActionStep(action, Util.fillTemplate(action.preCommand, ctx), (action.label || 'action') + ' — pre');
+        }
+        const cmd = Util.fillTemplate(action.command, ctx);
+        if (action.interactive) await this._runInteractivePane(action, cmd, []);
+        else await this._runActionCmd(action, cmd, []);
+        if (action.postCommand && action.postCommand.trim()) {
+            await this._runActionStep(action, Util.fillTemplate(action.postCommand, ctx), (action.label || 'action') + ' — post');
+        }
+    },
+
     // Run a pre/post step as a tray operation (streaming output). Failures are
     // reported but don't abort the chain (e.g. "rm -rf" of a missing dir).
     async _runActionStep(action, cmd, label) {
@@ -2639,7 +2701,7 @@ Alpine.data('explorer', () => ({
         const adminFlag = action.privilege === 'require' ? { admin: true }
                        : action.privilege === 'try' ? { adminTry: true }
                        : {};
-        const label = `${action.label} (${files.map(f => f.name).join(', ')})`;
+        const label = files.length ? `${action.label} (${files.map(f => f.name).join(', ')})` : (action.label || 'action');
 
         if (action.output === 'pane') {
             // Open a new tab with streaming output

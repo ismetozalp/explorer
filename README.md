@@ -820,7 +820,7 @@ mode these edit the document text for you).
 | `id`         | string (auto-assigned)                                          | Identifier; keep stable so order persists.                              |
 | `label`      | string                                                          | Menu label.                                                             |
 | `command`    | shell command                                                   | Executed via `sh -c`. Use placeholders (below).                         |
-| `appliesTo`  | `""` · `both` · `file` · `dir` · `symlink` · `archive`          | Restrict to a kind of target: empty = any item, `both` = files and directories, or one specific kind. |
+| `appliesTo`  | `""` · `both` · `file` · `dir` · `symlink` · `archive` · `global` | Restrict to a kind of target: empty = any item, `both` = files and directories, or one specific kind. `global` = a **file-independent action** that is hidden from the right-click menu and instead listed in the toolbar **▶ Run** popup (see below). |
 | `pattern`    | regex (string)                                                  | Only show the action when the target *name* matches this regex. With several items selected, **all** of them must match. |
 | `output`     | `toast` · `modal` · `tray` · `pane`                             | How output is presented (see below).                                    |
 | `privilege`  | `user` · `try` · `require`                                      | Run as user, try-then-elevate, or require admin.                        |
@@ -835,6 +835,7 @@ mode these edit the document text for you).
 | `multi`      | bool                                                            | Allow when multiple files are selected.                                 |
 | `interactive`| bool                                                            | Run the command in an interactive pane that understands the **Script Prompt Protocol** (below). Output is always a streaming pane. |
 | `script`     | string (filename)                                               | A shell script uploaded to the scope's `scripts/` folder. Used to build `{script}`; usually set by the **Shell script** upload in the form editor. |
+| `requiresGh` | bool                                                            | The action needs the GitHub CLI to be set up. While `gh` is not authenticated, the action is shown **grayed out and is not runnable** (a `gh` badge marks it) — both in the right-click menu and the ▶ Run popup. |
 
 ### Placeholders
 
@@ -957,6 +958,21 @@ echo "===EXPLORER-END==="
   To bound memory on long-running streams, each pane keeps at most
   `outputMaxLines` lines (default 5000; set `0` for unlimited in
   Settings) — once exceeded, the oldest lines are dropped.
+
+### Global (toolbar) actions
+
+An action with `appliesTo: global` isn't tied to a file or directory, so it
+doesn't appear in the right-click menu. Instead it's listed in the **▶ Run**
+button in the top bar (next to *⚙ Actions*), which opens a popup table of
+all global actions, each with its own **Run** button. Running one always
+asks for confirmation first (using `confirmMessage` if set), then executes.
+
+Global actions have no `{path}`/`{name}` (those expand to empty); `{dir}` is
+the **active pane's directory**, and `{script}`/`{scripts}` work as usual —
+handy for "run a maintenance script", "open a dashboard", "prune docker",
+and similar repo-/file-independent tasks. `global` actions can be
+`interactive` too, so a toolbar script can prompt via the Script Prompt
+Protocol.
 
 ### Example actions
 

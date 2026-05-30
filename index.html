@@ -37,6 +37,9 @@
           @click="updateState.available ? startSelfUpdate() : checkForUpdate(true)"
           :title="updateState.checking ? 'Checking for updates…' : (updateState.available ? ('Update to v' + updateState.available.version + ' available — click to install') : 'Click to check for updates')"
           x-text="(updateState.available ? '↑ ' : '') + 'Explorer v' + pluginVersion"></span>
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openGlobalActions()" title="Run a global action (not tied to a file)">
+        <span>▶ Run</span>
+    </button>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
@@ -420,8 +423,12 @@
             <!-- Custom actions (kept at the TOP so a long list isn't clipped off
                  the bottom of the viewport by a submenu) -->
             <template x-for="action in applicableActions(ctxMenu.target)" :key="action.id">
-                <li @click="runCustomAction(action)" class="ctx-action-item">
+                <li @click="(action.requiresGh && gh.state !== 'authed') ? null : runCustomAction(action)"
+                    class="ctx-action-item"
+                    :class="{ 'ctx-action-disabled': action.requiresGh && gh.state !== 'authed' }"
+                    :title="(action.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">
                     <span class="ctx-action-label" x-text="action.label"></span>
+                    <span x-show="action.requiresGh" class="ca-badge ca-badge-system" title="Requires GitHub (gh)">gh</span>
                     <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
                 </li>
             </template>
@@ -870,6 +877,7 @@
                                             <option value="dir">Directories only</option>
                                             <option value="symlink">Symlinks only</option>
                                             <option value="archive">Archives only</option>
+                                            <option value="global">Global (toolbar — not file-related)</option>
                                         </select>
                                     </div>
                                     <div class="col-6 mb-2">
@@ -906,6 +914,7 @@
                                 <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'multi-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].multi"><label class="form-check-label" :for="'multi-' + actionsMgr.editingIdx">Allow on multiple selection</label></div>
 
                                 <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'intr-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].interactive"><label class="form-check-label" :for="'intr-' + actionsMgr.editingIdx">Interactive — script can prompt for input (radio / textbox) via the Explorer prompt protocol</label></div>
+                                <div class="form-check mb-2"><input type="checkbox" class="form-check-input" :id="'rgh-' + actionsMgr.editingIdx" x-model="customActions[actionsMgr.scope][actionsMgr.editingIdx].requiresGh"><label class="form-check-label" :for="'rgh-' + actionsMgr.editingIdx">Requires GitHub (gh) — grayed out and not runnable until gh is set up</label></div>
                                 <div class="mb-3">
                                     <label class="form-label">Shell script <small class="text-muted">(uploaded to <code x-text="actionsMgr.scope === 'system' ? '/etc/cockpit/explorer/scripts' : '~/.config/cockpit/explorer/scripts'"></code>)</small></label>
                                     <div class="input-group input-group-sm">
@@ -1008,6 +1017,51 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" data-bs-dismiss="modal" @click="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== GLOBAL ACTIONS (toolbar) MODAL ============== -->
+<div class="modal fade" id="globalActionsModal" tabindex="-1" x-data x-init="globalActionsModalEl = $el">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Run an action</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <template x-if="globalActions().length">
+                    <table class="table table-sm table-dark align-middle mb-0">
+                        <thead>
+                            <tr><th style="width:30%">Action</th><th>Command</th><th style="width:80px"></th></tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="ga in globalActions()" :key="ga.id">
+                                <tr>
+                                    <td>
+                                        <span x-text="ga.label"></span>
+                                        <span class="badge bg-secondary ms-1" style="font-size:9px" x-text="ga._source"></span>
+                                        <span x-show="ga.interactive" class="badge bg-info ms-1" style="font-size:9px">interactive</span>
+                                        <span x-show="ga.requiresGh" class="badge bg-warning text-dark ms-1" style="font-size:9px">gh</span>
+                                    </td>
+                                    <td><code class="small text-truncate d-inline-block" style="max-width:340px" x-text="ga.command"></code></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" @click="runGlobalAction(ga)"
+                                                :disabled="ga.requiresGh && gh.state !== 'authed'"
+                                                :title="(ga.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">Run</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <div x-show="!globalActions().length" class="text-muted p-3 text-center">
+                    No global actions yet. Create one in <strong>⚙ Actions</strong> with <em>Applies to: Global (toolbar)</em>.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
