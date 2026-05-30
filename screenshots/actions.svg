@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <rect width="900" height="540" fill="#000" opacity="0.45"/>
+
+  <!-- modal -->
+  <rect x="90" y="40" width="720" height="460" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="90" y="40" width="720" height="44" rx="8" fill="#23262b"/>
+  <rect x="90" y="74" width="720" height="10" fill="#23262b"/>
+  <text x="112" y="68" fill="#f0f0f0" font-size="15" font-weight="bold">Custom actions</text>
+  <text x="784" y="68" fill="#a6a6a6" font-size="16">×</text>
+  <line x1="90" y1="84" x2="810" y2="84" stroke="#444649"/>
+
+  <!-- scope tabs + form/code toggle -->
+  <rect x="112" y="98" width="60" height="24" rx="4" fill="#0d6efd"/>
+  <text x="128" y="115" fill="#fff" font-size="12">User</text>
+  <rect x="176" y="98" width="70" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+  <text x="190" y="115" fill="#a6a6a6" font-size="12">System</text>
+  <rect x="660" y="98" width="60" height="24" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+  <text x="676" y="115" fill="#75b6fd" font-size="12">Form</text>
+  <rect x="722" y="98" width="60" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+  <text x="738" y="115" fill="#a6a6a6" font-size="12">Code</text>
+
+  <!-- action list -->
+  <rect x="112" y="134" width="200" height="334" rx="4" fill="#1b1d21" stroke="#444649"/>
+  <g font-size="12">
+    <rect x="113" y="135" width="198" height="28" fill="#1e3a5f"/>
+    <text x="126" y="153" fill="#f0f0f0">▶ Run make target…</text>
+    <text x="126" y="181" fill="#f0f0f0">Tail -f</text>
+    <text x="126" y="209" fill="#f0f0f0">Compose up + logs</text>
+    <text x="126" y="237" fill="#f0f0f0">Patch: apply</text>
+    <text x="126" y="265" fill="#f0f0f0">Open in VS Code</text>
+  </g>
+  <rect x="112" y="440" width="200" height="28" rx="4" fill="#1b1d21" stroke="#444649"/>
+  <text x="126" y="458" fill="#75b6fd" font-size="12">＋ New action</text>
+
+  <!-- form -->
+  <g font-size="11">
+    <text x="332" y="146" fill="#a6a6a6">Label</text>
+    <rect x="332" y="150" width="450" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="342" y="165" fill="#f0f0f0" font-size="12">Run make target…</text>
+
+    <text x="332" y="190" fill="#a6a6a6">Command (use {path}, {dir}, {script}, {scripts} …)</text>
+    <rect x="332" y="194" width="450" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="342" y="209" fill="#f0f0f0" font-size="12" font-family="monospace">bash {script} {path}</text>
+
+    <text x="332" y="234" fill="#a6a6a6">Applies to</text>
+    <rect x="332" y="238" width="150" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="342" y="253" fill="#f0f0f0" font-size="12">File</text>
+    <text x="500" y="234" fill="#a6a6a6">Pattern</text>
+    <rect x="500" y="238" width="282" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="510" y="253" fill="#f0f0f0" font-size="12" font-family="monospace">^(GNUmakefile|[Mm]akefile)$|\.mk$</text>
+
+    <text x="332" y="278" fill="#a6a6a6">Output</text>
+    <rect x="332" y="282" width="150" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="342" y="297" fill="#f0f0f0" font-size="12">pane</text>
+    <text x="500" y="278" fill="#a6a6a6">Privilege</text>
+    <rect x="500" y="282" width="150" height="22" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="510" y="297" fill="#f0f0f0" font-size="12">user</text>
+
+    <!-- interactive -->
+    <rect x="332" y="318" width="13" height="13" rx="3" fill="#0d6efd"/>
+    <text x="337" y="328" fill="#fff" font-size="10">✓</text>
+    <text x="352" y="329" fill="#f0f0f0" font-size="12">Interactive — script can prompt for input (radio / textbox)</text>
+
+    <!-- shell script -->
+    <text x="332" y="356" fill="#a6a6a6">Shell script (uploaded to ~/.config/cockpit/explorer/scripts)</text>
+    <rect x="332" y="360" width="300" height="24" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="342" y="376" fill="#a6a6a6" font-size="11">Choose file…</text>
+    <rect x="640" y="360" width="142" height="24" rx="3" fill="#23262b" stroke="#444649"/>
+    <text x="650" y="376" fill="#75b6fd" font-size="11" font-family="monospace">make-target.sh</text>
+
+    <!-- multi -->
+    <rect x="332" y="400" width="13" height="13" rx="3" fill="#1b1d21" stroke="#666"/>
+    <text x="352" y="411" fill="#f0f0f0" font-size="12">Allow on multiple selection</text>
+
+    <!-- confirm -->
+    <rect x="540" y="400" width="13" height="13" rx="3" fill="#1b1d21" stroke="#666"/>
+    <text x="560" y="411" fill="#f0f0f0" font-size="12">Require confirmation</text>
+  </g>
+
+  <!-- footer -->
+  <line x1="90" y1="476" x2="810" y2="476" stroke="#444649"/>
+  <text x="332" y="492" fill="#c8504b" font-size="12">🗑 Delete action</text>
+  <rect x="716" y="479" width="66" height="24" rx="4" fill="#0d6efd"/>
+  <text x="732" y="495" fill="#fff" font-size="12">Save</text>
+</svg>

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+
+  <!-- tab bar -->
+  <rect x="0" y="0" width="900" height="34" fill="#2b2e33"/>
+  <rect x="8" y="4" width="190" height="26" rx="3" fill="#1b1d21" stroke="#444649"/>
+  <rect x="8" y="4" width="190" height="2" fill="#75b6fd"/>
+  <text x="22" y="21" fill="#f0f0f0" font-size="12">▶ Run make target… (interactive)</text>
+  <text x="788" y="21" fill="#75b6fd" font-size="12">Explorer v1.0</text>
+
+  <!-- output pane header -->
+  <rect x="0" y="34" width="900" height="30" fill="#292d31"/>
+  <text x="14" y="54" fill="#f0f0f0" font-size="12" font-weight="bold">Run make target… (interactive)</text>
+  <text x="270" y="54" fill="#a6a6a6" font-size="12">— running command</text>
+  <rect x="700" y="38" width="92" height="22" rx="4" fill="#16a34a"/>
+  <text x="714" y="53" fill="#fff" font-size="11">⤓ Following</text>
+  <rect x="798" y="38" width="44" height="22" rx="4" fill="#1b1d21" stroke="#666"/>
+  <text x="808" y="53" fill="#f0f0f0" font-size="11">Stop</text>
+  <rect x="848" y="38" width="44" height="22" rx="4" fill="#1b1d21" stroke="#666"/>
+  <text x="856" y="53" fill="#f0f0f0" font-size="11">Close</text>
+
+  <!-- streaming pane (dimmed behind dialog) -->
+  <g font-family="monospace" font-size="12">
+    <text x="14" y="86" fill="#9aa0a6">$ bash make-target.sh /home/demo/projects/widgets/Makefile</text>
+    <text x="14" y="108" fill="#6b6f76">Parsing targets from Makefile…</text>
+    <text x="14" y="130" fill="#75b6fd">» Found 8 targets</text>
+  </g>
+
+  <!-- dimmed overlay -->
+  <rect x="0" y="64" width="900" height="476" fill="#000" opacity="0.45"/>
+
+  <!-- radio prompt dialog -->
+  <rect x="280" y="150" width="340" height="300" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="280" y="150" width="340" height="42" rx="8" fill="#23262b"/>
+  <rect x="280" y="182" width="340" height="10" fill="#23262b"/>
+  <text x="300" y="177" fill="#f0f0f0" font-size="14" font-weight="bold">make target</text>
+  <line x1="280" y1="192" x2="620" y2="192" stroke="#444649"/>
+  <text x="300" y="216" fill="#a6a6a6" font-size="12">Select a target to run in</text>
+  <text x="300" y="234" fill="#9aa0a6" font-size="11" font-family="monospace">/home/demo/projects/widgets</text>
+
+  <!-- option buttons (single-select) -->
+  <g font-size="12">
+    <rect x="300" y="250" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="316" y="267" fill="#75b6fd">all</text>
+    <rect x="460" y="250" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="476" y="267" fill="#75b6fd">help</text>
+
+    <rect x="300" y="284" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="316" y="301" fill="#75b6fd">version</text>
+    <rect x="460" y="284" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="476" y="301" fill="#75b6fd">install</text>
+
+    <rect x="300" y="318" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="316" y="335" fill="#75b6fd">zip</text>
+    <!-- selected/default -->
+    <rect x="460" y="318" width="140" height="26" rx="4" fill="#0d6efd"/>
+    <text x="476" y="335" fill="#fff">publish</text>
+
+    <rect x="300" y="352" width="140" height="26" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+    <text x="316" y="369" fill="#75b6fd">clean</text>
+  </g>
+
+  <line x1="280" y1="404" x2="620" y2="404" stroke="#444649"/>
+  <rect x="538" y="412" width="70" height="26" rx="4" fill="#3a3f45"/>
+  <text x="552" y="429" fill="#f0f0f0" font-size="12">Cancel</text>
+
+  <!-- caption -->
+  <rect x="0" y="500" width="900" height="40" fill="#23262b"/>
+  <text x="14" y="525" fill="#a6a6a6" font-size="12">Interactive scripts: a script prints a YAML prompt block; Explorer shows a dialog (radio shown), then feeds your answer back to the script's stdin.</text>
+</svg>

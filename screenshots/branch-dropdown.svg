@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+
+  <!-- tab bar -->
+  <rect x="0" y="0" width="900" height="34" fill="#2b2e33"/>
+  <rect x="8" y="4" width="120" height="26" rx="3" fill="#1b1d21" stroke="#444649"/>
+  <rect x="8" y="4" width="120" height="2" fill="#75b6fd"/>
+  <text x="22" y="21" fill="#f0f0f0" font-size="12">widgets</text>
+  <text x="788" y="21" fill="#75b6fd" font-size="12">Explorer v1.0</text>
+  <text x="848" y="21" fill="#a6a6a6" font-size="12">⚙ Actions</text>
+
+  <!-- toolbar -->
+  <rect x="0" y="34" width="900" height="32" fill="#292d31"/>
+  <text x="14" y="55" fill="#a6a6a6" font-size="13">← → ↑ ⟳</text>
+  <text x="190" y="55" fill="#75b6fd" font-size="12">/ home / demo / projects / widgets</text>
+  <rect x="784" y="40" width="46" height="20" rx="3" fill="#1b1d21" stroke="#444649"/>
+  <text x="792" y="54" fill="#a6a6a6" font-size="11">GH</text>
+
+  <!-- repo strip -->
+  <rect x="0" y="66" width="900" height="26" fill="#1e2b40"/>
+  <rect x="10" y="69" width="70" height="20" rx="3" fill="#0d2a4d" stroke="#75b6fd"/>
+  <text x="18" y="83" fill="#f0f0f0" font-size="12" font-weight="bold">main ▾</text>
+  <text x="92" y="83" fill="#a6a6a6" font-size="12">acme/widgets · ↑1 ↓0</text>
+  <rect x="690" y="70" width="58" height="18" rx="3" fill="#1b1d21" stroke="#444649"/>
+  <text x="700" y="83" fill="#a6a6a6" font-size="11">Fetch</text>
+  <rect x="752" y="70" width="58" height="18" rx="3" fill="#1b1d21" stroke="#444649"/>
+  <text x="762" y="83" fill="#a6a6a6" font-size="11">Pull</text>
+  <rect x="814" y="70" width="72" height="18" rx="3" fill="#0d6efd"/>
+  <text x="824" y="83" fill="#fff" font-size="11">Push</text>
+
+  <!-- file area (dimmed, behind dropdown) -->
+  <g font-size="12" fill="#6b6f76">
+    <text x="22" y="120">📁 src</text>
+    <text x="22" y="146">📁 tests</text>
+    <text x="22" y="172">📄 README.md</text>
+  </g>
+
+  <!-- branch dropdown -->
+  <rect x="10" y="92" width="320" height="316" rx="6" fill="#23262b" stroke="#444649"/>
+  <text x="24" y="116" fill="#a6a6a6" font-size="10" font-weight="bold">SWITCH BRANCH</text>
+  <g font-size="12" fill="#f0f0f0">
+    <rect x="12" y="124" width="316" height="24" fill="#1e3a5f"/>
+    <text x="24" y="140">✓ main</text>
+    <text x="300" y="140" fill="#a6a6a6" font-size="11">local</text>
+    <text x="24" y="166">develop</text>
+    <text x="295" y="166" fill="#a6a6a6" font-size="11">local</text>
+    <text x="24" y="192">release/2.0</text>
+    <text x="288" y="192" fill="#a6a6a6" font-size="11">remote</text>
+    <text x="24" y="218">feature/search</text>
+    <text x="288" y="218" fill="#a6a6a6" font-size="11">remote</text>
+  </g>
+  <line x1="12" y1="232" x2="328" y2="232" stroke="#444649"/>
+  <text x="24" y="252" fill="#a6a6a6" font-size="10" font-weight="bold">LOCAL COPIES OF THIS REPO</text>
+  <g font-size="12" fill="#75b6fd">
+    <text x="24" y="276">⌂ widgets/main</text>
+    <text x="24" y="300">⌂ widgets/develop</text>
+    <text x="24" y="324">⌂ widgets/release-2.0</text>
+  </g>
+  <g font-size="10" fill="#6b6f76">
+    <text x="150" y="276">/home/demo/projects/widgets/main</text>
+    <text x="150" y="300">/home/demo/projects/widgets/develop</text>
+    <text x="150" y="324">/home/demo/projects/widgets/release-2.0</text>
+  </g>
+  <line x1="12" y1="336" x2="328" y2="336" stroke="#444649"/>
+  <text x="24" y="358" fill="#a6a6a6" font-size="12">＋ Check out a new copy…</text>
+  <text x="24" y="384" fill="#a6a6a6" font-size="12">⤓ Register an existing clone…</text>
+
+  <!-- caption -->
+  <rect x="0" y="500" width="900" height="40" fill="#23262b"/>
+  <text x="14" y="525" fill="#a6a6a6" font-size="12">Branch switcher — local + remote branches, plus every recorded local copy of the same repo (jump straight to it).</text>
+</svg>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+
+  <!-- output pane header -->
+  <rect x="0" y="0" width="900" height="30" fill="#292d31"/>
+  <text x="14" y="20" fill="#f0f0f0" font-size="12" font-weight="bold">Deploy (interactive)</text>
+  <text x="170" y="20" fill="#a6a6a6" font-size="12">— running command</text>
+  <rect x="700" y="4" width="92" height="22" rx="4" fill="#16a34a"/>
+  <text x="714" y="19" fill="#fff" font-size="11">⤓ Following</text>
+  <rect x="798" y="4" width="44" height="22" rx="4" fill="#1b1d21" stroke="#666"/>
+  <text x="808" y="19" fill="#f0f0f0" font-size="11">Stop</text>
+  <rect x="848" y="4" width="44" height="22" rx="4" fill="#1b1d21" stroke="#666"/>
+  <text x="856" y="19" fill="#f0f0f0" font-size="11">Close</text>
+
+  <!-- streaming pane transcript -->
+  <g font-family="monospace" font-size="12.5">
+    <text x="14" y="58" fill="#9aa0a6">$ bash deploy.sh</text>
+    <text x="14" y="82" fill="#75b6fd">» Checking out release branch…</text>
+    <text x="14" y="106" fill="#c8c8c8">Switched to branch 'release/2.0'</text>
+    <text x="14" y="130" fill="#a6e3a1">‹ staging</text>
+    <text x="14" y="154" fill="#75b6fd">» Building image acme/widgets:staging …</text>
+    <text x="14" y="178" fill="#c8c8c8">Step 1/6 : FROM node:20-alpine</text>
+    <text x="14" y="202" fill="#c8c8c8">Step 6/6 : CMD ["node","server.js"]</text>
+    <text x="14" y="226" fill="#75b6fd">» Image built (412 MB)</text>
+  </g>
+
+  <!-- dimmed overlay -->
+  <rect x="0" y="30" width="900" height="510" fill="#000" opacity="0.42"/>
+
+  <!-- text prompt dialog -->
+  <rect x="270" y="180" width="360" height="190" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="270" y="180" width="360" height="42" rx="8" fill="#23262b"/>
+  <rect x="270" y="212" width="360" height="10" fill="#23262b"/>
+  <text x="290" y="207" fill="#f0f0f0" font-size="14" font-weight="bold">Release notes</text>
+  <line x1="270" y1="222" x2="630" y2="222" stroke="#444649"/>
+  <text x="290" y="248" fill="#a6a6a6" font-size="12">Short summary for this deploy:</text>
+  <rect x="290" y="262" width="320" height="30" rx="4" fill="#1b1d21" stroke="#75b6fd"/>
+  <text x="302" y="282" fill="#f0f0f0" font-size="12">Fix login redirect + bump deps</text>
+  <text x="600" y="282" fill="#75b6fd" font-size="12">▌</text>
+
+  <line x1="270" y1="324" x2="630" y2="324" stroke="#444649"/>
+  <rect x="470" y="332" width="70" height="28" rx="4" fill="#3a3f45"/>
+  <text x="484" y="350" fill="#f0f0f0" font-size="12">Cancel</text>
+  <rect x="550" y="332" width="60" height="28" rx="4" fill="#0d6efd"/>
+  <text x="568" y="350" fill="#fff" font-size="12">OK</text>
+
+  <!-- caption -->
+  <rect x="0" y="500" width="900" height="40" fill="#23262b"/>
+  <text x="14" y="525" fill="#a6a6a6" font-size="12">A textbox prompt mid-script; "» " lines are progress messages and "‹ " lines echo what you sent back to the script.</text>
+</svg>

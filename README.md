@@ -57,6 +57,44 @@ checked out to; click it to open that checkout in a tab.
 Commit lists load from the GitHub API; the clone is only fetched when you
 open a diff.
 
+**Branch switcher with cached local copies**
+
+![Branch dropdown](screenshots/branch-dropdown.svg)
+
+The repo-strip dropdown lists local and remote branches, then every
+recorded local copy of the same repo — click one to jump straight to that
+checkout.
+
+**Custom actions manager**
+
+![Custom actions](screenshots/actions.svg)
+
+Edit actions as a form or as raw JSON/YAML. Script-backed actions get an
+*Interactive* toggle and a *Shell script* uploader (stored under
+`~/.config/cockpit/explorer/scripts`).
+
+**Interactive scripts — radio prompt**
+
+![Script prompt](screenshots/script-prompt.svg)
+
+An interactive script prints a YAML prompt block; Explorer renders a dialog
+(single-select shown) and writes your choice back to the script's stdin, so
+its `read` continues.
+
+**Interactive scripts — textbox prompt and progress messages**
+
+![Script messages](screenshots/script-messages.svg)
+
+Scripts can also ask for free text and stream progress: `» …` lines are
+display-only messages and `‹ …` lines echo what was sent back to the script.
+
+**Settings**
+
+![Settings](screenshots/settings.svg)
+
+Theme, tab persistence, preview/upload limits, the streaming-pane line cap,
+and the GitHub update source / startup update check.
+
 ---
 
 ## Install
