@@ -2245,6 +2245,8 @@ Alpine.data('explorer', () => ({
             // Only include the optional pre/post + message fields when set, to
             // keep the document tidy.
             if (a.confirmMessage) o.confirmMessage = a.confirmMessage;
+            if (a.interactive) o.interactive = true;
+            if (a.script) o.script = a.script;
             if (a.preCommand) o.preCommand = a.preCommand;
             if (a.preConfirm) o.preConfirm = a.preConfirm;
             if (a.preConfirmLabel) o.preConfirmLabel = a.preConfirmLabel;
