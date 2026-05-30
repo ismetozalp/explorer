@@ -943,6 +943,28 @@ What it does, step by step:
 `require`, so you must have **administrative access** turned on in
 Cockpit; otherwise the command can't run as root.
 
+### Checking for updates online
+
+The plugin can check a GitHub repo's **Releases** for a newer version and
+kick off the self-update for you:
+
+- **Version badge** (top-right): click it to check now. When a newer
+  release is found the badge turns green and shows `↑ Explorer vX.Y.Z`;
+  clicking it then downloads that release's `explorer-*.zip` and runs the
+  self-update.
+- **Settings → Update source**: the GitHub repo (or releases URL) to
+  check. Default `ismetozalp/explorer`. *Check for updates on startup*
+  controls the automatic check (on by default); a **Check for updates
+  now** button runs it on demand.
+- **On startup** (when enabled) the plugin checks in the background a few
+  seconds after load; if a newer release exists it offers the update.
+
+The release zip is fetched with the GitHub CLI when available
+(authenticated, no rate limits) and otherwise via an anonymous `curl` to
+the GitHub API. The newest release's tag (e.g. `v1.0.6`) is compared
+numerically against the installed version. Publish releases with
+`make publish`, which tags `v$(VERSION)` and uploads `explorer-$(VERSION).zip`.
+
 ---
 
 ## File layout

@@ -31,7 +31,12 @@
     <button class="tab-new" @click="newTab()" title="New folder tab (Ctrl+T)">+</button>
     <button class="tab-new tab-new-term" @click="newTerminalTab()" title="New terminal tab">+▤</button>
     <div class="tab-bar-spacer"></div>
-    <span class="explorer-version-badge" x-show="pluginVersion" x-text="'Explorer v' + pluginVersion" title="Installed Explorer plugin version"></span>
+    <span class="explorer-version-badge" x-show="pluginVersion"
+          :class="{ 'update-available': updateState.available }"
+          style="cursor:pointer"
+          @click="updateState.available ? startSelfUpdate() : checkForUpdate(true)"
+          :title="updateState.checking ? 'Checking for updates…' : (updateState.available ? ('Update to v' + updateState.available.version + ' available — click to install') : 'Click to check for updates')"
+          x-text="(updateState.available ? '↑ ' : '') + 'Explorer v' + pluginVersion"></span>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
@@ -967,6 +972,18 @@
                 <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-persist" x-model="settings.persistTabs"><label class="form-check-label" for="set-persist">Persist open tabs across reloads</label></div>
                 <div class="mb-2"><label class="form-label">Preview text size limit (MB)</label><input type="number" class="form-control" x-model.number="settings.previewLimitMB" min="1" max="100"></div>
                 <div class="mb-2"><label class="form-label">Upload chunk size (MB)</label><input type="number" class="form-control" x-model.number="settings.uploadChunkMB" min="1" max="64"></div>
+                <hr>
+                <div class="mb-2">
+                    <label class="form-label">Update source (GitHub repo or releases URL)</label>
+                    <input class="form-control" x-model="settings.updateRepo" placeholder="ismetozalp/explorer">
+                    <small class="form-text text-muted">Releases here are used to offer self-updates. Default: ismetozalp/explorer.</small>
+                </div>
+                <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-updatestart" x-model="settings.updateCheckOnStart"><label class="form-check-label" for="set-updatestart">Check for updates on startup</label></div>
+                <div class="mb-2">
+                    <button class="btn btn-sm btn-outline-primary" @click="checkForUpdate(true)" :disabled="updateState.checking">
+                        <span x-text="updateState.checking ? 'Checking…' : 'Check for updates now'"></span>
+                    </button>
+                </div>
                 <hr>
                 <div class="mb-2">
                     <label class="form-label">Default shell (Run command)</label>

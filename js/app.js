@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
     previewLimitMB: 10,
     uploadChunkMB: 4,
     theme: 'system',           // 'system' | 'light' | 'dark'
+    updateRepo: 'ismetozalp/explorer',  // GitHub owner/repo (or releases URL) to check for updates
+    updateCheckOnStart: true,           // auto-check for a newer release at startup
 };
 
 const USER_ACTIONS_PATH_SUFFIX = '/.config/cockpit/explorer/actions.json';
@@ -80,6 +82,9 @@ Alpine.data('explorer', () => ({
     homePath: '/root',
 
     settings: structuredClone(DEFAULT_SETTINGS),
+
+    // Self-update / release-check state
+    updateState: { checking: false, available: null },
 
     customActions: { user: [], system: [], builtin: [] },
 
@@ -3369,6 +3374,11 @@ Alpine.data('explorer', () => ({
             }
         }
 
+        // Auto-check GitHub releases for a newer version (non-blocking).
+        if (this.settings.updateCheckOnStart) {
+            setTimeout(() => { this.checkForUpdate(false).catch(() => {}); }, 4000);
+        }
+
         // Write the bash rcfile that makes interactive shells emit OSC 7
         // working-directory reports (so terminal sub-tab labels track `pwd`).
         this._ensureOsc7Rc();
@@ -4045,6 +4055,113 @@ Alpine.data('explorer', () => ({
             // Never leave the panel stuck on the blank "checking" state.
             this.gh.state = 'notauthed';
             this.gh.authError = e.message || String(e);
+        }
+    },
+
+    // ───── Update check / self-update from GitHub releases ─────────────────
+    // Normalise the configured update source to "owner/repo".
+    _updateRepo() {
+        let r = String(this.settings.updateRepo || DEFAULT_SETTINGS.updateRepo).trim();
+        const m = r.match(/github\.com[\/:]([^\/]+\/[^\/#?]+)/i);
+        if (m) r = m[1];
+        return r.replace(/\.git$/i, '').replace(/\/+$/, '');
+    },
+    _versionTuple(v) { return String(v).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0); },
+    _versionNewer(a, b) {
+        const x = this._versionTuple(a), y = this._versionTuple(b);
+        for (let i = 0; i < Math.max(x.length, y.length); i++) {
+            const d = (x[i] || 0) - (y[i] || 0);
+            if (d) return d > 0;
+        }
+        return false;
+    },
+    // Read the latest release of the configured repo (gh if available, else curl).
+    async _fetchLatestRelease(repo) {
+        const ghOk = await GIT.ghAvailable().catch(() => false);
+        if (ghOk) {
+            try {
+                const out = await cockpit.spawn(['gh', 'api', 'repos/' + repo + '/releases/latest'], { err: 'message' });
+                const j = JSON.parse(out);
+                if (j && j.tag_name) return { tag: j.tag_name, version: String(j.tag_name).replace(/^v/i, '') };
+            } catch (e) { /* fall through to anonymous curl */ }
+        }
+        try {
+            const out = await cockpit.spawn(['sh', '-c', 'curl -fsSL ' + Util.shq('https://api.github.com/repos/' + repo + '/releases/latest')], { err: 'message' });
+            const j = JSON.parse(out);
+            if (j && j.tag_name) return { tag: j.tag_name, version: String(j.tag_name).replace(/^v/i, '') };
+        } catch (e) {}
+        return null;
+    },
+    // Check for a newer release. manual=true ⇒ chatty (toasts for every outcome).
+    async checkForUpdate(manual) {
+        if (this.updateState.checking) return;
+        const repo = this._updateRepo();
+        if (!this.pluginVersion) { if (manual) this.toast('Current version is unknown; cannot compare.', 'warning'); return; }
+        this.updateState.checking = true;
+        if (manual) this.toast('Checking ' + repo + ' for updates…');
+        let rel = null;
+        try { rel = await this._fetchLatestRelease(repo); }
+        catch (e) { this.updateState.checking = false; if (manual) this.toast('Update check failed: ' + (e.message || e), 'danger'); return; }
+        this.updateState.checking = false;
+        if (!rel || !rel.version) { if (manual) this.toast('No releases found at ' + repo + '.', 'warning'); return; }
+        if (this._versionNewer(rel.version, this.pluginVersion)) {
+            this.updateState.available = rel;
+            this.startSelfUpdate(rel);                       // start the self-update (asks for confirmation)
+        } else {
+            this.updateState.available = null;
+            if (manual) this.toast('You are up to date (v' + this.pluginVersion + ').', 'success');
+        }
+    },
+    // Confirm, download the release zip, then run the built-in self-update on it.
+    async startSelfUpdate(info) {
+        info = info || this.updateState.available;
+        if (!info) { this.toast('No update available.', 'warning'); return; }
+        const repo = this._updateRepo();
+        const ok = await this.askConfirm('Update available',
+            'Explorer ' + info.version + ' is available (installed: ' + (this.pluginVersion || '?') + ').\n\n' +
+            'Download it from ' + repo + ' and install now?\nThis runs "make install" as administrator and restarts Cockpit (you will be briefly disconnected — reload afterwards).',
+            'Download & update');
+        if (!ok) return;
+        const op = this._beginOp('Downloading explorer ' + info.version);
+        let zip;
+        try { zip = await this._downloadReleaseZip(repo, info.tag); this._endOp(op, 'done'); }
+        catch (e) { this._failOp(op, e); this.toast('Download failed: ' + (e.message || e), 'danger'); return; }
+        this._runSelfUpdateInstall(zip, info.version);
+    },
+    async _downloadReleaseZip(repo, tag) {
+        const tmp = (await cockpit.spawn(['mktemp', '-d'], { err: 'message' })).trim();
+        const ghOk = await GIT.ghAvailable().catch(() => false);
+        if (ghOk) {
+            await cockpit.spawn(['env', 'GH_PROMPT_DISABLED=1', 'gh', 'release', 'download', tag, '-R', repo,
+                '--pattern', 'explorer-*.zip', '--dir', tmp, '--clobber'], { err: 'message' });
+        } else {
+            const meta = await cockpit.spawn(['sh', '-c', 'curl -fsSL ' + Util.shq('https://api.github.com/repos/' + repo + '/releases/tags/' + tag)], { err: 'message' });
+            const j = JSON.parse(meta);
+            const asset = (j.assets || []).find(a => /^explorer-.*\.zip$/.test(a.name));
+            if (!asset) throw new Error('release ' + tag + ' has no explorer-*.zip asset');
+            await cockpit.spawn(['sh', '-c', 'curl -fsSL -o ' + Util.shq(tmp + '/' + asset.name) + ' ' + Util.shq(asset.browser_download_url)], { err: 'message' });
+        }
+        const found = (await cockpit.spawn(['sh', '-c', 'ls -1 ' + Util.shq(tmp) + '/explorer-*.zip 2>/dev/null | head -1'], { err: 'message' })).trim();
+        if (!found) throw new Error('no explorer-*.zip was downloaded');
+        return found;
+    },
+    // Run the built-in "explorer-self-update" action against a downloaded zip.
+    _runSelfUpdateInstall(zipPath, version) {
+        const name = zipPath.split('/').pop();
+        const ctx = {
+            path: zipPath, name, dir: Util.dirname(zipPath),
+            base: name.replace(/\.zip$/, ''), ext: 'zip',
+            oldVersion: this.pluginVersion || '(unknown)', newVersion: version,
+            home: this.homePath,
+        };
+        const action = (this.customActions.builtin || []).find(a => a.id === 'explorer-self-update');
+        if (action) {
+            this._runActionCmd(action, Util.fillTemplate(action.command, ctx), [{ path: zipPath, name }]);
+        } else {
+            const cmd = 'set -e; TMP=$(mktemp -d); unzip -oq ' + Util.shq(zipPath) + ' -d "$TMP"; ' +
+                'make -C "$TMP/explorer" install; rm -rf "$TMP"; ' +
+                '(sleep 2; systemctl restart cockpit || systemctl restart cockpit.socket) >/dev/null 2>&1 &';
+            this._runActionCmd({ label: 'Self-update to ' + version, privilege: 'require', output: 'pane' }, cmd, [{ path: zipPath, name }]);
         }
     },
 
