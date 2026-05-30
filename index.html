@@ -567,7 +567,7 @@
 </div>
 
 <!-- Open-windows taskbar -->
-<div class="explorer-taskbar" x-show="windows.length">
+<div class="explorer-taskbar" :class="{ 'taskbar-floating': hostVisible && hostMaximized }" x-show="windows.length">
     <template x-for="w in windows" :key="w.id">
         <div class="taskbar-item" :class="{ active: w.id === activeWinId && hostVisible }" @click="taskbarClick(w.id)" :title="w.path || w.title">
             <span class="taskbar-ico" x-text="winTaskIcon(w)"></span>

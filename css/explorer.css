@@ -478,8 +478,9 @@ body {
 /* ===== Window host (single modal showing the active preview/editor) ===== */
 /* Give both editor and preview bodies a consistent window height. */
 #windowHost .modal-body { height: 72vh; position: relative; }
-/* When maximized, let the body fill the whole screen. */
-#windowHost .modal-fullscreen .modal-content { display: flex; flex-direction: column; height: 100vh; }
+/* When maximized, fill the screen but leave a strip at the bottom for the
+   open-windows taskbar (which floats above the modal — see .taskbar-floating). */
+#windowHost .modal-fullscreen .modal-content { display: flex; flex-direction: column; height: calc(100vh - 42px); }
 #windowHost .modal-fullscreen .modal-body { flex: 1 1 auto; min-height: 0; height: auto; }
 
 .props-table th { width: 35%; color: var(--ex-text-muted); font-weight: normal; }
@@ -1317,6 +1318,16 @@ body {
     overflow-y: hidden;
     white-space: nowrap;
     min-height: 34px;
+}
+/* When a window is maximized (host modal is fullscreen), the docked taskbar
+   would be hidden behind the modal — float it above instead so it stays
+   visible and clickable. The fullscreen content is shortened by 42px to match. */
+.explorer-taskbar.taskbar-floating {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1080;                  /* above the Bootstrap modal (1055) + backdrop (1050) */
 }
 .taskbar-item {
     display: inline-flex;
