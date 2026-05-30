@@ -88,6 +88,8 @@ publish: zip
 	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes "Release $(VERSION)"; \
 	fi
 	@echo "Published $(TAG) (explorer-$(VERSION).zip)"
+	@rm -f "explorer-$(VERSION).zip"
+	@echo "Removed local explorer-$(VERSION).zip"
 
 clean:
 	rm -f explorer-*.zip explorer-*.tar.gz

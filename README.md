@@ -973,7 +973,8 @@ The release zip is fetched with the GitHub CLI when available
 (authenticated, no rate limits) and otherwise via an anonymous `curl` to
 the GitHub API. The newest release's tag (e.g. `v1.0.6`) is compared
 numerically against the installed version. Publish releases with
-`make publish`, which tags `v$(VERSION)` and uploads `explorer-$(VERSION).zip`.
+`make publish`, which tags `v$(VERSION)`, uploads `explorer-$(VERSION).zip`,
+and then deletes that local zip (only after a successful publish).
 
 ---
 
