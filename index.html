@@ -363,16 +363,19 @@
       <template x-if="tab.kind === 'output'">
         <div class="output-pane">
             <div class="output-pane-header">
-                <span><strong x-text="tab.outputActionLabel"></strong> — running command</span>
+                <span><strong x-text="tab.outputActionLabel"></strong> — <span x-text="tab.outputChannel ? 'running command' : tab.outputStatus"></span></span>
                 <div>
-                    <button class="btn btn-sm btn-outline-light" @click="tab.outputChannel && tab.outputChannel.close('cancelled')" x-show="tab.outputChannel">Stop</button>
+                    <button class="btn btn-sm" :class="tab.follow ? 'btn-success' : 'btn-outline-light'" @click="tab.follow = !tab.follow" :title="tab.follow ? 'Following new output — click to stop' : 'Click to follow output (stay at the bottom)'">
+                        <span x-text="(tab.follow ? '⤓ Following' : '⤓ Follow')"></span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-light ms-1" @click="tab.outputChannel && tab.outputChannel.close('cancelled')" x-show="tab.outputChannel">Stop</button>
                     <button class="btn btn-sm btn-outline-light ms-1" @click="closeTab(tab.id)">Close</button>
                 </div>
             </div>
             <div class="output-pane-body"
-                 x-init="$el._stick = true; $el.addEventListener('scroll', () => { $el._stick = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 40; })"
-                 x-effect="tab.outputLines.length; if ($el._stick) $nextTick(() => { $el.scrollTop = $el.scrollHeight; })"
-                 x-text="tab.outputLines.join('')"></div>
+                 x-init="$el.addEventListener('scroll', () => { tab.follow = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 40; })"
+                 x-effect="tab.outputLines.length; tab.follow; if (tab.follow) $nextTick(() => { $el.scrollTop = $el.scrollHeight; })"
+                 x-text="tab.outputLines.join('\n')"></div>
             <div class="output-pane-status">
                 <code x-text="tab.outputCommand"></code>
                 <span x-text="tab.outputStatus"></span>
@@ -973,6 +976,7 @@
                 <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-persist" x-model="settings.persistTabs"><label class="form-check-label" for="set-persist">Persist open tabs across reloads</label></div>
                 <div class="mb-2"><label class="form-label">Preview text size limit (MB)</label><input type="number" class="form-control" x-model.number="settings.previewLimitMB" min="1" max="100"></div>
                 <div class="mb-2"><label class="form-label">Upload chunk size (MB)</label><input type="number" class="form-control" x-model.number="settings.uploadChunkMB" min="1" max="64"></div>
+                <div class="mb-2"><label class="form-label">Output pane line limit</label><input type="number" class="form-control" x-model.number="settings.outputMaxLines" min="0" max="1000000"><small class="form-text text-muted">Streaming panes keep at most this many lines; oldest are dropped. 0 = unlimited.</small></div>
                 <hr>
                 <div class="mb-2">
                     <label class="form-label">Update source (GitHub repo or releases URL)</label>

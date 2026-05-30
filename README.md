@@ -223,6 +223,7 @@ columns:
   type: false
 previewLimitMB: 10
 uploadChunkMB: 4
+outputMaxLines: 5000
 defaultShell: /bin/bash
 diffView: side
 ```
@@ -911,10 +912,13 @@ echo "===EXPLORER-END==="
 - **`tray`** — runs in the operations tray; click *View output* (TODO).
 - **`pane`** — opens a **new tab** that streams the output live as
   the command runs. The tab stays open and shows the exit status.
-  Best for `tail -f`, build logs, long-running scripts. The pane
-  **auto-tails** — it keeps scrolling to the newest line as output
-  streams; scroll up to read back and it stops following, scroll to the
-  bottom again to resume.
+  Best for `tail -f`, build logs, long-running scripts. A **Follow**
+  toggle in the pane header keeps it pinned to the newest line as output
+  streams (green = following); scrolling up stops following, scrolling
+  back to the bottom resumes it, and the toggle lets you force it on/off.
+  To bound memory on long-running streams, each pane keeps at most
+  `outputMaxLines` lines (default 5000; set `0` for unlimited in
+  Settings) — once exceeded, the oldest lines are dropped.
 
 ### Example actions
 

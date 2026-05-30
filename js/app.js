@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
     columns: { size: true, modified: true, perms: true, owner: true, type: false },
     previewLimitMB: 10,
     uploadChunkMB: 4,
+    outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)
     theme: 'system',           // 'system' | 'light' | 'dark'
     updateRepo: 'ismetozalp/explorer',  // GitHub owner/repo (or releases URL) to check for updates
     updateCheckOnStart: true,           // auto-check for a newer release at startup
@@ -337,6 +338,8 @@ Alpine.data('explorer', () => ({
             outputCommand: '',
             outputActionLabel: '',
             outputChannel: null,
+            follow: true,        // stay pinned to the bottom of a streaming pane
+            _outBuf: '',         // partial-line buffer for chunked streaming
             // ── Terminals (v1.2) ───────────────────────────────────────
             // Reactive collection only; the actual xterm Terminal /
             // cockpit channel instances live in module-scope _termInstances
@@ -2600,6 +2603,36 @@ Alpine.data('explorer', () => ({
         }
     },
 
+    // ── Streaming-output helpers (line storage + memory cap) ──────────────
+    // Cap a pane's stored lines to settings.outputMaxLines (0 = unlimited),
+    // dropping the oldest.
+    _capOutput(rtab) {
+        const max = this.settings.outputMaxLines || 0;
+        if (max > 0 && rtab.outputLines.length > max) {
+            rtab.outputLines.splice(0, rtab.outputLines.length - max);
+        }
+    },
+    // Feed a raw chunk (may contain 0+ newlines / a partial line) into a pane,
+    // emitting complete lines. Holds the trailing partial line in rtab._outBuf.
+    _feedOutput(rtab, chunk) {
+        rtab._outBuf = (rtab._outBuf || '') + chunk;
+        let idx;
+        while ((idx = rtab._outBuf.indexOf('\n')) >= 0) {
+            rtab.outputLines.push(rtab._outBuf.slice(0, idx));
+            rtab._outBuf = rtab._outBuf.slice(idx + 1);
+        }
+        this._capOutput(rtab);
+    },
+    // Flush any trailing partial line (call on channel close).
+    _flushOutput(rtab) {
+        if (rtab._outBuf) { rtab.outputLines.push(rtab._outBuf); rtab._outBuf = ''; this._capOutput(rtab); }
+    },
+    // Append one complete line directly (for prompt transcripts / messages).
+    _pushOutputLine(rtab, line) {
+        rtab.outputLines.push(line);
+        this._capOutput(rtab);
+    },
+
     async _runActionCmd(action, cmd, files) {
         const adminFlag = action.privilege === 'require' ? { admin: true }
                        : action.privilege === 'try' ? { adminTry: true }
@@ -2624,9 +2657,10 @@ Alpine.data('explorer', () => ({
             });
             rtab.outputChannel = channel;
             channel.addEventListener('message', (ev, data) => {
-                rtab.outputLines.push(typeof data === 'string' ? data : new TextDecoder().decode(data));
+                this._feedOutput(rtab, typeof data === 'string' ? data : new TextDecoder().decode(data));
             });
             channel.addEventListener('close', (ev, opts) => {
+                this._flushOutput(rtab);
                 rtab.outputStatus = opts.problem ? ('error: ' + (opts.message || opts.problem))
                                                  : ('done (exit ' + (opts['exit-status'] ?? 0) + ')');
                 rtab.outputChannel = null;
@@ -2876,7 +2910,7 @@ Alpine.data('explorer', () => ({
         let inPrompt = false;
         let promptLines = [];
         let queue = Promise.resolve();              // serialize line handling (dialogs are async)
-        const enqueue = (fn) => { queue = queue.then(fn).catch(e => rtab.outputLines.push('[explorer] ' + (e.message || e))); };
+        const enqueue = (fn) => { queue = queue.then(fn).catch(e => this._pushOutputLine(rtab, '[explorer] ' + (e.message || e))); };
         const decode = (d) => (typeof d === 'string' ? d : new TextDecoder().decode(d));
 
         const handleLine = async (line) => {
@@ -2888,7 +2922,7 @@ Alpine.data('explorer', () => ({
                 return;
             }
             if (inPrompt) { promptLines.push(line); return; }
-            rtab.outputLines.push(line + '\n');   // pane renders join(''), so keep the newline
+            this._pushOutputLine(rtab, line);   // one entry per line; pane renders join('\n')
         };
 
         channel.addEventListener('message', (ev, data) => {
@@ -2930,8 +2964,8 @@ Alpine.data('explorer', () => ({
     async _handleScriptPrompt(rtab, channel, yamlText) {
         let spec;
         try { spec = window.jsyaml ? jsyaml.load(this._preprocessPromptYaml(yamlText)) : JSON.parse(yamlText); }
-        catch (e) { rtab.outputLines.push('[explorer] bad prompt block: ' + (e.message || e) + '\n'); return; }
-        if (!spec || typeof spec !== 'object') { rtab.outputLines.push('[explorer] empty prompt block\n'); return; }
+        catch (e) { this._pushOutputLine(rtab, '[explorer] bad prompt block: ' + (e.message || e)); return; }
+        if (!spec || typeof spec !== 'object') { this._pushOutputLine(rtab, '[explorer] empty prompt block'); return; }
 
         const type = String(spec.type || 'text').toLowerCase();
         const title = spec.title || 'Input requested';
@@ -2943,7 +2977,7 @@ Alpine.data('explorer', () => ({
                        : spec.message != null ? String(spec.message)
                        : (spec.title || '');
             const level = String(spec.level || 'info').toLowerCase();
-            rtab.outputLines.push('» ' + text + '\n');
+            this._pushOutputLine(rtab, '» ' + text);
             const notable = ['success', 'warning', 'danger', 'error'].includes(level);
             if (spec.toast === true || notable) {
                 const tl = level === 'error' ? 'danger' : level;
@@ -2956,7 +2990,7 @@ Alpine.data('explorer', () => ({
 
         if (type === 'radio' || type === 'select' || type === 'choice') {
             const opts = Array.isArray(spec.options) ? spec.options.map(String) : [];
-            if (!opts.length) { rtab.outputLines.push('[explorer] radio prompt has no options; aborting\n'); try { channel.close('cancelled'); } catch (e) {} return; }
+            if (!opts.length) { this._pushOutputLine(rtab, '[explorer] radio prompt has no options; aborting'); try { channel.close('cancelled'); } catch (e) {} return; }
             const buttons = opts.map(o => ({
                 id: o, label: o,
                 variant: (spec.default != null && String(spec.default) === o) ? 'primary' : 'outline-primary',
@@ -3112,9 +3146,9 @@ Alpine.data('explorer', () => ({
             answer = String(val);
         }
 
-        rtab.outputLines.push('‹ ' + answer + '\n');             // transcript of what we sent
+        this._pushOutputLine(rtab, '‹ ' + answer);             // transcript of what we sent
         try { channel.send(answer + '\n'); }
-        catch (e) { rtab.outputLines.push('[explorer] could not send input: ' + (e.message || e) + '\n'); }
+        catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e)); }
     },
 
 
@@ -4007,9 +4041,10 @@ Alpine.data('explorer', () => ({
         });
         rtab.outputChannel = channel;
         channel.addEventListener('message', (ev, data) => {
-            rtab.outputLines.push(typeof data === 'string' ? data : new TextDecoder().decode(data));
+            this._feedOutput(rtab, typeof data === 'string' ? data : new TextDecoder().decode(data));
         });
         channel.addEventListener('close', (ev, props) => {
+            this._flushOutput(rtab);
             rtab.outputStatus = props.problem ? ('error: ' + (props.message || props.problem))
                                               : ('done (exit ' + (props['exit-status'] ?? 0) + ')');
             rtab.outputChannel = null;
@@ -4186,9 +4221,10 @@ Alpine.data('explorer', () => ({
         });
         rtab.outputChannel = channel;
         channel.addEventListener('message', (ev, d) => {
-            rtab.outputLines.push(typeof d === 'string' ? d : new TextDecoder().decode(d));
+            this._feedOutput(rtab, typeof d === 'string' ? d : new TextDecoder().decode(d));
         });
         channel.addEventListener('close', async (ev, props) => {
+            this._flushOutput(rtab);
             rtab.outputStatus = props.problem ? ('error: ' + (props.message || props.problem))
                                               : ('done (exit ' + (props['exit-status'] ?? 0) + ')');
             rtab.outputChannel = null;
