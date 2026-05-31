@@ -870,6 +870,7 @@ title: Deploy        # dialog title (optional)
 message: Pick env    # text shown above the control (optional)
 options: [dev, staging, prod]   # required for type: radio
 default: staging     # optional (preselected radio / prefilled textbox)
+multiline: true      # optional, type: text only — show a textarea
 ===EXPLORER-END===
 ```
 
@@ -878,6 +879,20 @@ value (radio) or typed text (text) followed by a newline to the script's
 stdin — exactly as if the user typed it and pressed Enter. The script's
 `read` unblocks and continues. A script may prompt as many times as it
 likes. **Cancelling** a dialog aborts the script (its channel is closed).
+
+**Multi-line text** (`type: text` with `multiline: true`) shows a textarea
+(submit with Ctrl/⌘ + Enter). Because the script still reads a single line,
+the plugin sends the answer **base64-encoded on one line** — the script
+decodes it, e.g.:
+
+```sh
+read -r ANSWER_B64
+ANSWER="$(printf '%s' "$ANSWER_B64" | base64 -d)"
+```
+
+(Single-line `type: text` is sent as-is, unchanged.) A multi-line `default:`
+is preserved as `\n` escapes inside the quoted scalar, so the textarea
+pre-fills with the full text.
 
 User-scope scripts live in the **home** directory at
 `~/.config/cockpit/explorer/scripts` (next to the user `actions.json`) —

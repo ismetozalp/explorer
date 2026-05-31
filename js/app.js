@@ -2866,9 +2866,10 @@ Alpine.data('explorer', () => ({
         bootstrap.Modal.getOrCreateInstance(this.confirmModalEl).hide();
     },
 
-    askPrompt(title, label, defaultValue) {
+    askPrompt(title, label, defaultValue, opts) {
+        opts = opts || {};
         return new Promise(resolve => {
-            this.promptDlg = { title, label, value: defaultValue || '', resolve };
+            this.promptDlg = { title, label, value: defaultValue || '', multiline: !!opts.multiline, resolve };
             bootstrap.Modal.getOrCreateInstance(this.promptModalEl).show();
         });
     },
@@ -3207,14 +3208,29 @@ Alpine.data('explorer', () => ({
             answer = String(choice);
         } else {
             const def = spec.default != null ? String(spec.default) : '';
-            const val = await this.askPrompt(title, message || 'Enter a value', def);
+            const multiline = (spec.multiline === true || spec.multiline === 'true');
+            const val = await this.askPrompt(title, message || 'Enter a value', def, { multiline });
             if (val == null) { try { channel.close('cancelled'); } catch (e) {} return; }
             answer = String(val);
+            if (multiline) {
+                // The protocol exchanges a single line over stdin, so a
+                // multi-line answer is base64-encoded; the script decodes it.
+                const oneLine = answer.replace(/\s+/g, ' ').trim();
+                this._pushOutputLine(rtab, '‹ ' + (oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine) + '  (multi-line)');
+                try { channel.send(this._b64Utf8(answer) + '\n'); }
+                catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e)); }
+                return;
+            }
         }
 
         this._pushOutputLine(rtab, '‹ ' + answer);             // transcript of what we sent
         try { channel.send(answer + '\n'); }
         catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e)); }
+    },
+    // UTF-8-safe base64 encode (btoa only handles Latin-1).
+    _b64Utf8(str) {
+        try { return btoa(unescape(encodeURIComponent(String(str)))); }
+        catch (e) { try { return btoa(String(str)); } catch (e2) { return ''; } }
     },
 
 
