@@ -85,7 +85,7 @@ Alpine.data('explorer', () => ({
     settings: structuredClone(DEFAULT_SETTINGS),
 
     // Self-update / release-check state
-    updateState: { checking: false, available: null },
+    updateState: { checking: false, available: null, deleteSettings: false },
 
     customActions: { user: [], system: [], builtin: [] },
 
@@ -148,6 +148,8 @@ Alpine.data('explorer', () => ({
     actionsModalEl: null,
 
     globalActionsModalEl: null,
+
+    updateModalEl: null,
 
     settingsModalEl: null,
 
@@ -3298,6 +3300,7 @@ Alpine.data('explorer', () => ({
     openSettings() { bootstrap.Modal.getOrCreateInstance(this.settingsModalEl).show(); },
 
     saveSettings() {
+        if (this._suppressSettingsSave) return;   // self-update is wiping the settings file
         // Debounce: collapse multiple rapid changes into one write
         if (this._saveSettingsTimer) clearTimeout(this._saveSettingsTimer);
         this._saveSettingsTimer = setTimeout(() => {
@@ -4211,20 +4214,38 @@ Alpine.data('explorer', () => ({
             if (manual) this.toast('You are up to date (v' + this.pluginVersion + ').', 'success');
         }
     },
-    // Confirm, download the release zip, then run the built-in self-update on it.
-    async startSelfUpdate(info) {
+    // Open the update dialog (download/install + the "delete settings" option).
+    startSelfUpdate(info) {
         info = info || this.updateState.available;
         if (!info) { this.toast('No update available.', 'warning'); return; }
+        this.updateState.available = info;
+        this.updateState.deleteSettings = false;   // opt-in, defaults to off
+        bootstrap.Modal.getOrCreateInstance(this.updateModalEl).show();
+    },
+    // Confirmed from the dialog: download the zip, optionally delete the
+    // settings file, then run the built-in self-update on it.
+    async confirmSelfUpdate() {
+        const info = this.updateState.available;
+        if (!info) return;
+        const deleteSettings = !!this.updateState.deleteSettings;
+        try { bootstrap.Modal.getOrCreateInstance(this.updateModalEl).hide(); } catch (e) {}
         const repo = this._updateRepo();
-        const ok = await this.askConfirm('Update available',
-            'Explorer ' + info.version + ' is available (installed: ' + (this.pluginVersion || '?') + ').\n\n' +
-            'Download it from ' + repo + ' and install now?\nThis runs "make install" as administrator and restarts Cockpit (you will be briefly disconnected — reload afterwards).',
-            'Download & update');
-        if (!ok) return;
         const op = this._beginOp('Downloading explorer ' + info.version);
         let zip;
         try { zip = await this._downloadReleaseZip(repo, info.tag); this._endOp(op, 'done'); }
         catch (e) { this._failOp(op, e); this.toast('Download failed: ' + (e.message || e), 'danger'); return; }
+        if (deleteSettings) {
+            // Stop any pending write and wipe the persisted settings so the
+            // updated plugin starts from defaults.
+            if (this._saveSettingsTimer) { clearTimeout(this._saveSettingsTimer); this._saveSettingsTimer = null; }
+            this._suppressSettingsSave = true;
+            try {
+                await cockpit.spawn(['rm', '-f', this._settingsPath()], { err: 'message' });
+                this.toast('Settings file deleted — Explorer will start from defaults.', 'info');
+            } catch (e) {
+                this.toast('Could not delete settings file: ' + (e.message || e), 'warning');
+            }
+        }
         this._runSelfUpdateInstall(zip, info.version);
     },
     async _downloadReleaseZip(repo, tag) {

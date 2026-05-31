@@ -1014,8 +1014,12 @@ kick off the self-update for you:
 
 - **Version badge** (top-right): click it to check now. When a newer
   release is found the badge turns green and shows `↑ Explorer vX.Y.Z`;
-  clicking it then downloads that release's `explorer-*.zip` and runs the
-  self-update.
+  clicking it opens an **update dialog**.
+- **Update dialog**: shows the available and installed versions and a
+  **Download & install** button. It also has a **Delete settings file**
+  checkbox (off by default) — leave it unchecked to keep your settings, or
+  tick it to remove `~/.config/cockpit/explorer/settings.yml` during the
+  update so the new version starts from defaults.
 - **Settings → Update source**: the GitHub repo (or releases URL) to
   check. Default `ismetozalp/explorer`. *Check for updates on startup*
   controls the automatic check (on by default); a **Check for updates
@@ -1028,7 +1032,10 @@ The release zip is fetched with the GitHub CLI when available
 the GitHub API. The newest release's tag (e.g. `v1.0.6`) is compared
 numerically against the installed version. Publish releases with
 `make publish`, which tags `v$(VERSION)`, uploads `explorer-$(VERSION).zip`,
-and then deletes that local zip (only after a successful publish).
+and then deletes that local zip (only after a successful publish). Release
+notes default to `Release $(VERSION)`; override them with
+`make publish RELEASE_NOTES="…"` (the interactive `make-target.sh` action
+prompts for these, pre-filled with the last commit message).
 
 ---
 

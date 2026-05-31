@@ -1067,6 +1067,40 @@
     </div>
 </div>
 
+<!-- ============== SELF-UPDATE MODAL ============== -->
+<div class="modal fade" id="updateModal" tabindex="-1" x-data x-init="updateModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update available</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" x-show="updateState.available">
+                <p class="mb-2">
+                    Explorer <strong x-text="'v' + (updateState.available?.version || '')"></strong>
+                    is available (installed: <span x-text="'v' + (pluginVersion || '?')"></span>).
+                </p>
+                <p class="text-muted small mb-3">
+                    Download it from <code x-text="_updateRepo()"></code> and install now. This
+                    runs <code>make install</code> as administrator and restarts Cockpit — you'll be
+                    briefly disconnected, so reload afterwards.
+                </p>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="updDelSettings" x-model="updateState.deleteSettings">
+                    <label class="form-check-label" for="updDelSettings">
+                        Delete settings file
+                        <span class="d-block text-muted small">Resets Explorer to defaults after updating. Leave unchecked to keep your settings.</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="confirmSelfUpdate()">Download &amp; install</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ============== RUN COMMAND MODAL ============== -->
 <div class="modal fade" id="runCmdModal" tabindex="-1" x-data x-init="runCmdModalEl = $el">
     <div class="modal-dialog modal-lg modal-dialog-centered">

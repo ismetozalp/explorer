@@ -5,6 +5,11 @@ SYSCONF ?= /etc/cockpit/$(NAME)
 VERSION := $(shell cat VERSION)
 TAG := v$(VERSION)
 
+# Release notes for `make publish`. Override on the command line, e.g.
+#   make publish RELEASE_NOTES="Fix the thing"
+# (the make-target.sh interactive action passes this from an editable prompt).
+RELEASE_NOTES ?= Release $(VERSION)
+
 FILES = manifest.json index.html README.md VERSION Makefile \
         css js actions screenshots
 
@@ -83,9 +88,10 @@ publish: zip
 	@if gh release view "$(TAG)" >/dev/null 2>&1; then \
 	  echo "Release $(TAG) already exists — uploading asset (clobber)"; \
 	  gh release upload "$(TAG)" "explorer-$(VERSION).zip" --clobber; \
+	  gh release edit "$(TAG)" --notes "$(RELEASE_NOTES)"; \
 	else \
 	  echo "Creating release $(TAG)"; \
-	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes "Release $(VERSION)"; \
+	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes "$(RELEASE_NOTES)"; \
 	fi
 	@echo "Published $(TAG) (explorer-$(VERSION).zip)"
 	@rm -f "explorer-$(VERSION).zip"
