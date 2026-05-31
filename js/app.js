@@ -128,6 +128,9 @@ Alpine.data('explorer', () => ({
     compress: { paths: [], name: 'archive.zip', format: 'zip', dir: '/' },
     compressModalEl: null,
 
+    downloadArc: { paths: [], format: 'tar.gz', count: 0 },
+    downloadArcModalEl: null,
+
     dropChoice: { paths: [], target: '', resolve: null, single: null, forceCopy: false, name: '' },
     termPathPop: { open: false, top: 0, left: 0, path: '' },
     _termPathTimer: null,
@@ -1797,7 +1800,7 @@ Alpine.data('explorer', () => ({
             }
             return;
         }
-        // Multi-file: ask format, compress to /tmp, download
+        // Multi-file: pick a format from a dropdown, compress to /tmp, download.
         // Rough size estimate from listed file sizes (dirs unknown).
         const roughTotal = sel.reduce((s, f) => s + (f.type === 'f' ? f.size : 0), 0);
         if (roughTotal > 1024 * 1024 * 1024) {
@@ -1806,20 +1809,39 @@ Alpine.data('explorer', () => ({
                 'Continue');
             if (!ok) return;
         }
-        const fmt = await this.askPrompt('Multi-file download', 'Archive format (zip, tar.gz, tar.bz2, tar.xz)', 'zip');
-        if (!fmt) return;
+        this.downloadArc = {
+            paths: sel.map(f => f.path),
+            format: this.downloadArc.format || 'tar.gz',
+            count: sel.length,
+        };
+        bootstrap.Modal.getOrCreateInstance(this.downloadArcModalEl).show();
+    },
+
+    // Compress the chosen selection to a temp archive and stream it to the
+    // browser. Driven by the download-format dropdown (#downloadArcModal).
+    async doDownloadArchive() {
+        const fmt = this.downloadArc.format;
+        const paths = this.downloadArc.paths.slice();
         const allowed = ['zip', 'tar', 'tar.gz', 'tar.bz2', 'tar.xz'];
-        if (!allowed.includes(fmt)) { this.toast('Unsupported format: ' + fmt, 'danger'); return; }
+        if (!allowed.includes(fmt) || !paths.length) return;
+        bootstrap.Modal.getOrCreateInstance(this.downloadArcModalEl).hide();
         const tmp = `/tmp/explorer-${Util.uid()}.${fmt}`;
-        const op = this._beginOp(`Compress ${sel.length} item(s) for download`);
+        const op = this._beginOp(`Compress ${paths.length} item(s) for download`);
         try {
-            await FS.compress(sel.map(f => f.path), tmp, fmt);
+            await FS.compress(paths, tmp, fmt);
             const blob = await FS.readBinaryAsBlob(tmp);
             this._triggerDownload(blob, `download.${fmt}`);
-            await FS.remove([tmp]);
+            try { await FS.remove([tmp]); } catch (e) {}
             this._endOp(op, 'done');
         } catch (e) {
-            this._failOp(op, e);
+            const msg = e.message || String(e);
+            // `zip` is a separate package and frequently missing on servers;
+            // tar.gz only needs tar+gzip which are virtually always present.
+            const hint = (fmt === 'zip' && /not found|ENOENT|No such file|not-found/i.test(msg))
+                ? ' — "zip" may not be installed; try tar.gz instead.' : '';
+            this.toast('Download failed: ' + msg + hint, 'danger');
+            this._failOp(op, new Error(msg + hint));
+            try { await FS.remove([tmp]); } catch (_) {}
         }
     },
 
@@ -2040,6 +2062,24 @@ Alpine.data('explorer', () => ({
             dir: tab.path,
         };
         bootstrap.Modal.getOrCreateInstance(this.compressModalEl).show();
+    },
+
+    _archiveExtFor(fmt) {
+        return ({ zip: '.zip', tar: '.tar', 'tar.gz': '.tar.gz', 'tar.bz2': '.tar.bz2', 'tar.xz': '.tar.xz' })[fmt] || '';
+    },
+
+    // Keep the archive name's extension in sync with the chosen format
+    // (archive.zip → archive.tar.gz and back). Strips a known archive
+    // extension (longest match first so .tar.gz isn't left as .tar) and
+    // appends the new one.
+    onCompressFormatChanged() {
+        const known = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tar', '.zip'];
+        let base = String(this.compress.name || '').trim() || 'archive';
+        const lower = base.toLowerCase();
+        for (const e of known) {
+            if (lower.endsWith(e)) { base = base.slice(0, base.length - e.length); break; }
+        }
+        this.compress.name = base + this._archiveExtFor(this.compress.format);
     },
 
     async doCompress() {

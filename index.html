@@ -686,7 +686,7 @@
                 </div>
                 <div class="mb-2">
                     <label class="form-label">Format</label>
-                    <select class="form-select" x-model="compress.format">
+                    <select class="form-select" x-model="compress.format" @change="onCompressFormatChanged()">
                         <option value="zip">zip</option>
                         <option value="tar">tar</option>
                         <option value="tar.gz">tar.gz</option>
@@ -699,6 +699,31 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" @click="doCompress()">Compress</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="downloadArcModal" tabindex="-1" x-data x-init="downloadArcModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Download as archive</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Archive format</label>
+                    <select class="form-select" x-model="downloadArc.format">
+                        <option value="tar.gz">tar.gz (recommended)</option>
+                        <option value="zip">zip (needs the zip package)</option>
+                        <option value="tar">tar</option>
+                        <option value="tar.bz2">tar.bz2</option>
+                        <option value="tar.xz">tar.xz</option>
+                    </select>
+                </div>
+                <div class="form-text"><span x-text="downloadArc.count"></span> item(s) will be compressed and downloaded.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="doDownloadArchive()">Download</button>
             </div>
         </div>
     </div>

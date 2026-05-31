@@ -713,8 +713,11 @@ directory view.
   progress and cancel. Dropping the upload onto a folder row uploads
   into that folder.
 - For downloading multiple files, use the *Download* context menu
-  item — the plugin asks for an archive format (zip / tar / tar.gz /
-  …), compresses to `/tmp`, and streams that to your browser.
+  item — a small dialog offers an archive-format **dropdown**
+  (tar.gz / zip / tar / tar.bz2 / tar.xz), then the plugin compresses to
+  `/tmp` and streams that to your browser. `tar.gz` is the default since
+  it only needs `tar`+`gzip`; `zip` requires the separate `zip` package
+  and the dialog warns if it isn't installed.
 
 ### Uploads
 

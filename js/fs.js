@@ -181,7 +181,11 @@ window.FS = (function () {
         const names = paths.map(p => Util.basename(p));
         let cmd;
         if (format === 'zip') {
-            cmd = ['zip', '-r', '--', archivePath, ...names];
+            // Info-ZIP `zip` does not accept the GNU `--` end-of-options marker
+            // ("can't use -- before archive name"). Prefix each name with ./ so
+            // a leading dash isn't taken as an option; zip records them without
+            // the ./.
+            cmd = ['zip', '-r', archivePath, ...names.map(n => './' + n)];
         } else {
             const tarFlag = {
                 'tar':     '-cf',
