@@ -8,7 +8,10 @@ TAG := v$(VERSION)
 # Release notes for `make publish`. Override on the command line, e.g.
 #   make publish RELEASE_NOTES="Fix the thing"
 # (the make-target.sh interactive action passes this from an editable prompt).
+# Exported so the recipe can read it as $$RELEASE_NOTES and write it to a file
+# verbatim — this keeps multi-line / quoted notes intact.
 RELEASE_NOTES ?= Release $(VERSION)
+export RELEASE_NOTES
 
 FILES = manifest.json index.html README.md VERSION Makefile \
         css js actions screenshots
@@ -85,13 +88,15 @@ publish: zip
 publish: zip
 	@command -v gh >/dev/null 2>&1 || { echo "gh CLI not found — install it first."; exit 1; }
 	@gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated — run: gh auth login"; exit 1; }
-	@if gh release view "$(TAG)" >/dev/null 2>&1; then \
+	@notes="$$(mktemp)"; trap 'rm -f "$$notes"' EXIT; \
+	printf '%s\n' "$$RELEASE_NOTES" > "$$notes"; \
+	if gh release view "$(TAG)" >/dev/null 2>&1; then \
 	  echo "Release $(TAG) already exists — uploading asset (clobber)"; \
 	  gh release upload "$(TAG)" "explorer-$(VERSION).zip" --clobber; \
-	  gh release edit "$(TAG)" --notes "$(RELEASE_NOTES)"; \
+	  gh release edit "$(TAG)" --notes-file "$$notes"; \
 	else \
 	  echo "Creating release $(TAG)"; \
-	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes "$(RELEASE_NOTES)"; \
+	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes-file "$$notes"; \
 	fi
 	@echo "Published $(TAG) (explorer-$(VERSION).zip)"
 	@rm -f "explorer-$(VERSION).zip"
