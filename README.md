@@ -337,8 +337,12 @@ selection, sort order, search, and git strip.
 > *Open in new tab · Properties*
 > *Open terminal here (split) · Open in new terminal tab · Open in Cockpit terminal* — always available; on a folder they open that folder, on a file or empty space they open the current pane's folder
 
-Custom actions sit at the top of the menu (rather than in a submenu) so a
-long list of them is never clipped off the bottom of the screen.
+Custom actions sit at the top of the menu. With **3 or fewer** applicable
+actions they're listed flat; with **more than 3** they're grouped into
+**User custom actions ▸** and **System custom actions ▸** flyout submenus
+(each showing its count) so a long list is never clipped off the bottom of
+the screen. The flyouts open to the left automatically when the menu is
+near the right edge of the window.
 
 **Paste-as-name.** When you paste (Ctrl-V or the menu) a *single* file or
 folder, the plugin asks for the name it should have in the destination —
@@ -764,11 +768,12 @@ Same applies to the editor's *Save as administrator*.
 
 ## Custom actions
 
-Custom actions are user-defined commands that appear in the **Custom
-actions ▸** submenu of the right-click menu, filtered by the type and
-pattern you configure. Each item in that submenu carries a small
-**user**/**system** badge showing where the action comes from (built-in
-actions like the self-updater show as **system**).
+Custom actions are user-defined commands that appear at the **top** of the
+right-click menu, filtered by the type and pattern you configure (grouped
+into User / System submenus when there are more than three — see the
+context-menu section above). Each item carries a small **user**/**system**
+badge showing where the action comes from (built-in actions like the
+self-updater show as **system**).
 
 Two configuration layers, last-wins-merged in the menu (system actions
 appear above user ones):
@@ -780,19 +785,24 @@ Manage them from the UI: **⚙ Actions** in the top-right. The editor
 writes the JSON file for you (the system file may prompt you for the
 admin password via Cockpit's superuser bridge).
 
-Each scope (User / System) can be edited in two modes, switchable with
-the **Form** / **JSON / YAML** toggle at the top of the dialog:
+Each scope (User / System) is edited one action at a time. Select an
+action in the list on the left, then switch how you edit **that action**
+with the **Form** / **JSON / YAML** toggle at the top of the dialog:
 
 - **Form** — the point-and-click editor (label, command, applies-to,
   regex, output, privilege, etc.).
-- **JSON / YAML** — a full **syntax-highlighted** editor (Monaco) for the
-  whole action list, with a JSON/YAML format switch. The dialog expands
-  to give the editor room. Paste or hand-write definitions here; on
-  **Save** (or when you switch back to Form) the text is parsed and
-  validated. Either `{ "actions": [ … ] }` or a bare top-level list is
-  accepted, `command` is the only required field per action, and missing
-  ids/defaults are filled in automatically. Parse or validation errors
-  are shown inline and block saving until fixed.
+- **JSON / YAML** — a **syntax-highlighted** editor (Monaco) showing only
+  the **selected action** as a single object, with a JSON/YAML format
+  switch. Edit it as text and switch back to Form (or pick another action,
+  or **Save**) to apply the change — the three views stay in sync, so an
+  edit in any one of them updates just that action. A brand-new action
+  opens as an **all-empty-fields template** you fill in. `command` is the
+  only field that really matters; ids and defaults are filled in
+  automatically. Parse errors are shown inline and block leaving the view
+  until fixed. (The whole scope is still saved to its `actions.json` as
+  `{ "actions": [ … ] }`; you just edit one action at a time.)
+
+The JSON / YAML toggle is disabled until an action is selected.
 
 The action list on the left is available in **both** modes — use **+ New
 action** to add one and the **✕** on a row to delete it (in JSON/YAML

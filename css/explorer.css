@@ -1286,6 +1286,34 @@ body {
 .ca-badge-user   { background: #16a34a; color: #fff; }   /* green */
 .ca-badge-system { background: #2563eb; color: #fff; }   /* blue */
 
+/* Context-menu submenus (used when there are more than 3 custom actions) */
+.ctx-submenu { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ctx-submenu-arrow { flex-shrink: 0; opacity: 0.7; font-size: 11px; }
+.ctx-submenu > .ctx-flyout {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: -5px;                       /* line up with the parent row past the menu padding */
+    min-width: 220px;
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    background: var(--ex-bg);
+    border: 1px solid var(--ex-border-strong);
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    z-index: 3001;
+}
+.ctx-submenu.fly-left > .ctx-flyout { left: auto; right: 100%; }
+.ctx-submenu:hover > .ctx-flyout,
+.ctx-submenu:focus-within > .ctx-flyout { display: block; }
+.ctx-flyout li { padding: 4px 16px; cursor: pointer; position: relative; white-space: nowrap; }
+.ctx-flyout li:hover:not(.ctx-action-disabled) { background: var(--ex-selected); color: var(--ex-accent-hover); }
+[data-bs-theme="dark"] .ctx-submenu > .ctx-flyout { background: #292d31; border-color: var(--ex-border-strong); }
+[data-bs-theme="dark"] .ctx-flyout li:hover:not(.ctx-action-disabled) { background: var(--ex-selected); color: var(--ex-accent-hover); }
+
 /* ===== Windows-style window controls (preview / editor headers) ===== */
 .win-controls { display: inline-flex; align-items: center; gap: 2px; }
 .win-btn {

@@ -758,7 +758,7 @@ Alpine.data('explorer', () => ({
     openContextMenu(ev, pane, file) {
         const tab = this.activeTab();
         this._activatePaneRef(tab, pane);
-        this.ctxMenu = { open: true, x: ev.clientX, y: ev.clientY, kind: 'empty', target: null, tabId: tab ? tab.id : null };
+        this.ctxMenu = { open: true, x: ev.clientX, y: ev.clientY, kind: 'empty', target: null, tabId: tab ? tab.id : null, flyLeft: false };
         this._clampCtxMenu();
     },
 
@@ -767,7 +767,7 @@ Alpine.data('explorer', () => ({
         this._activatePaneRef(tab, pane);
         // If the row isn't in current selection, select just it.
         if (!pane.selection.includes(file.path)) pane.selection = [file.path];
-        this.ctxMenu = { open: true, x: ev.clientX, y: ev.clientY, kind: 'file', target: file, tabId: tab ? tab.id : null };
+        this.ctxMenu = { open: true, x: ev.clientX, y: ev.clientY, kind: 'file', target: file, tabId: tab ? tab.id : null, flyLeft: false };
         this._clampCtxMenu();
     },
 
@@ -779,6 +779,9 @@ Alpine.data('explorer', () => ({
             const vw = window.innerWidth, vh = window.innerHeight;
             if (r.right > vw) this.ctxMenu.x = Math.max(0, vw - r.width - 4);
             if (r.bottom > vh) this.ctxMenu.y = Math.max(0, vh - r.height - 4);
+            // Open submenu flyouts to the left when there isn't room on the right.
+            const FLYOUT_W = 240;
+            this.ctxMenu.flyLeft = (Math.min(r.right, vw) + FLYOUT_W) > vw;
         });
     },
 
@@ -2242,12 +2245,8 @@ Alpine.data('explorer', () => ({
     },
 
     async saveCustomActions() {
-        // In code view, parse the textarea into the model first; abort on error.
-        if (this.actionsMgr.mode === 'code') {
-            const parsed = this._parseActionsCode();
-            if (parsed === null) return; // codeError already set & shown
-            this.customActions[this.actionsMgr.scope] = parsed;
-        }
+        // In code view, commit the selected action's JSON/YAML first; abort on error.
+        if (!this._commitActionCode()) return; // codeError already set & shown
         const scope = this.actionsMgr.scope;
         const path = scope === 'user'
             ? this.homePath + USER_ACTIONS_PATH_SUFFIX
@@ -2274,45 +2273,57 @@ Alpine.data('explorer', () => ({
         bootstrap.Modal.getOrCreateInstance(this.actionsModalEl).show();
     },
 
-    // ── Form ↔ JSON/YAML editing ───────────────────────────────────────
-    _serializeActions(scope, format) {
-        const arr = (this.customActions[scope] || []).map(a => {
-            const o = {
-                label: a.label || '',
-                command: a.command || '',
-                appliesTo: a.appliesTo || '',
-                pattern: a.pattern || '',
-                output: a.output || 'toast',
-                privilege: a.privilege || 'user',
-                confirm: !!a.confirm,
-                multi: a.multi !== false,
-            };
-            // Only include the optional pre/post + message fields when set, to
-            // keep the document tidy.
-            if (a.confirmMessage) o.confirmMessage = a.confirmMessage;
-            if (a.interactive) o.interactive = true;
-            if (a.script) o.script = a.script;
-            if (a.requiresGh) o.requiresGh = true;
-            if (a.preCommand) o.preCommand = a.preCommand;
-            if (a.preConfirm) o.preConfirm = a.preConfirm;
-            if (a.preConfirmLabel) o.preConfirmLabel = a.preConfirmLabel;
-            if (a.postCommand) o.postCommand = a.postCommand;
-            if (a.postConfirm) o.postConfirm = a.postConfirm;
-            if (a.postConfirmLabel) o.postConfirmLabel = a.postConfirmLabel;
-            return o;
-        });
-        const obj = { actions: arr };
-        if (format === 'yaml') {
-            return (window.jsyaml ? jsyaml.dump(obj, { indent: 2, lineWidth: 100 }) : JSON.stringify(obj, null, 2));
-        }
-        return JSON.stringify(obj, null, 2);
+    // ── Per-action Form ↔ JSON/YAML editing ────────────────────────────
+    // The JSON/YAML editor shows ONLY the selected action, as a single object
+    // (no { actions: [...] } wrapper and no internal id), so toggling Form /
+    // JSON / YAML edits just that one action. The on-disk file stays
+    // { actions: [...] }.
+    _currentAction() {
+        const arr = this.customActions[this.actionsMgr.scope];
+        const i = this.actionsMgr.editingIdx;
+        return (arr && i != null && i >= 0 && i < arr.length) ? arr[i] : null;
     },
 
-    // Parse the code textarea into the normalized action list. Returns the
-    // array on success, or null (and sets codeError) on failure.
-    _parseActionsCode() {
+    // Serialize one action to a tidy object. Core fields are always present so
+    // a brand-new action shows an "all empty fields" template; optional pre/post
+    // and flag fields appear only when set.
+    _serializeAction(a, format) {
+        a = a || {};
+        const o = {
+            label: a.label || '',
+            command: a.command || '',
+            appliesTo: a.appliesTo || '',
+            pattern: a.pattern || '',
+            output: a.output || 'toast',
+            privilege: a.privilege || 'user',
+            confirm: !!a.confirm,
+            multi: a.multi !== false,
+        };
+        if (a.confirmMessage) o.confirmMessage = a.confirmMessage;
+        if (a.interactive) o.interactive = true;
+        if (a.script) o.script = a.script;
+        if (a.requiresGh) o.requiresGh = true;
+        if (a.preCommand) o.preCommand = a.preCommand;
+        if (a.preConfirm) o.preConfirm = a.preConfirm;
+        if (a.preConfirmLabel) o.preConfirmLabel = a.preConfirmLabel;
+        if (a.postCommand) o.postCommand = a.postCommand;
+        if (a.postConfirm) o.postConfirm = a.postConfirm;
+        if (a.postConfirmLabel) o.postConfirmLabel = a.postConfirmLabel;
+        if (format === 'yaml') {
+            return (window.jsyaml ? jsyaml.dump(o, { indent: 2, lineWidth: 100 }) : JSON.stringify(o, null, 2));
+        }
+        return JSON.stringify(o, null, 2);
+    },
+
+    // Parse the single-action editor text back into a normalized action,
+    // preserving the selected action's id. Returns the action, or null on a
+    // syntax error (sets codeError). Empty text → an empty action (not an
+    // error), so toggling views on a fresh action is seamless.
+    _parseActionOne() {
+        const cur = this._currentAction();
+        const id = (cur && cur.id) || Util.uid();
         const text = (this.actionsMgr.codeText || '').trim();
-        if (!text) return [];
+        if (!text) { this.actionsMgr.codeError = ''; return this._normalizeAction({ id }); }
         let data;
         try {
             if (this.actionsMgr.codeFormat === 'yaml') {
@@ -2325,61 +2336,55 @@ Alpine.data('explorer', () => ({
             this.actionsMgr.codeError = (this.actionsMgr.codeFormat.toUpperCase()) + ' parse error: ' + (e.message || e);
             return null;
         }
-        // Accept either {actions:[...]} or a bare [...] array.
-        const list = Array.isArray(data) ? data : (data && Array.isArray(data.actions) ? data.actions : null);
-        if (!list) {
-            this.actionsMgr.codeError = 'Expected an "actions" array (or a top-level list).';
+        if (data == null || typeof data !== 'object' || Array.isArray(data)) {
+            this.actionsMgr.codeError = 'Expected a single action object, e.g. { "label": "…", "command": "echo {path}" }.';
             return null;
         }
-        const valid = ['toast', 'modal', 'tray', 'pane'];
-        const privs = ['user', 'try', 'require'];
-        const out = [];
-        for (let i = 0; i < list.length; i++) {
-            const a = list[i] || {};
-            if (typeof a.command !== 'string' || !a.command.trim()) {
-                this.actionsMgr.codeError = `Action #${i + 1}: "command" is required.`;
-                return null;
-            }
-            out.push({
-                id: a.id || Util.uid(),
-                label: (a.label || '').toString() || 'Action',
-                command: a.command,
-                appliesTo: a.appliesTo || '',
-                pattern: a.pattern || '',
-                output: valid.includes(a.output) ? a.output : 'toast',
-                privilege: privs.includes(a.privilege) ? a.privilege : 'user',
-                confirm: !!a.confirm,
-                confirmMessage: a.confirmMessage || '',
-                preCommand: a.preCommand || '',
-                preConfirm: a.preConfirm || '',
-                preConfirmLabel: a.preConfirmLabel || '',
-                postCommand: a.postCommand || '',
-                postConfirm: a.postConfirm || '',
-                postConfirmLabel: a.postConfirmLabel || '',
-                interactive: !!a.interactive,
-                script: a.script || '',
-                requiresGh: !!a.requiresGh,
-                multi: a.multi !== false,
-            });
-        }
         this.actionsMgr.codeError = '';
-        return out;
+        data.id = id;
+        return this._normalizeAction(data);
+    },
+
+    // When in code view, parse the editor back into the selected action.
+    // Returns true on success (or when not in code view), false on parse error.
+    _commitActionCode() {
+        if (this.actionsMgr.mode !== 'code') return true;
+        const parsed = this._parseActionOne();
+        if (parsed === null) return false;
+        const arr = this.customActions[this.actionsMgr.scope];
+        const i = this.actionsMgr.editingIdx;
+        if (arr && i != null && i >= 0 && i < arr.length) arr[i] = parsed;
+        return true;
+    },
+
+    // Load the currently-selected action into the code editor (or clear it).
+    _loadActionIntoCode() {
+        const a = this._currentAction();
+        this._setActionsCode(a ? this._serializeAction(a, this.actionsMgr.codeFormat) : '');
+        this.actionsMgr.codeError = '';
+    },
+
+    // Select an action from the list. Commits any pending code edit on the
+    // current action first; works in both Form and JSON/YAML views.
+    selectAction(i) {
+        if (i === this.actionsMgr.editingIdx) return;
+        if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
+        this.actionsMgr.editingIdx = i;
+        if (this.actionsMgr.mode === 'code') this._loadActionIntoCode();
     },
 
     setActionsMode(mode) {
         if (mode === this.actionsMgr.mode) return;
         if (mode === 'code') {
-            // entering code view → serialize current actions and mount Monaco
-            this.actionsMgr.codeText = this._serializeActions(this.actionsMgr.scope, this.actionsMgr.codeFormat);
+            // entering code view → serialize the SELECTED action and mount Monaco
+            if (this._currentAction() == null) { this.toast('Select or add an action first', 'info'); return; }
+            this.actionsMgr.codeText = this._serializeAction(this._currentAction(), this.actionsMgr.codeFormat);
             this.actionsMgr.codeError = '';
             this.actionsMgr.mode = 'code';
             this.$nextTick(() => this._mountActionsMonaco());
         } else {
-            // leaving code view → parse back into the form model
-            const parsed = this._parseActionsCode();
-            if (parsed === null) return; // stay in code view, error shown
-            this.customActions[this.actionsMgr.scope] = parsed;
-            this.actionsMgr.editingIdx = parsed.length ? 0 : null;
+            // leaving code view → commit this action's JSON/YAML back to the form
+            if (!this._commitActionCode()) return; // stay in code view, error shown
             this.actionsMgr.mode = 'form';
             this._disposeActionsMonaco();
         }
@@ -2387,30 +2392,23 @@ Alpine.data('explorer', () => ({
 
     setActionsCodeFormat(format) {
         if (format === this.actionsMgr.codeFormat) return;
-        const parsed = this._parseActionsCode();
+        // commit the text in the OLD format, then re-serialize in the new one
+        if (!this._commitActionCode()) return; // parse error in current format
         this.actionsMgr.codeFormat = format;
-        if (parsed !== null) {
-            this.customActions[this.actionsMgr.scope] = parsed; // keep model in sync
-            this._setActionsCode(this._serializeActions(this.actionsMgr.scope, format));
-            this.actionsMgr.codeError = '';
-        }
+        this._loadActionIntoCode();
         if (_actionsEditorModel && window.monaco) {
             try { window.monaco.editor.setModelLanguage(_actionsEditorModel, format === 'yaml' ? 'yaml' : 'json'); } catch (e) {}
         }
     },
 
-    // Re-serialize when the scope tab changes while in code view.
+    // Commit the current action, then switch scope tab and select its first action.
     switchActionsScope(scope) {
-        if (this.actionsMgr.mode === 'code') {
-            const parsed = this._parseActionsCode();
-            if (parsed !== null) this.customActions[this.actionsMgr.scope] = parsed;
-        }
+        if (scope === this.actionsMgr.scope) return;
+        if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
         this.actionsMgr.scope = scope;
         this.actionsMgr.editingIdx = this.customActions[scope].length ? 0 : null;
         this.actionsMgr.codeError = '';
-        if (this.actionsMgr.mode === 'code') {
-            this._setActionsCode(this._serializeActions(scope, this.actionsMgr.codeFormat));
-        }
+        if (this.actionsMgr.mode === 'code') this._loadActionIntoCode();
     },
 
     // ── Monaco-backed code editor for the actions JSON/YAML ──────────────
@@ -2454,27 +2452,25 @@ Alpine.data('explorer', () => ({
         if (_actionsEditorModel) { try { _actionsEditorModel.dispose(); } catch (e) {} _actionsEditorModel = null; }
     },
 
+    // A brand-new action starts with all fields empty, so its JSON/YAML view
+    // shows an "all empty fields" template the user fills in.
     _blankAction() {
         return {
-            id: Util.uid(), label: 'New action', command: 'echo {path}', appliesTo: '', pattern: '',
-            output: 'tray', privilege: 'user', confirm: false, confirmMessage: '',
+            id: Util.uid(), label: '', command: '', appliesTo: '', pattern: '',
+            output: 'toast', privilege: 'user', confirm: false, confirmMessage: '',
             preCommand: '', preConfirm: '', preConfirmLabel: '',
-            postCommand: '', postConfirm: '', postConfirmLabel: '', multi: true,
+            postCommand: '', postConfirm: '', postConfirmLabel: '',
+            interactive: false, script: '', requiresGh: false, multi: false,
         };
     },
 
     addCustomAction() {
+        // Commit any pending code edit on the current action first.
+        if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
         const scope = this.actionsMgr.scope;
-        if (this.actionsMgr.mode === 'code') {
-            const parsed = this._parseActionsCode();
-            if (parsed === null) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
-            parsed.push(this._blankAction());
-            this.customActions[scope] = parsed;
-            this._setActionsCode(this._serializeActions(scope, this.actionsMgr.codeFormat));
-            return;
-        }
         this.customActions[scope].push(this._blankAction());
         this.actionsMgr.editingIdx = this.customActions[scope].length - 1;
+        if (this.actionsMgr.mode === 'code') this._loadActionIntoCode();
     },
 
     removeCustomAction() {
@@ -2486,17 +2482,25 @@ Alpine.data('explorer', () => ({
     removeActionAt(i) {
         if (i == null || i < 0) return;
         const scope = this.actionsMgr.scope;
-        if (this.actionsMgr.mode === 'code') {
-            const parsed = this._parseActionsCode();
-            if (parsed === null) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
-            if (i >= parsed.length) return;
-            parsed.splice(i, 1);
-            this.customActions[scope] = parsed;
-            this._setActionsCode(this._serializeActions(scope, this.actionsMgr.codeFormat));
-            return;
+        const arr = this.customActions[scope];
+        if (i >= arr.length) return;
+        // Preserve edits to the *current* action when deleting a different one.
+        if (this.actionsMgr.mode === 'code' && i !== this.actionsMgr.editingIdx) {
+            if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
         }
-        this.customActions[scope].splice(i, 1);
-        this.actionsMgr.editingIdx = this.customActions[scope].length ? Math.min(i, this.customActions[scope].length - 1) : null;
+        const cur = this.actionsMgr.editingIdx;
+        arr.splice(i, 1);
+        let next;
+        if (cur == null) next = null;
+        else if (i === cur) next = arr.length ? Math.min(i, arr.length - 1) : null;
+        else if (i < cur) next = cur - 1;
+        else next = cur;
+        this.actionsMgr.editingIdx = next;
+        this.actionsMgr.codeError = '';
+        if (this.actionsMgr.mode === 'code') {
+            if (this._currentAction()) this._loadActionIntoCode();
+            else this._setActionsCode('');
+        }
     },
 
     appliesToLabel(v) {
@@ -2553,6 +2557,16 @@ Alpine.data('explorer', () => ({
             }
             return true;
         }).map(({ a, source }) => ({ ...a, _source: source }));
+    },
+
+    // Group applicable custom actions for the context menu. When there are more
+    // than 3 in total they're split into "User" / "System" flyout submenus;
+    // 3 or fewer stay flat. Built-in actions count as System.
+    ctxActionGroups(file) {
+        const all = this.applicableActions(file);
+        const user = all.filter(a => a._source === 'user');
+        const system = all.filter(a => a._source !== 'user');
+        return { all, user, system, total: all.length, grouped: all.length > 3 };
     },
 
     // Build the template context (paths + version tokens) for an action.

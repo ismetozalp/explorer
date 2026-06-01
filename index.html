@@ -420,19 +420,45 @@
 <div class="context-menu" x-show="ctxMenu.open" :style="`left:${ctxMenu.x}px;top:${ctxMenu.y}px`" @click.stop>
     <template x-if="ctxMenu.kind === 'file' || ctxMenu.kind === 'empty'">
         <ul class="ctx-list" @click="closeContextMenu()">
-            <!-- Custom actions (kept at the TOP so a long list isn't clipped off
-                 the bottom of the viewport by a submenu) -->
-            <template x-for="action in applicableActions(ctxMenu.target)" :key="action.id">
-                <li @click="(action.requiresGh && gh.state !== 'authed') ? null : runCustomAction(action)"
-                    class="ctx-action-item"
-                    :class="{ 'ctx-action-disabled': action.requiresGh && gh.state !== 'authed' }"
-                    :title="(action.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">
-                    <span class="ctx-action-label" x-text="action.label"></span>
-                    <span x-show="action.requiresGh" class="ca-badge ca-badge-system" title="Requires GitHub (gh)">gh</span>
-                    <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
-                </li>
+            <!-- Custom actions, kept at the TOP. Flat when ≤3 total; split into
+                 User / System flyout submenus when there are more than 3, so a
+                 long list isn't clipped off the bottom of the viewport. -->
+            <template x-if="!ctxActionGroups(ctxMenu.target).grouped">
+                <template x-for="action in ctxActionGroups(ctxMenu.target).all" :key="action.id">
+                    <li @click="(action.requiresGh && gh.state !== 'authed') ? null : runCustomAction(action)"
+                        class="ctx-action-item"
+                        :class="{ 'ctx-action-disabled': action.requiresGh && gh.state !== 'authed' }"
+                        :title="(action.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">
+                        <span class="ctx-action-label" x-text="action.label"></span>
+                        <span x-show="action.requiresGh" class="ca-badge ca-badge-system" title="Requires GitHub (gh)">gh</span>
+                        <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
+                    </li>
+                </template>
             </template>
-            <li class="ctx-sep" x-show="applicableActions(ctxMenu.target).length"></li>
+            <template x-if="ctxActionGroups(ctxMenu.target).grouped">
+                <template x-for="grp in [
+                        { key: 'user',   label: 'User custom actions',   items: ctxActionGroups(ctxMenu.target).user },
+                        { key: 'system', label: 'System custom actions', items: ctxActionGroups(ctxMenu.target).system }
+                    ]" :key="grp.key">
+                    <li class="ctx-submenu" :class="{ 'fly-left': ctxMenu.flyLeft }" x-show="grp.items.length" @click.stop>
+                        <span class="ctx-action-label" x-text="grp.label + ' (' + grp.items.length + ')'"></span>
+                        <span class="ctx-submenu-arrow" x-text="ctxMenu.flyLeft ? '◂' : '▸'"></span>
+                        <ul class="ctx-flyout">
+                            <template x-for="action in grp.items" :key="action.id">
+                                <li @click="(action.requiresGh && gh.state !== 'authed') ? null : (runCustomAction(action), closeContextMenu())"
+                                    class="ctx-action-item"
+                                    :class="{ 'ctx-action-disabled': action.requiresGh && gh.state !== 'authed' }"
+                                    :title="(action.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">
+                                    <span class="ctx-action-label" x-text="action.label"></span>
+                                    <span x-show="action.requiresGh" class="ca-badge ca-badge-system" title="Requires GitHub (gh)">gh</span>
+                                    <span class="ca-badge" :class="action._source === 'user' ? 'ca-badge-user' : 'ca-badge-system'" x-text="action._source"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </li>
+                </template>
+            </template>
+            <li class="ctx-sep" x-show="ctxActionGroups(ctxMenu.target).total"></li>
             <li x-show="ctxMenu.kind === 'file'" @click="openSelected()">Open</li>
             <li x-show="ctxMenu.kind === 'file' && isTextLike(ctxMenu.target)" @click="openEditor(ctxMenu.target)">Edit</li>
             <li x-show="ctxMenu.kind === 'file' && isPreviewable(ctxMenu.target)" @click="openPreview(ctxMenu.target)">Preview (Space)</li>
@@ -850,13 +876,13 @@
                 <div class="d-flex align-items-center mb-3">
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn" :class="actionsMgr.mode === 'form' ? 'btn-primary' : 'btn-outline-secondary'" @click="setActionsMode('form')">Form</button>
-                        <button type="button" class="btn" :class="actionsMgr.mode === 'code' ? 'btn-primary' : 'btn-outline-secondary'" @click="setActionsMode('code')">JSON / YAML</button>
+                        <button type="button" class="btn" :class="actionsMgr.mode === 'code' ? 'btn-primary' : 'btn-outline-secondary'" :disabled="actionsMgr.editingIdx === null" @click="setActionsMode('code')">JSON / YAML</button>
                     </div>
                     <div class="btn-group btn-group-sm ms-3" role="group" x-show="actionsMgr.mode === 'code'">
                         <button type="button" class="btn" :class="actionsMgr.codeFormat === 'json' ? 'btn-secondary' : 'btn-outline-secondary'" @click="setActionsCodeFormat('json')">JSON</button>
                         <button type="button" class="btn" :class="actionsMgr.codeFormat === 'yaml' ? 'btn-secondary' : 'btn-outline-secondary'" @click="setActionsCodeFormat('yaml')">YAML</button>
                     </div>
-                    <small class="text-muted ms-3" x-show="actionsMgr.mode === 'code'">Edit the raw action definitions, then Save.</small>
+                    <small class="text-muted ms-3" x-show="actionsMgr.mode === 'code'">Editing the selected action only — Form, JSON and YAML stay in sync.</small>
                 </div>
 
                 <div class="row actions-row">
@@ -864,8 +890,8 @@
                         <ul class="list-group actions-list">
                             <template x-for="(a, i) in customActions[actionsMgr.scope]" :key="a.id">
                                 <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
-                                    :class="{ active: actionsMgr.mode === 'form' && actionsMgr.editingIdx === i }"
-                                    @click="actionsMgr.mode === 'form' && (actionsMgr.editingIdx = i)">
+                                    :class="{ active: actionsMgr.editingIdx === i }"
+                                    @click="selectAction(i)">
                                     <span class="me-2" style="min-width:0; overflow:hidden;">
                                         <span x-text="a.label"></span>
                                         <small class="text-muted d-block text-truncate" x-text="appliesToLabel(a.appliesTo) + (a.pattern ? ' · /' + a.pattern + '/' : '')"></small>
@@ -880,10 +906,11 @@
                     <div class="col-8">
                         <!-- JSON / YAML editor -->
                         <div x-show="actionsMgr.mode === 'code'">
-                            <div id="actionsMonaco" class="actions-monaco" x-show="!actionsMgr.monacoFailed"></div>
+                            <div x-show="actionsMgr.editingIdx === null" class="text-muted mb-2">Select an action on the left, or add a new one.</div>
+                            <div id="actionsMonaco" class="actions-monaco" x-show="!actionsMgr.monacoFailed && actionsMgr.editingIdx !== null"></div>
                             <textarea class="form-control font-monospace actions-code" spellcheck="false"
-                                      x-show="actionsMgr.monacoFailed" x-model="actionsMgr.codeText"
-                                      placeholder='{ "actions": [ { "label": "…", "command": "echo {path}" } ] }'></textarea>
+                                      x-show="actionsMgr.monacoFailed && actionsMgr.editingIdx !== null" x-model="actionsMgr.codeText"
+                                      placeholder='{ "label": "…", "command": "echo {path}" }'></textarea>
                             <div class="text-danger mt-2" style="white-space:pre-wrap" x-show="actionsMgr.codeError" x-text="actionsMgr.codeError"></div>
                         </div>
 
