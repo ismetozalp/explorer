@@ -3870,11 +3870,29 @@ Alpine.data('explorer', () => ({
         const shell = (this.settings && this.settings.defaultShell) || '/bin/bash';
         // For bash, launch with our rcfile so each prompt reports cwd via OSC 7.
         // The rcfile sources the user's own ~/.bashrc first, so their prompt /
-        // aliases are untouched. Non-bash shells just run interactively.
+        // aliases are untouched.
         const isBash = /(^|\/)bash$/.test(shell);
-        const spawnArgs = (isBash && this._osc7RcPath)
-            ? [shell, '--rcfile', this._osc7RcPath, '-i']
-            : [shell, '-i'];
+        // `-i` (interactive) is understood by the usual shells, but not by
+        // terminal multiplexers / other programs a user might pick (e.g. tmux,
+        // which errors "unknown option -- i" and exits). Only pass -i to known
+        // interactive shells; launch anything else bare.
+        const INTERACTIVE_SHELLS = ['sh', 'bash', 'dash', 'ash', 'zsh', 'ksh', 'mksh', 'csh', 'tcsh', 'fish'];
+        const shellBase = shell.replace(/.*\//, '');
+        let spawnArgs;
+        if (isBash && this._osc7RcPath) {
+            spawnArgs = [shell, '--rcfile', this._osc7RcPath, '-i'];
+        } else if (shellBase === 'tmux') {
+            // Closing a terminal only detaches the tmux client; the server keeps
+            // the session alive in the background, so sessions would pile up.
+            // Create a fresh session per terminal and mark it destroy-unattached
+            // so it is torn down the moment its client detaches (i.e. when we
+            // close the channel, or the browser disconnects).
+            spawnArgs = [shell, 'new-session', ';', 'set-option', 'destroy-unattached', 'on'];
+        } else if (INTERACTIVE_SHELLS.includes(shellBase)) {
+            spawnArgs = [shell, '-i'];
+        } else {
+            spawnArgs = [shell];
+        }
 
         // Match Cockpit's own terminal plugin: interactive shell, UTF-8 stream.
         let channel;
