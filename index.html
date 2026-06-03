@@ -40,6 +40,36 @@
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openGlobalActions()" title="Run a global action (not tied to a file)">
         <span>▶ Run</span>
     </button>
+    <!-- tmux session manager (only when tmux is installed) -->
+    <div class="tmux-wrap" x-show="tmux.available" @click.outside="tmux.open = false">
+        <button class="btn btn-sm btn-link tab-bar-btn" @click="toggleTmuxPanel($event)" :class="{ 'tmux-btn-active': tmux.open }" title="tmux sessions">
+            <span>▤ tmux</span>
+        </button>
+        <div class="tmux-panel" x-show="tmux.open" x-cloak :style="`top:${tmux.top}px;right:${tmux.right}px`">
+            <div class="tmux-panel-head">
+                <span>tmux sessions</span>
+                <button class="tmux-icon-btn" @click="refreshTmuxSessions()" title="Refresh">⟳</button>
+            </div>
+            <div class="tmux-panel-body">
+                <div class="tmux-empty" x-show="tmux.loading">Loading…</div>
+                <div class="tmux-empty text-danger" x-show="!tmux.loading && tmux.error" x-text="tmux.error"></div>
+                <div class="tmux-empty" x-show="!tmux.loading && !tmux.error && !tmux.sessions.length">No sessions yet.</div>
+                <template x-for="s in tmux.sessions" :key="s.name">
+                    <div class="tmux-row" :class="{ open: isTmuxSessionOpen(s.name) }">
+                        <button class="tmux-row-main" @click="openTmuxSession(s.name)" :title="'Open ' + s.name">
+                            <span class="tmux-row-name" x-text="s.name"></span>
+                            <span class="tmux-row-meta" x-text="s.windows + (s.windows === 1 ? ' window' : ' windows') + (s.attached ? ' · attached' : '')"></span>
+                            <span class="tmux-row-open" x-show="isTmuxSessionOpen(s.name)">open</span>
+                        </button>
+                        <button class="tmux-kill" @click.stop="killTmuxSession(s.name)" title="Kill session">✕</button>
+                    </div>
+                </template>
+            </div>
+            <div class="tmux-panel-foot">
+                <button class="tmux-new" @click="newTmuxSession()">＋ New session…</button>
+            </div>
+        </div>
+    </div>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
@@ -334,7 +364,7 @@
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
                              @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)">
-                            <span class="term-subtab-label" x-text="shortenTermPath(t.dir)"></span>
+                            <span class="term-subtab-label" x-text="termLabel(t)"></span>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal (middle-click also)">×</button>
                         </div>
                     </template>
@@ -396,7 +426,7 @@
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
                              @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)">
-                            <span class="term-subtab-label" x-text="shortenTermPath(t.dir)"></span>
+                            <span class="term-subtab-label" x-text="termLabel(t)"></span>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal">×</button>
                         </div>
                     </template>

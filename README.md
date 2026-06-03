@@ -281,9 +281,11 @@ diffView: side
 - **Right-click** a tab for: *Duplicate*, *Close*, *Close others*,
   *Close to the left*, *Close to the right*.
 - Directory tabs are persisted to `~/.config/cockpit/explorer/tabs.yml`
-  and restored on reload (turn this off in **Settings**). Terminal tabs
-  are intentionally **not** persisted — they'd mean silently re-spawning
-  shells on every page load.
+  and restored on reload (turn this off in **Settings**). Plain terminal
+  tabs are intentionally **not** persisted — they'd mean silently
+  re-spawning shells on every page load — but **tmux** terminal tabs *are*
+  remembered: on reload they're re-attached to their still-running tmux
+  sessions (see *tmux session manager* below).
 - Any open **preview** or **text-editor** windows are remembered the same
   way (path per window, plus which one was active and whether the windows
   were on screen or sent to the taskbar) and reopened automatically next
@@ -439,12 +441,41 @@ Both kinds support **multiple terminals as sub-tabs**:
 
 A full-tab terminal shows up in the main tab bar simply as **▤ Terminal**
 (it doesn't borrow a directory name), so it's easy to tell apart from
-your directory tabs.
+your directory tabs. A terminal tab bound to a tmux session instead shows
+**▤ &lt;session&gt;**, and its sub-tab is labelled **⧉ &lt;session&gt;**.
 
 Each shell starts in the relevant folder (`directory:` on the channel),
 runs interactively (`bash -i`), and is resized to fit automatically.
 Terminals are torn down (shell killed, channel closed) when their
 sub-tab or tab is closed.
+
+### tmux session manager
+
+When `tmux` is installed on the host, a **▤ tmux** button appears in the
+top tab bar (next to **▶ Run**). Click it for a dropdown that lists your
+current tmux sessions — each with its window count and whether it's
+attached — plus a **＋ New session…** entry at the bottom.
+
+- **Click a session** to open it. If that session is already attached in
+  a terminal tab, the plugin just jumps to that tab; otherwise it opens a
+  new terminal tab attached to it. Sessions already open are tagged with
+  an **open** badge in the list.
+- **＋ New session…** asks for a name (letters, digits, `-`/`_`; no
+  spaces, `.` or `:`) and opens a fresh terminal tab running that session.
+- **✕** next to a session kills it (with confirmation) and closes its tab.
+- **⟳** refreshes the list.
+
+Sessions are attached with `tmux new-session -A -s <name>`, so opening an
+existing name attaches to it and a new name creates it. Sessions are
+*not* destroyed on detach — closing a tmux tab (or the browser) leaves the
+session running on the server, so it stays in the list and can be
+re-opened later. Open tmux tabs are also saved to `tabs.yml` and, on the
+next page load, automatically re-attached **if the session is still
+alive** (dead ones are quietly skipped). tmux runs as your Cockpit login
+user, so these are that user's own per-user tmux sessions.
+
+> tmux is managed only through this button — it is **not** offered as a
+> "default shell" in **Settings** even when it's listed in `/etc/shells`.
 
 ### Open in Cockpit terminal
 

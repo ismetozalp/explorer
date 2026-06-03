@@ -219,6 +219,7 @@ Alpine.data('explorer', () => ({
                 } catch (e) {}
             }
             if (data && data.windows) savedWindows = data.windows;
+            if (data && Array.isArray(data.tmuxTabs)) this._savedTmuxTabs = data.tmuxTabs.slice();
             if (data && Array.isArray(data.tabs) && data.tabs.length) {
                 const seen = new Set();
                 for (const t of data.tabs) {
@@ -474,6 +475,10 @@ Alpine.data('explorer', () => ({
         // is useless. Spawn one so the user always sees a working shell.
         if (tab.kind === 'terminal' && (!tab.terminals || tab.terminals.length === 0)) {
             this.$nextTick(() => this.addTerminalToTab(tab, tab.path));
+        } else if (tab.kind === 'terminal') {
+            // Restored tmux tabs declare their terminals up front but can't
+            // mount while hidden — mount them now the tab is visible.
+            this._ensureTerminalsMounted(tab);
         }
         this._refreshTabGit(tab);
     },
@@ -482,9 +487,15 @@ Alpine.data('explorer', () => ({
 
     tabLabel(tab) {
         if (tab.kind === 'output') return '▶ ' + (tab.outputActionLabel || 'output');
-        if (tab.kind === 'terminal') return '▤ Terminal';
+        if (tab.kind === 'terminal') return tab.tmux ? ('▤ ' + tab.tmux) : '▤ Terminal';
         if (tab.path === '/') return '/';
         return Util.basename(tab.path) || tab.path;
+    },
+
+    // Sub-tab label: tmux session name for tmux terminals, else the live cwd.
+    termLabel(t) {
+        if (!t) return '';
+        return t.tmux ? ('⧉ ' + t.tmux) : this.shortenTermPath(t.dir);
     },
 
     // Front-truncate a path to fit a sub-tab, keeping whole trailing segments:
@@ -543,9 +554,16 @@ Alpine.data('explorer', () => ({
             try {
                 const dirTabs = this.tabs.filter(t => t.kind === 'dir');
                 const idx = Math.max(0, dirTabs.findIndex(t => t.id === this.activeTabId));
+                // tmux terminal tabs (by session name) so they can be re-attached
+                // and restored next launch, in tab order.
+                const tmuxTabs = this.tabs
+                    .filter(t => t.kind === 'terminal')
+                    .map(t => t.tmux || ((t.terminals || []).find(x => x.tmux) || {}).tmux)
+                    .filter(Boolean);
                 const data = {
                     tabs: dirTabs.map(t => ({ path: t.path, kind: t.kind })),
                     activeIdx: idx,
+                    tmuxTabs: tmuxTabs,
                     windows: this.windows.filter(w => w.path).map(w => ({ kind: w.kind, path: w.path })),
                     activeWinPath: (this.activeWin() && this.activeWin().path) || null,
                     hostVisible: !!this.hostVisible,
@@ -3440,6 +3458,9 @@ Alpine.data('explorer', () => ({
     // ─── shells available on the host (read from /etc/shells at init) ────────
     shells: ['/bin/sh', '/bin/bash'],
 
+    // ─── tmux session manager ────────────────────────────────────────────────
+    tmux: { available: false, bin: '', open: false, loading: false, error: '', sessions: [], top: 40, right: 8 },
+
     // ─── run command state ───────────────────────────────────────────────────
     runCmd: { cwd: '/', shell: '/bin/sh', command: '', admin: false },
     runCmdModalEl: null,
@@ -3519,10 +3540,19 @@ Alpine.data('explorer', () => ({
             const shells = (txt || '').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#'));
             if (shells.length) this.shells = shells;
         } catch (e) {}
+        // tmux is managed by the dedicated tmux session manager (toolbar button),
+        // never as a "default shell" — drop it from the settings list even when
+        // it's listed in /etc/shells.
+        this.shells = this.shells.filter(s => s.replace(/.*\//, '') !== 'tmux');
         if (!this.settings.defaultShell || !this.shells.includes(this.settings.defaultShell)) {
             this.settings.defaultShell = this.shells.find(s => s.endsWith('/bash')) || this.shells[0];
         }
         if (!this.settings.diffView) this.settings.diffView = 'side';
+
+        // Detect tmux (for the toolbar session-manager button) and restore any
+        // tmux terminal tabs that were open last session and are still alive.
+        this.tmux.available = await this._hasTmux();
+        this._restoreTmuxTabs();
 
         // Detect Cockpit's terminal plugin
         this.terminalAvailable = false;
@@ -3628,8 +3658,17 @@ Alpine.data('explorer', () => ({
         return base + ' ' + i;
     },
 
+    _findTermById(termId) {
+        for (const tab of this.tabs) {
+            const t = (tab.terminals || []).find(x => x.id === termId);
+            if (t) return t;
+        }
+        return null;
+    },
+
     // Add a new terminal sub-tab inside this tab. Opens split pane for dir tabs.
-    addTerminalToTab(tab, dir) {
+    addTerminalToTab(tab, dir, opts) {
+        opts = opts || {};
         if (!tab) tab = this.activeTab();
         if (!tab) return;
         // Re-acquire the reactive proxy from this.tabs. Callers may hand
@@ -3646,6 +3685,10 @@ Alpine.data('explorer', () => ({
 
         const termId = Util.uid();
         const term = { id: termId, dir: dir, label: this._defaultTermLabel(dir, tab.terminals) };
+        // tmux-backed terminal: attach to (or create) a named session. The
+        // session persists across tab/app close (no destroy-unattached) so it
+        // can be re-attached and restored later.
+        if (opts.tmux) { term.tmux = opts.tmux; term.label = opts.tmux; }
         tab.terminals.push(term);
         tab.activeTermId = termId;
 
@@ -3654,7 +3697,10 @@ Alpine.data('explorer', () => ({
             if (!tab.splitWidth) tab.splitWidth = 480;
         }
 
-        this.$nextTick(() => this._mountTerminal(termId, dir));
+        // opts.mount === false defers the xterm/PTY mount until the tab is
+        // activated (a hidden container has zero height, so mounting now would
+        // just spin and fail). _ensureTerminalsMounted handles it on activate.
+        if (opts.mount !== false) this.$nextTick(() => this._mountTerminal(termId, dir));
         return term;
     },
 
@@ -3685,6 +3731,177 @@ Alpine.data('explorer', () => ({
         const reactive = this.tabs.find(t => t.id === raw.id);
         this.$nextTick(() => this.addTerminalToTab(reactive, dir));
         return reactive;
+    },
+
+    // ───── tmux session manager ──────────────────────────────────────────────
+    async _hasTmux() {
+        try {
+            const out = await cockpit.spawn(['sh', '-c', 'command -v tmux 2>/dev/null'], { err: 'ignore' });
+            const p = (out || '').trim().split('\n')[0];
+            if (p) { this.tmux.bin = p; return true; }
+        } catch (e) {}
+        return false;
+    },
+
+    async _listTmuxSessions() {
+        const bin = this.tmux.bin || 'tmux';
+        let out = '';
+        try {
+            // Put the variable-length session name LAST and separate the two
+            // leading numeric fields with plain spaces. Avoids any control
+            // characters in the spawn arguments (a control byte like 0x1F can
+            // make cockpit-ws drop the whole transport), and parses correctly
+            // even when a session name contains spaces or colons.
+            out = await cockpit.spawn(
+                [bin, 'list-sessions', '-F', '#{session_windows} #{?session_attached,1,0} #{session_name}'],
+                { err: 'message' });
+        } catch (e) {
+            // "no server running" simply means there are no sessions yet.
+            const msg = (e && (e.message || e.toString())) || '';
+            if (/no server running|no such file|failed to connect|error connecting/i.test(msg)) return [];
+            throw e;
+        }
+        return (out || '').split('\n').filter(l => l.length).map(l => {
+            const m = l.match(/^(\d+)\s+([01])\s+(.*)$/);
+            if (!m) return null;
+            return { name: m[3], windows: parseInt(m[1], 10) || 1, attached: m[2] === '1' };
+        }).filter(Boolean);
+    },
+
+    async refreshTmuxSessions() {
+        this.tmux.loading = true;
+        this.tmux.error = '';
+        try {
+            this.tmux.sessions = await this._listTmuxSessions();
+        } catch (e) {
+            this.tmux.error = (e && (e.message || e)) || 'Could not list tmux sessions';
+            this.tmux.sessions = [];
+        } finally {
+            this.tmux.loading = false;
+        }
+    },
+
+    toggleTmuxPanel(ev) {
+        this.tmux.open = !this.tmux.open;
+        if (this.tmux.open) {
+            try {
+                const r = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect
+                    ? ev.currentTarget.getBoundingClientRect() : null;
+                if (r) {
+                    this.tmux.top = Math.round(r.bottom + 4);
+                    this.tmux.right = Math.max(4, Math.round(window.innerWidth - r.right));
+                }
+            } catch (e) {}
+            this.refreshTmuxSessions();
+        }
+    },
+
+    _findTmuxTab(name) {
+        return this.tabs.find(t => t.kind === 'terminal' && (t.terminals || []).some(x => x.tmux === name));
+    },
+    isTmuxSessionOpen(name) { return !!this._findTmuxTab(name); },
+
+    // Open a tmux session: focus its existing terminal tab if one is already
+    // attached, otherwise open a fresh terminal tab attached to it (creating
+    // the session if it doesn't exist yet).
+    openTmuxSession(name) {
+        this.tmux.open = false;
+        if (!name) return;
+        const existing = this._findTmuxTab(name);
+        if (existing) {
+            this.activateTab(existing.id);
+            const term = (existing.terminals || []).find(x => x.tmux === name);
+            if (term) this.selectTerminal(existing, term.id);
+            return;
+        }
+        this.newTmuxTerminalTab(name);
+    },
+
+    async newTmuxSession() {
+        this.tmux.open = false;
+        const name = await this.askPrompt('New tmux session', 'Session name (letters, digits, - or _)', '');
+        const clean = (name || '').trim();
+        if (!clean) return;                            // cancelled / empty
+        if (/[\s.:]/.test(clean)) {
+            this.toast('Session name can\'t contain spaces, "." or ":"', 'warning');
+            return;
+        }
+        this.openTmuxSession(clean);
+    },
+
+    async killTmuxSession(name) {
+        const ok = await this.askConfirm('Kill tmux session',
+            'Kill tmux session "' + name + '"? Anything running inside it will be terminated.', 'Kill');
+        if (!ok) return;
+        const bin = this.tmux.bin || 'tmux';
+        try { await cockpit.spawn([bin, 'kill-session', '-t', name], { err: 'message' }); }
+        catch (e) { this.toast('Could not kill session: ' + (e.message || e), 'danger'); }
+        // Close any open terminal/tab bound to it.
+        const tab = this._findTmuxTab(name);
+        if (tab) {
+            const term = (tab.terminals || []).find(x => x.tmux === name);
+            if (term) this.closeTerminal(tab, term.id);
+        }
+        this.refreshTmuxSessions();
+    },
+
+    // A terminal tab bound to a single tmux session.
+    newTmuxTerminalTab(name, opts) {
+        opts = opts || {};
+        const activate = opts.activate !== false;
+        const dir = this.activeTab()?.path || this.homePath || '/';
+        const raw = this._buildTab(dir, 'terminal');
+        raw.tmux = name;                               // tab-level marker (label, persistence)
+        this.tabs.push(raw);
+        const reactive = this.tabs.find(t => t.id === raw.id);
+        if (activate) this.activeTabId = raw.id;
+        this.$nextTick(() => {
+            // When restoring in the background (activate:false) the tab is
+            // hidden, so don't mount the terminal yet — it would just fail to
+            // size. The sub-tab still shows and it mounts on first activation.
+            this.addTerminalToTab(reactive, dir, { tmux: name, mount: activate });
+            this._persistTabs();
+        });
+        return reactive;
+    },
+
+    // Make sure every terminal in a tab has a live xterm/channel instance.
+    // Used when activating a (restored) terminal tab whose terminals were
+    // declared but never mounted because the tab wasn't visible yet.
+    _ensureTerminalsMounted(tab) {
+        if (!tab || tab.kind !== 'terminal' || !tab.terminals) return;
+        for (const t of tab.terminals) {
+            if (!_getTermInstance(t.id)) {
+                this.$nextTick(() => this._mountTerminal(t.id, t.dir));
+            }
+        }
+    },
+
+    // Re-open tmux terminal tabs saved last session, but only for sessions
+    // that are still alive on the tmux server. Any saved session that no
+    // longer exists is pruned from the persisted tab list (so it isn't kept
+    // around or retried on later loads) and is never opened.
+    async _restoreTmuxTabs() {
+        const names = this._savedTmuxTabs || [];
+        this._savedTmuxTabs = null;
+        if (!names.length || !this.tmux.available) return;
+        let live = [];
+        // If we can't query tmux (transient error), leave the saved list
+        // untouched and try again next load rather than wrongly pruning.
+        try { live = await this._listTmuxSessions(); } catch (e) { return; }
+        const liveNames = new Set(live.map(s => s.name));
+        let pruned = false;
+        for (const name of names) {
+            if (liveNames.has(name)) {
+                if (!this._findTmuxTab(name)) this.newTmuxTerminalTab(name, { activate: false });
+            } else {
+                pruned = true;   // saved session is gone — drop it, don't reopen
+            }
+        }
+        // Rewrite tabs.yml so dead sessions are removed from the saved list.
+        // _persistTabs rebuilds tmuxTabs from the currently-open tabs, so the
+        // ones we skipped above simply fall out.
+        if (pruned) this._persistTabs();
     },
 
     // Write a bash rcfile that sources the user's normal startup files and
@@ -3892,8 +4109,17 @@ Alpine.data('explorer', () => ({
         // interactive shells; launch anything else bare.
         const INTERACTIVE_SHELLS = ['sh', 'bash', 'dash', 'ash', 'zsh', 'ksh', 'mksh', 'csh', 'tcsh', 'fish'];
         const shellBase = shell.replace(/.*\//, '');
+        // Is this terminal bound to a tmux session (via the session manager)?
+        const termObj = this._findTermById(termId);
+        const tmuxSession = termObj && termObj.tmux;
         let spawnArgs;
-        if (isBash && this._osc7RcPath) {
+        if (tmuxSession) {
+            // Attach to the named session, creating it if it doesn't exist
+            // (`new-session -A`). Deliberately NO destroy-unattached: the
+            // session must survive closing the tab / browser so it can be
+            // re-attached and restored next launch.
+            spawnArgs = [(this.tmux.bin || 'tmux'), 'new-session', '-A', '-s', tmuxSession];
+        } else if (isBash && this._osc7RcPath) {
             spawnArgs = [shell, '--rcfile', this._osc7RcPath, '-i'];
         } else if (shellBase === 'tmux') {
             // Closing a terminal only detaches the tmux client; the server keeps
