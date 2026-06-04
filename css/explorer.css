@@ -1502,3 +1502,18 @@ body {
 .btn-xs { padding: .05rem .4rem; font-size: .75rem; line-height: 1.5; border-radius: 4px; }
 .mt-mountbtn { background: none; border: none; cursor: pointer; padding: 0; line-height: 1; }
 .mt-mountbtn:hover { color: var(--ex-accent); }
+
+/* Mounts — SMB/CIFS network share form + creds manager */
+.cifs-form { display: flex; flex-direction: column; gap: .4rem; }
+.cifs-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.cifs-row > label { min-width: 5rem; color: var(--ex-text-muted); font-size: .85rem; margin: 0; }
+.cifs-row .form-control, .cifs-row .form-select { flex: 1; min-width: 8rem; }
+.cifs-row .cifs-sm { flex: 0 0 5rem; min-width: 0; }
+.cifs-opts { gap: 1rem; }
+.cifs-opts2 > label { min-width: 0; margin-left: .5rem; }
+.cifs-hint { color: var(--ex-text-muted); font-size: .8rem; }
+.cifs-actions { margin-top: .3rem; }
+.cifs-hr { border-color: var(--ex-border); margin: .75rem 0; }
+.cifs-creds-head { font-size: .85rem; color: var(--ex-text-muted); margin-bottom: .35rem; }
+.cifs-creds-empty { color: var(--ex-text-muted); font-size: .85rem; }
+.cifs-cred { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; }

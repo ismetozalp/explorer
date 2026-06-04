@@ -828,6 +828,7 @@
                 <div class="mounts-tabs mb-2">
                     <button class="mounts-tab" :class="{ active: mounts.view === 'fstab' }" @click="switchMountsView('fstab')">/etc/fstab</button>
                     <button class="mounts-tab" :class="{ active: mounts.view === 'live' }" @click="switchMountsView('live')">Mounted<span class="mounts-tab-count" x-show="mounts.live.rows.length" x-text="mounts.live.rows.length"></span></button>
+                    <button class="mounts-tab" :class="{ active: mounts.view === 'net' }" @click="switchMountsView('net')">Network share</button>
                 </div>
 
                 <!-- fstab editor pane -->
@@ -943,6 +944,90 @@
                 </div>
                 <!-- /live pane -->
 
+                <!-- network share (SMB/CIFS) pane -->
+                <div x-show="mounts.view === 'net'">
+                    <div class="alert alert-warning py-2 px-3" x-show="cifs.available === false" x-cloak>
+                        <code>mount.cifs</code> (cifs-utils) not found — install it to mount SMB/CIFS shares. You can still build the entry now.
+                    </div>
+                    <div class="alert alert-danger py-2 px-3" x-show="cifs.add.error" x-text="cifs.add.error" x-cloak></div>
+
+                    <div class="cifs-form">
+                        <div class="cifs-row">
+                            <label>Host</label>
+                            <input class="form-control form-control-sm" x-model="cifs.add.host" placeholder="server or IP" spellcheck="false" autocomplete="off">
+                            <label>Share</label>
+                            <input class="form-control form-control-sm" x-model="cifs.add.share" placeholder="share name" spellcheck="false" autocomplete="off">
+                        </div>
+                        <div class="cifs-row">
+                            <label>Mount point</label>
+                            <input class="form-control form-control-sm" x-model="cifs.add.mountpoint" list="mt-mountpoints" placeholder="/mnt/share" spellcheck="false" autocomplete="off">
+                        </div>
+
+                        <div class="cifs-row">
+                            <label>Credentials</label>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn" :class="cifs.add.credMode === 'existing' ? 'btn-primary' : 'btn-outline-secondary'" @click="cifs.add.credMode = 'existing'">Saved</button>
+                                <button class="btn" :class="cifs.add.credMode === 'new' ? 'btn-primary' : 'btn-outline-secondary'" @click="cifs.add.credMode = 'new'">New</button>
+                                <button class="btn" :class="cifs.add.credMode === 'guest' ? 'btn-primary' : 'btn-outline-secondary'" @click="cifs.add.credMode = 'guest'">Guest</button>
+                            </div>
+                        </div>
+
+                        <div class="cifs-row" x-show="cifs.add.credMode === 'existing'">
+                            <label>Saved set</label>
+                            <select class="form-select form-select-sm" x-model="cifs.add.credName">
+                                <option value="">— select —</option>
+                                <template x-for="c in cifs.creds" :key="c"><option :value="c" x-text="c"></option></template>
+                            </select>
+                            <span class="cifs-hint" x-show="!cifs.creds.length">none saved yet — use New</span>
+                        </div>
+
+                        <div x-show="cifs.add.credMode === 'new'">
+                            <div class="cifs-row">
+                                <label>Save as</label>
+                                <input class="form-control form-control-sm" x-model="cifs.add.credName" placeholder="name (e.g. nas-media)" spellcheck="false" autocomplete="off">
+                                <label>Domain</label>
+                                <input class="form-control form-control-sm" x-model="cifs.add.domain" placeholder="optional" spellcheck="false" autocomplete="off">
+                            </div>
+                            <div class="cifs-row">
+                                <label>Username</label>
+                                <input class="form-control form-control-sm" x-model="cifs.add.username" spellcheck="false" autocomplete="off">
+                                <label>Password</label>
+                                <input class="form-control form-control-sm" type="password" x-model="cifs.add.password" autocomplete="new-password">
+                            </div>
+                            <div class="form-text">Saved to <code>/etc/cifs-creds/&lt;name&gt;</code> (root-only, 0600). The password is written to that file — never to fstab or a command line.</div>
+                        </div>
+
+                        <div class="cifs-row cifs-opts">
+                            <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="cifs.add.netdev"> <span class="form-check-label">_netdev</span></label>
+                            <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="cifs.add.nofail"> <span class="form-check-label">nofail</span></label>
+                            <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="cifs.add.automount"> <span class="form-check-label">automount</span></label>
+                            <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="cifs.add.ro"> <span class="form-check-label">read-only</span></label>
+                        </div>
+                        <div class="cifs-row cifs-opts2">
+                            <label>vers</label><input class="form-control form-control-sm cifs-sm" x-model="cifs.add.vers" placeholder="3.0" spellcheck="false" autocomplete="off">
+                            <label>uid</label><input class="form-control form-control-sm cifs-sm" x-model="cifs.add.uid" spellcheck="false" autocomplete="off">
+                            <label>gid</label><input class="form-control form-control-sm cifs-sm" x-model="cifs.add.gid" spellcheck="false" autocomplete="off">
+                        </div>
+
+                        <div class="cifs-actions">
+                            <button class="btn btn-sm btn-primary" @click="addCifsShare()" :disabled="cifs.add.busy || mounts.saving">
+                                <span x-show="cifs.add.busy || mounts.saving" class="spinner-border spinner-border-sm me-1"></span>Add &amp; save
+                            </button>
+                            <span class="cifs-hint ms-2">Writes the credentials file, adds the fstab entry, then mounts it.</span>
+                        </div>
+                    </div>
+
+                    <hr class="cifs-hr">
+                    <div class="cifs-creds-mgr">
+                        <div class="cifs-creds-head">Saved credentials <span class="text-muted">— /etc/cifs-creds</span></div>
+                        <div class="cifs-creds-empty" x-show="!cifs.creds.length && !cifs.loadingCreds">No saved credentials yet.</div>
+                        <template x-for="c in cifs.creds" :key="c">
+                            <div class="cifs-cred"><code x-text="c"></code><button class="btn btn-xs btn-outline-danger" @click="deleteCifsCred(c)">delete</button></div>
+                        </template>
+                    </div>
+                </div>
+                <!-- /net pane -->
+
                 <!-- field suggestions (datalists) -->
                 <datalist id="mt-devices"><template x-for="d in mounts.suggest.devices" :key="d.value"><option :value="d.value" x-text="d.label"></option></template></datalist>
                 <datalist id="mt-mountpoints"><template x-for="p in mounts.suggest.mountpoints" :key="p"><option :value="p"></option></template></datalist>
@@ -967,9 +1052,11 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button class="btn btn-primary" @click="saveFstab()" :disabled="mounts.saving">
-                    <span x-show="mounts.saving" class="spinner-border spinner-border-sm me-1"></span>
-                    <span x-text="mounts.saving ? 'Saving…' : 'Save'"></span>
+                <button class="btn btn-primary" x-show="mounts.view !== 'live'"
+                        @click="mounts.view === 'net' ? addCifsShare() : saveFstab()"
+                        :disabled="mounts.saving || cifs.add.busy">
+                    <span x-show="mounts.saving || cifs.add.busy" class="spinner-border spinner-border-sm me-1"></span>
+                    <span x-text="(mounts.saving || cifs.add.busy) ? 'Saving…' : (mounts.view === 'net' ? 'Add & save' : 'Save')"></span>
                 </button>
             </div>
         </div>

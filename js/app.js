@@ -178,6 +178,19 @@ Alpine.data('explorer', () => ({
     },
     mountsModalEl: null,
 
+    // SMB/CIFS network shares + managed root-only credential store
+    cifs: {
+        available: null, creds: [], loadingCreds: false,
+        add: {
+            host: '', share: '', mountpoint: '',
+            credMode: 'existing', credName: '',
+            username: '', password: '', domain: '',
+            netdev: true, nofail: true, automount: true, ro: false,
+            vers: '', uid: '', gid: '',
+            busy: false, error: '',
+        },
+    },
+
     toasts: [],
 
     dragData: null, // { paths: [...], sourceTabId }
@@ -3079,6 +3092,115 @@ Alpine.data('explorer', () => ({
     switchMountsView(v) {
         this.mounts.view = v;
         if (v === 'live' && !this.mounts.live.rows.length && !this.mounts.live.loading) this.loadLiveMounts();
+        if (v === 'net') this._initCifsTab();
+    },
+
+    // ── SMB/CIFS ───────────────────────────────────────────────────────────
+    async _hasMountCifs() {
+        try {
+            const o = await cockpit.spawn(['sh', '-c', 'command -v mount.cifs 2>/dev/null'], { err: 'ignore' });
+            return !!(o || '').trim();
+        } catch (e) { return false; }
+    },
+
+    async _initCifsTab() {
+        if (this.cifs.available === null) this.cifs.available = await this._hasMountCifs();
+        await this.refreshCifsCreds();
+    },
+
+    async refreshCifsCreds() {
+        this.cifs.loadingCreds = true;
+        try {
+            // The store is root-only (0700), so listing needs the bridge.
+            const out = await cockpit.spawn(['sh', '-c', 'ls -1 /etc/cifs-creds 2>/dev/null'], FS.spawnOpts({ admin: true }));
+            this.cifs.creds = out.split('\n').map(s => s.trim()).filter(Boolean).sort();
+        } catch (e) {
+            this.cifs.creds = [];
+        } finally {
+            this.cifs.loadingCreds = false;
+        }
+    },
+
+    _validCredName(n) { return /^[A-Za-z0-9._-]+$/.test(n || ''); },
+
+    // Write a credentials file. The secret travels in the file body via the
+    // file channel (cockpit.file().replace) — never on a command line, never
+    // echoed, never logged. Dir is root:root 0700, file 0600.
+    async _writeCifsCred(name, c) {
+        await cockpit.spawn(['sh', '-c',
+            'mkdir -p /etc/cifs-creds && chmod 700 /etc/cifs-creds && chown root:root /etc/cifs-creds'],
+            FS.spawnOpts({ admin: true }));
+        let content = `username=${c.username || ''}\n`;
+        if (c.password) content += `password=${c.password}\n`;
+        if (c.domain) content += `domain=${c.domain}\n`;
+        const path = `/etc/cifs-creds/${name}`;
+        await FS.writeText(path, content, { admin: true });
+        await cockpit.spawn(['chmod', '600', path], FS.spawnOpts({ admin: true }));
+    },
+
+    async deleteCifsCred(name) {
+        const ok = await this.askConfirm('Delete credentials',
+            `Delete saved credentials "${name}"? Shares using it will fail to mount.`, 'Delete');
+        if (!ok) return;
+        try {
+            await cockpit.spawn(['rm', '-f', `/etc/cifs-creds/${name}`], FS.spawnOpts({ admin: true }));
+            this.toast(`Deleted credentials "${name}".`, 'success');
+        } catch (e) {
+            this.toast('Delete failed: ' + (e.message || e), 'danger');
+        }
+        await this.refreshCifsCreds();
+    },
+
+    async addCifsShare() {
+        const a = this.cifs.add;
+        a.error = '';
+        const host = (a.host || '').trim().replace(/^[\/\\]+/, '');
+        const share = (a.share || '').trim().replace(/^[\/\\]+|[\/\\]+$/g, '');
+        const mp = (a.mountpoint || '').trim();
+        if (!host || !share) { a.error = 'Host and share are required.'; return; }
+        if (!mp || !mp.startsWith('/')) { a.error = 'Mount point must be an absolute path.'; return; }
+        const credName = (a.credName || '').trim();
+        if (a.credMode === 'new') {
+            if (!this._validCredName(credName)) { a.error = 'Credential name: letters, digits, dot, dash, underscore only.'; return; }
+            if (!a.username) { a.error = 'Username is required for new credentials.'; return; }
+        } else if (a.credMode === 'existing') {
+            if (!credName) { a.error = 'Pick a saved credential, or choose New / Guest.'; return; }
+        }
+        a.busy = true;
+        try {
+            if (a.credMode === 'new') {
+                await this._writeCifsCred(credName, { username: a.username, password: a.password, domain: a.domain });
+                await this.refreshCifsCreds();
+            }
+            const opts = [];
+            if (a.credMode === 'guest') opts.push('guest');
+            else opts.push(`credentials=/etc/cifs-creds/${credName}`);
+            if (a.ro) opts.push('ro');
+            if (a.netdev) opts.push('_netdev');
+            if (a.nofail) opts.push('nofail');
+            if (a.automount) opts.push('x-systemd.automount');
+            if ((a.vers || '').trim()) opts.push(`vers=${a.vers.trim()}`);
+            if ((a.uid || '').trim()) opts.push(`uid=${a.uid.trim()}`);
+            if ((a.gid || '').trim()) opts.push(`gid=${a.gid.trim()}`);
+            opts.push('iocharset=utf8');
+            this.mounts.rows.push({
+                spec: `//${host}/${share}`, file: mp, vfstype: 'cifs',
+                mntops: opts.join(','), freq: '0', passno: '0', _lead: [], mounted: false,
+            });
+            // Clear the volatile fields; keep credMode + creds list.
+            a.host = ''; a.share = ''; a.mountpoint = '';
+            a.username = ''; a.password = ''; a.domain = '';
+            if (a.credMode === 'new') a.credName = '';
+            this.mounts.rawMode = false;
+            this.mounts.view = 'fstab';
+            // Persist straight away: writes /etc/fstab (with backup) and
+            // mounts the new entry. Result/errors surface in the fstab view.
+            await this.saveFstab();
+        } catch (e) {
+            a.error = e.message || String(e);
+        } finally {
+            a.busy = false;
+        }
     },
 
     async loadLiveMounts() {

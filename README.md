@@ -827,6 +827,24 @@ falling back to `/proc/self/mounts`):
 
 All mount/unmount actions run through Cockpit's superuser bridge.
 
+A **Network share** tab adds SMB/CIFS shares with a managed,
+root-only credential store:
+
+- Enter host, share and mount point. Credentials are either a **saved**
+  set, a **new** set (username/password/domain — saved to
+  `/etc/cifs-creds/<name>`, a root-owned `0700` directory with `0600`
+  files), or **guest**.
+- The password is written to the credentials file through Cockpit's file
+  channel — never placed in `/etc/fstab`, on a command line, or in any
+  log. fstab gets only `credentials=/etc/cifs-creds/<name>`.
+- Toggle the common options (`_netdev`, `nofail`, `x-systemd.automount`,
+  read-only) plus optional `vers=`, `uid=`, `gid=`; `iocharset=utf8` is
+  always added. *Add to fstab* drops the entry into the editor for you to
+  review and **Save** (which writes and mounts it).
+- A **Saved credentials** list lets you delete stored sets.
+- If `mount.cifs` (cifs-utils) isn't installed, the tab warns but still
+  lets you build the entry.
+
 ---
 
 ## Keyboard shortcuts
