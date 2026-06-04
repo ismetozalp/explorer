@@ -947,8 +947,18 @@
                 </div>
                 <!-- /live pane -->
 
-                <!-- network share (SMB/CIFS) pane -->
+                <!-- network share pane -->
                 <div x-show="mounts.view === 'net'">
+                    <div class="cifs-row cifs-nettype">
+                        <label>Type</label>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn" :class="mounts.netType === 'smb' ? 'btn-primary' : 'btn-outline-secondary'" @click="mounts.netType = 'smb'">SMB / CIFS</button>
+                            <button class="btn" :class="mounts.netType === 'nfs' ? 'btn-primary' : 'btn-outline-secondary'" @click="mounts.netType = 'nfs'">NFS</button>
+                        </div>
+                    </div>
+
+                    <!-- SMB / CIFS -->
+                    <div x-show="mounts.netType === 'smb'">
                     <div class="alert alert-warning py-2 px-3" x-show="cifs.available === false" x-cloak>
                         <code>mount.cifs</code> (cifs-utils) not found — install it to mount SMB/CIFS shares. You can still build the entry now.
                     </div>
@@ -1057,6 +1067,60 @@
                             <div class="cifs-cred"><code x-text="c"></code><button class="btn btn-xs btn-outline-danger" @click="deleteCifsCred(c)">delete</button></div>
                         </template>
                     </div>
+                    </div>
+                    <!-- /SMB pane -->
+
+                    <!-- NFS -->
+                    <div x-show="mounts.netType === 'nfs'">
+                        <div class="alert alert-warning py-2 px-3" x-show="nfs.available === false" x-cloak>
+                            <code>mount.nfs</code> (nfs-utils / nfs-common) not found — install it to mount NFS shares. You can still build the entry now.
+                            <span class="cifs-install-line" x-show="nfs.install">
+                                <code class="cifs-install-cmd" x-text="nfs.install"></code>
+                                <button class="cifs-copy" @click="copyToClipboard(nfs.install)" title="Copy command">⧉</button>
+                            </span>
+                        </div>
+                        <div class="alert alert-danger py-2 px-3" x-show="nfs.add.error" x-text="nfs.add.error" x-cloak></div>
+
+                        <div class="cifs-form">
+                            <div class="cifs-row">
+                                <label>Server</label>
+                                <input class="form-control form-control-sm" x-model="nfs.add.host" placeholder="server or IP" spellcheck="false" autocomplete="off">
+                                <button class="btn btn-sm btn-outline-secondary" @click="browseExports()" :disabled="nfs.browsing || nfs.hasShowmount === false" title="List exports on the server (showmount -e)">
+                                    <span x-show="nfs.browsing" class="spinner-border spinner-border-sm me-1"></span>Exports
+                                </button>
+                            </div>
+                            <div class="cifs-chips" x-show="nfs.exports.length" x-cloak>
+                                <template x-for="e in nfs.exports" :key="e">
+                                    <button class="cifs-chip" @click="nfs.add.export = e" x-text="e"></button>
+                                </template>
+                            </div>
+                            <div class="cifs-row">
+                                <label>Export</label>
+                                <input class="form-control form-control-sm" x-model="nfs.add.export" list="nfs-exports" placeholder="/export/path" spellcheck="false" autocomplete="off">
+                            </div>
+                            <div class="cifs-row">
+                                <label>Mount point</label>
+                                <input class="form-control form-control-sm" x-model="nfs.add.mountpoint" list="mt-mountpoints" placeholder="/mnt/nfs" spellcheck="false" autocomplete="off">
+                            </div>
+                            <div class="cifs-row cifs-opts">
+                                <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="nfs.add.netdev"> <span class="form-check-label">_netdev</span></label>
+                                <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="nfs.add.nofail"> <span class="form-check-label">nofail</span></label>
+                                <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="nfs.add.automount"> <span class="form-check-label">automount</span></label>
+                                <label class="form-check mb-0"><input class="form-check-input" type="checkbox" x-model="nfs.add.ro"> <span class="form-check-label">read-only</span></label>
+                            </div>
+                            <div class="cifs-row cifs-opts2">
+                                <label>vers</label><input class="form-control form-control-sm cifs-sm" x-model="nfs.add.vers" placeholder="4.2" spellcheck="false" autocomplete="off">
+                            </div>
+                            <div class="cifs-actions">
+                                <button class="btn btn-sm btn-primary" @click="addNfsShare()" :disabled="nfs.add.busy || mounts.saving">
+                                    <span x-show="nfs.add.busy || mounts.saving" class="spinner-border spinner-border-sm me-1"></span>Add &amp; save
+                                </button>
+                                <span class="cifs-hint ms-2">Adds the fstab entry and mounts it. NFS uses host/IP-based access — no credentials.</span>
+                            </div>
+                        </div>
+                        <datalist id="nfs-exports"><template x-for="e in nfs.exports" :key="e"><option :value="e"></option></template></datalist>
+                    </div>
+                    <!-- /NFS pane -->
                 </div>
                 <!-- /net pane -->
 
@@ -1085,10 +1149,10 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button class="btn btn-primary" x-show="mounts.view !== 'live'"
-                        @click="mounts.view === 'net' ? addCifsShare() : saveFstab()"
-                        :disabled="mounts.saving || cifs.add.busy">
-                    <span x-show="mounts.saving || cifs.add.busy" class="spinner-border spinner-border-sm me-1"></span>
-                    <span x-text="(mounts.saving || cifs.add.busy) ? 'Saving…' : (mounts.view === 'net' ? 'Add & save' : 'Save')"></span>
+                        @click="mounts.view === 'net' ? (mounts.netType === 'nfs' ? addNfsShare() : addCifsShare()) : saveFstab()"
+                        :disabled="mounts.saving || cifs.add.busy || nfs.add.busy">
+                    <span x-show="mounts.saving || cifs.add.busy || nfs.add.busy" class="spinner-border spinner-border-sm me-1"></span>
+                    <span x-text="(mounts.saving || cifs.add.busy || nfs.add.busy) ? 'Saving…' : (mounts.view === 'net' ? 'Add & save' : 'Save')"></span>
                 </button>
             </div>
         </div>

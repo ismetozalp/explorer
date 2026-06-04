@@ -163,6 +163,7 @@ Alpine.data('explorer', () => ({
         saving: false, mountResults: [],
         // 'fstab' editor view vs 'live' currently-mounted view
         view: 'fstab', busyTarget: '',
+        netType: 'smb',   // network-share tab: 'smb' | 'nfs'
         live: { loading: false, error: '', rows: [] },
         adhoc: { open: false, device: '', mountpoint: '', fstype: '', options: '', busy: false },
         // Field suggestions (datalists). devices/mountpoints/fstypes are
@@ -177,6 +178,17 @@ Alpine.data('explorer', () => ({
         },
     },
     mountsModalEl: null,
+
+    // NFS network shares (host/IP-based access — no credential store)
+    nfs: {
+        available: null, hasShowmount: null, install: '',
+        browsing: false, exports: [],
+        add: {
+            host: '', export: '', mountpoint: '',
+            netdev: true, nofail: true, automount: true, ro: false,
+            vers: '', busy: false, error: '',
+        },
+    },
 
     // SMB/CIFS network shares + managed root-only credential store
     cifs: {
@@ -3160,15 +3172,20 @@ Alpine.data('explorer', () => ({
         this.cifs.disco.hosts = []; this.cifs.disco.shares = []; this.cifs.disco.error = '';
         if (this.cifs.disco.hasSmbclient === null) this.cifs.disco.hasSmbclient = await this._hasBin('smbclient');
         if (this.cifs.disco.hasSmbclient === false && !this.cifs.disco.smbInstall) {
-            this.cifs.disco.smbInstall = await this._installCmdFor();
+            this.cifs.disco.smbInstall = await this._installCmdFor('smb');
         }
+        // NFS
+        if (this.nfs.available === null) this.nfs.available = await this._hasBin('mount.nfs');
+        if (this.nfs.hasShowmount === null) this.nfs.hasShowmount = await this._hasBin('showmount');
+        if (this.nfs.available === false && !this.nfs.install) this.nfs.install = await this._installCmdFor('nfs');
+        this.nfs.exports = []; this.nfs.add.error = '';
         await this.refreshCifsCreds();
     },
 
-    // Suggest the distro-appropriate install command for smbclient by reading
-    // /etc/os-release (ID + ID_LIKE). The package is 'smbclient' on Debian-likes
-    // and Arch, 'samba-client' on RHEL/Fedora/SUSE/Alpine.
-    async _installCmdFor() {
+    // Suggest the distro-appropriate install command for a tool by reading
+    // /etc/os-release (ID + ID_LIKE). role 'smb' -> smbclient/samba-client,
+    // role 'nfs' -> nfs-common/nfs-utils.
+    async _installCmdFor(role) {
         let id = '', like = '';
         try {
             const txt = await FS.readText('/etc/os-release');
@@ -3178,13 +3195,92 @@ Alpine.data('explorer', () => ({
         } catch (e) { /* fall through to generic */ }
         const tokens = new Set([id, ...like.split(/\s+/).filter(Boolean)]);
         const has = (...names) => names.some(n => tokens.has(n));
-        if (has('debian', 'ubuntu')) return 'sudo apt install smbclient';
-        if (has('fedora', 'rhel', 'centos')) return 'sudo dnf install samba-client';
-        if (has('suse', 'opensuse', 'sles')) return 'sudo zypper install samba-client';
-        if (has('arch')) return 'sudo pacman -S smbclient';
-        if (has('alpine')) return 'sudo apk add samba-client';
-        if (has('gentoo')) return 'sudo emerge net-fs/samba';
-        return 'install the "smbclient" (a.k.a. samba-client) package for your distribution';
+        const pick = (deb, rh, suse, arch, alpine, gentoo, generic) =>
+            has('debian', 'ubuntu') ? deb
+                : has('fedora', 'rhel', 'centos') ? rh
+                    : has('suse', 'opensuse', 'sles') ? suse
+                        : has('arch') ? arch
+                            : has('alpine') ? alpine
+                                : has('gentoo') ? gentoo
+                                    : generic;
+        if (role === 'nfs') {
+            return pick('sudo apt install nfs-common', 'sudo dnf install nfs-utils',
+                'sudo zypper install nfs-client', 'sudo pacman -S nfs-utils',
+                'sudo apk add nfs-utils', 'sudo emerge net-fs/nfs-utils',
+                'install the nfs-utils / nfs-common package for your distribution');
+        }
+        return pick('sudo apt install smbclient', 'sudo dnf install samba-client',
+            'sudo zypper install samba-client', 'sudo pacman -S smbclient',
+            'sudo apk add samba-client', 'sudo emerge net-fs/samba',
+            'install the "smbclient" (a.k.a. samba-client) package for your distribution');
+    },
+
+    // ── NFS ────────────────────────────────────────────────────────────────
+    async browseExports() {
+        const n = this.nfs;
+        const host = (n.add.host || '').trim();
+        if (!host) { n.add.error = 'Enter a server first.'; this.toast(n.add.error, 'warning'); return; }
+        if (n.hasShowmount === null) n.hasShowmount = await this._hasBin('showmount');
+        if (!n.hasShowmount) { n.add.error = 'showmount not found (install nfs-utils / nfs-common) — type the export manually.'; this.toast(n.add.error, 'danger'); return; }
+        n.browsing = true; n.add.error = ''; n.exports = [];
+        try {
+            const out = await cockpit.spawn(['timeout', '8', 'showmount', '-e', host], { err: 'message' });
+            n.exports = this._parseExports(out);
+            if (n.exports.length) {
+                this.toast(`Found ${n.exports.length} export${n.exports.length === 1 ? '' : 's'}: ${n.exports.join(', ')}`, 'success');
+            } else {
+                n.add.error = "No exports listed (server may be NFSv4-only, which showmount can't enumerate).";
+                this.toast(n.add.error, 'warning');
+            }
+        } catch (e) {
+            n.add.error = 'Browse failed: ' + ((e.message || String(e)).split('\n')[0]);
+            this.toast(n.add.error, 'danger');
+        } finally {
+            n.browsing = false;
+        }
+    },
+
+    _parseExports(out) {
+        const list = [];
+        (out || '').split('\n').forEach(line => {
+            const t = line.trim();
+            if (!t || /^Export list for/i.test(t)) return;
+            const path = t.split(/\s+/)[0];
+            if (path && path.startsWith('/')) list.push(path);
+        });
+        return Array.from(new Set(list));
+    },
+
+    async addNfsShare() {
+        const a = this.nfs.add;
+        a.error = '';
+        const host = (a.host || '').trim().replace(/[:/]+$/, '');
+        const exp = (a.export || '').trim();
+        const mp = (a.mountpoint || '').trim();
+        if (!host) { a.error = 'Server is required.'; return; }
+        if (!exp || !exp.startsWith('/')) { a.error = 'Export must be an absolute path (e.g. /export/share).'; return; }
+        if (!mp || !mp.startsWith('/')) { a.error = 'Mount point must be an absolute path.'; return; }
+        a.busy = true;
+        try {
+            const opts = [];
+            if (a.ro) opts.push('ro');
+            if (a.netdev) opts.push('_netdev');
+            if (a.nofail) opts.push('nofail');
+            if (a.automount) opts.push('x-systemd.automount');
+            if ((a.vers || '').trim()) opts.push(`vers=${a.vers.trim()}`);
+            this.mounts.rows.push({
+                spec: `${host}:${exp}`, file: mp, vfstype: 'nfs',
+                mntops: (opts.join(',') || 'defaults'), freq: '0', passno: '0', _lead: [], mounted: false,
+            });
+            a.host = ''; a.export = ''; a.mountpoint = '';
+            this.mounts.rawMode = false;
+            this.mounts.view = 'fstab';
+            await this.saveFstab();
+        } catch (e) {
+            a.error = e.message || String(e);
+        } finally {
+            a.busy = false;
+        }
     },
 
     async copyToClipboard(text) {

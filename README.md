@@ -834,8 +834,10 @@ falling back to `/proc/self/mounts`):
 
 All mount/unmount actions run through Cockpit's superuser bridge.
 
-A **Network share** tab adds SMB/CIFS shares with a managed,
-root-only credential store:
+A **Network share** tab adds SMB/CIFS or NFS shares (pick the type at the
+top of the tab).
+
+**SMB/CIFS** uses a managed, root-only credential store:
 
 - Enter host, share and mount point. **Discover** finds SMB hosts on the
   network via mDNS (`avahi-browse`) and a NetBIOS broadcast
@@ -864,6 +866,14 @@ root-only credential store:
 - A **Saved credentials** list lets you delete stored sets.
 - If `mount.cifs` (cifs-utils) isn't installed, the tab warns but still
   lets you build the entry.
+
+**NFS** is simpler — NFS uses host/IP-based access, so there's no
+credential store. Enter the server and export path (or **Exports** to
+list a server's exports via `showmount -e`), a mount point, and the
+common options (`_netdev`, `nofail`, `x-systemd.automount`, read-only,
+optional `vers=`). *Add & save* assembles a `server:/export` `nfs` entry,
+writes it, and mounts it. If `mount.nfs` (nfs-utils / nfs-common) is
+missing, a distro-specific install command is shown.
 
 ---
 

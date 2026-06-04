@@ -1548,3 +1548,6 @@ body {
 .cifs-install-cmd { background: var(--ex-bg-alt); border: 1px solid var(--ex-border); border-radius: 4px; padding: .05rem .4rem; color: var(--ex-text); user-select: all; }
 .cifs-copy { background: none; border: 1px solid var(--ex-border); border-radius: 4px; color: var(--ex-text-muted); cursor: pointer; padding: 0 .35rem; line-height: 1.4; }
 .cifs-copy:hover { color: var(--ex-accent); border-color: var(--ex-accent); }
+
+/* Mounts — network-share type selector */
+.cifs-nettype { margin-bottom: .35rem; }
