@@ -95,6 +95,46 @@ display-only messages and `‹ …` lines echo what was sent back to the script.
 Theme, tab persistence, preview/upload limits, the streaming-pane line cap,
 and the GitHub update source / startup update check.
 
+**New in 1.1 — Mounts: fstab editor**
+
+![Mounts — fstab editor](screenshots/mounts-fstab.svg)
+
+The **⛁ Mounts** toolbar button opens a `/etc/fstab` editor: a structured
+table (with field suggestions for devices/types/options) or raw text, a
+per-row mounted indicator (● mounted, ○ declared — click to mount, —
+n/a), and a *Save* that backs up to `/etc/fstab.bak`, writes through the
+superuser bridge, then mounts new entries.
+
+**New in 1.1 — Mounts: live mount management**
+
+![Mounts — Mounted](screenshots/mounts-live.svg)
+
+The **Mounted** tab lists everything currently mounted (from `findmnt`),
+with per-mount **remount** / **unmount** (lazy-unmount fallback when
+busy) and an ad-hoc *Mount something…* form. System and pseudo mounts
+are protected.
+
+**New in 1.1 — Mounts: SMB/CIFS & NFS network shares**
+
+![Mounts — Network share](screenshots/mounts-network.svg)
+
+The **Network share** tab adds SMB/CIFS or NFS. **Discover** finds hosts
+via mDNS, a NetBIOS broadcast, or a directed subnet scan; **Browse** lists
+shares (`smbclient`) or exports (`showmount`). SMB passwords go into a
+root-only `0600` credentials store under `/etc/cifs-creds/` — never into
+fstab or a command line.
+
+**New in 1.1 — GRUB boot-loader editor**
+
+![GRUB editor](screenshots/grub-editor.svg)
+
+When `/etc/default/grub` and a regeneration tool are present, the **⏻
+GRUB** button edits it (structured or raw), then regenerates the boot
+config with the detected, BIOS/UEFI-aware command (after a confirmation),
+with an optional `grubby` pass for existing kernels.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full 1.1.0 release notes.
+
 ---
 
 ## Install
@@ -1308,11 +1348,3 @@ editor for the first time.
   directory). Open a fresh terminal sub-tab if you want one rooted at
   the new folder.
 
----
-
-## License
-
-Plugin code: MIT.
-Vendored libs keep their upstream licenses (Bootstrap MIT, Alpine.js
-MIT, @alpinejs/sort MIT, Prism MIT, Monaco MIT, Quill BSD-3,
-marked MIT, Turndown MIT, diff2html MIT, js-yaml MIT, xterm.js MIT).

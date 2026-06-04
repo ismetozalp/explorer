@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <rect width="900" height="540" fill="#000" opacity="0.45"/>
+
+  <rect x="100" y="45" width="700" height="450" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="100" y="45" width="700" height="42" rx="8" fill="#23262b"/>
+  <rect x="100" y="77" width="700" height="10" fill="#23262b"/>
+  <text x="120" y="72" fill="#f0f0f0" font-size="15" font-weight="bold">Mounts <tspan fill="#a6a6a6" font-weight="normal">— Mounted</tspan></text>
+  <text x="774" y="72" fill="#a6a6a6" font-size="16">×</text>
+  <line x1="100" y1="87" x2="800" y2="87" stroke="#444649"/>
+
+  <!-- tabs -->
+  <g font-size="12">
+    <text x="120" y="112" fill="#a6a6a6">/etc/fstab</text>
+    <text x="200" y="112" fill="#75b6fd">Mounted</text>
+    <rect x="262" y="103" width="22" height="14" rx="7" fill="#23262b"/>
+    <text x="267" y="113" fill="#a6a6a6" font-size="9">30</text>
+    <rect x="198" y="120" width="88" height="2" fill="#75b6fd"/>
+    <text x="305" y="112" fill="#a6a6a6">Network share</text>
+  </g>
+  <line x1="100" y1="126" x2="800" y2="126" stroke="#34383d"/>
+
+  <!-- toolbar -->
+  <g font-size="11">
+    <rect x="120" y="138" width="76" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="132" y="154" fill="#cfd3d8">⟳ Refresh</text>
+    <rect x="202" y="138" width="128" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="214" y="154" fill="#cfd3d8">＋ Mount something…</text>
+  </g>
+
+  <!-- table -->
+  <rect x="120" y="174" width="660" height="270" rx="6" fill="#1b1d21" stroke="#444649"/>
+  <rect x="120" y="174" width="660" height="26" fill="#23262b"/>
+  <g font-size="10.5" fill="#a6a6a6" font-weight="bold">
+    <text x="135" y="191">Mount point</text>
+    <text x="300" y="191">Source</text>
+    <text x="500" y="191">Type</text>
+    <text x="560" y="191">Options</text>
+  </g>
+  <line x1="120" y1="200" x2="780" y2="200" stroke="#34383d"/>
+
+  <g font-size="11">
+    <!-- / system -->
+    <text x="135" y="222" fill="#e6e6e6">/</text>
+    <text x="300" y="222" fill="#cfd3d8">/dev/mapper/root</text>
+    <text x="500" y="222" fill="#cfd3d8">ext4</text>
+    <text x="560" y="222" fill="#8a8f96">rw,relatime</text>
+    <rect x="708" y="210" width="56" height="18" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="716" y="223" fill="#8a8f96" font-size="10">system</text>
+    <line x1="120" y1="234" x2="780" y2="234" stroke="#2a2e33"/>
+    <!-- /mnt/nas cifs -->
+    <text x="135" y="256" fill="#e6e6e6">/mnt/nas</text>
+    <text x="300" y="256" fill="#cfd3d8">//192.168.0.14/nas</text>
+    <text x="500" y="256" fill="#cfd3d8">cifs</text>
+    <text x="560" y="256" fill="#8a8f96">rw,_netdev…</text>
+    <rect x="640" y="246" width="58" height="20" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="650" y="260" fill="#cfd3d8" font-size="10">remount</text>
+    <rect x="704" y="246" width="60" height="20" rx="4" fill="#1b1d21" stroke="#a14b52"/>
+    <text x="714" y="260" fill="#e0707a" font-size="10">unmount</text>
+    <line x1="120" y1="268" x2="780" y2="268" stroke="#2a2e33"/>
+    <!-- /data xfs -->
+    <text x="135" y="290" fill="#e6e6e6">/data</text>
+    <text x="300" y="290" fill="#cfd3d8">/dev/sdb1</text>
+    <text x="500" y="290" fill="#cfd3d8">xfs</text>
+    <text x="560" y="290" fill="#8a8f96">rw,noatime</text>
+    <rect x="640" y="280" width="58" height="20" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="650" y="294" fill="#cfd3d8" font-size="10">remount</text>
+    <rect x="704" y="280" width="60" height="20" rx="4" fill="#1b1d21" stroke="#a14b52"/>
+    <text x="714" y="294" fill="#e0707a" font-size="10">unmount</text>
+    <line x1="120" y1="302" x2="780" y2="302" stroke="#2a2e33"/>
+    <!-- /boot/efi -->
+    <text x="135" y="324" fill="#e6e6e6">/boot/efi</text>
+    <text x="300" y="324" fill="#cfd3d8">/dev/sda1</text>
+    <text x="500" y="324" fill="#cfd3d8">vfat</text>
+    <text x="560" y="324" fill="#8a8f96">rw,umask=0077</text>
+    <rect x="640" y="314" width="58" height="20" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="650" y="328" fill="#cfd3d8" font-size="10">remount</text>
+    <rect x="704" y="314" width="60" height="20" rx="4" fill="#1b1d21" stroke="#a14b52"/>
+    <text x="714" y="328" fill="#e0707a" font-size="10">unmount</text>
+    <line x1="120" y1="336" x2="780" y2="336" stroke="#2a2e33"/>
+    <!-- /proc system -->
+    <text x="135" y="358" fill="#e6e6e6">/proc</text>
+    <text x="300" y="358" fill="#cfd3d8">proc</text>
+    <text x="500" y="358" fill="#cfd3d8">proc</text>
+    <text x="560" y="358" fill="#8a8f96">rw,nosuid,nodev</text>
+    <rect x="708" y="346" width="56" height="18" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="716" y="359" fill="#8a8f96" font-size="10">system</text>
+    <line x1="120" y1="370" x2="780" y2="370" stroke="#2a2e33"/>
+    <!-- /sys system -->
+    <text x="135" y="392" fill="#e6e6e6">/sys</text>
+    <text x="300" y="392" fill="#cfd3d8">sysfs</text>
+    <text x="500" y="392" fill="#cfd3d8">sysfs</text>
+    <text x="560" y="392" fill="#8a8f96">rw,nosuid,nodev</text>
+    <rect x="708" y="380" width="56" height="18" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="716" y="393" fill="#8a8f96" font-size="10">system</text>
+  </g>
+
+  <text x="135" y="428" fill="#6b6f76" font-size="10">System / pseudo mounts are protected — unmount and remount run via Cockpit's superuser bridge.</text>
+
+  <!-- footer -->
+  <line x1="100" y1="453" x2="800" y2="453" stroke="#444649"/>
+  <rect x="700" y="461" width="64" height="26" rx="4" fill="#3a3f45"/>
+  <text x="716" y="478" fill="#f0f0f0" font-size="12">Close</text>
+</svg>

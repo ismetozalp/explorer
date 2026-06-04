@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <rect width="900" height="540" fill="#000" opacity="0.45"/>
+
+  <rect x="100" y="45" width="700" height="450" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="100" y="45" width="700" height="42" rx="8" fill="#23262b"/>
+  <rect x="100" y="77" width="700" height="10" fill="#23262b"/>
+  <text x="120" y="72" fill="#f0f0f0" font-size="15" font-weight="bold">GRUB <tspan fill="#a6a6a6" font-weight="normal">— /etc/default/grub</tspan></text>
+  <text x="774" y="72" fill="#a6a6a6" font-size="16">×</text>
+  <line x1="100" y1="87" x2="800" y2="87" stroke="#444649"/>
+
+  <!-- info line -->
+  <text x="120" y="110" fill="#a6a6a6" font-size="11">Regenerate with <tspan fill="#cfd3d8">grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg</tspan> · UEFI · grubby available</text>
+
+  <!-- toolbar -->
+  <g font-size="11">
+    <rect x="120" y="122" width="74" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="132" y="138" fill="#cfd3d8">⟳ Reload</text>
+    <rect x="200" y="122" width="64" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="138" fill="#cfd3d8">Raw text</text>
+    <rect x="270" y="122" width="74" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="282" y="138" fill="#cfd3d8">＋ Add key</text>
+    <rect x="468" y="126" width="14" height="14" rx="3" fill="#1b1d21" stroke="#444649"/>
+    <text x="488" y="137" fill="#a6a6a6">Also apply cmdline to existing kernels (grubby)</text>
+  </g>
+
+  <!-- table -->
+  <rect x="120" y="158" width="660" height="244" rx="6" fill="#1b1d21" stroke="#444649"/>
+  <rect x="120" y="158" width="660" height="26" fill="#23262b"/>
+  <g font-size="10.5" fill="#a6a6a6" font-weight="bold">
+    <text x="135" y="175">Key</text>
+    <text x="370" y="175">Value</text>
+  </g>
+  <line x1="120" y1="184" x2="780" y2="184" stroke="#34383d"/>
+  <line x1="358" y1="158" x2="358" y2="402" stroke="#2a2e33"/>
+
+  <g font-size="11">
+    <text x="135" y="206" fill="#9ecbff" font-family="monospace">GRUB_TIMEOUT</text>
+    <text x="370" y="206" fill="#e6e6e6">5</text>
+    <line x1="120" y1="218" x2="780" y2="218" stroke="#2a2e33"/>
+    <text x="135" y="240" fill="#9ecbff" font-family="monospace">GRUB_TIMEOUT_STYLE</text>
+    <text x="370" y="240" fill="#e6e6e6">menu</text>
+    <line x1="120" y1="252" x2="780" y2="252" stroke="#2a2e33"/>
+    <text x="135" y="274" fill="#9ecbff" font-family="monospace">GRUB_DEFAULT</text>
+    <text x="370" y="274" fill="#e6e6e6">saved</text>
+    <line x1="120" y1="286" x2="780" y2="286" stroke="#2a2e33"/>
+    <text x="135" y="308" fill="#9ecbff" font-family="monospace">GRUB_CMDLINE_LINUX_DEFAULT</text>
+    <text x="370" y="308" fill="#e6e6e6">"rhgb quiet"</text>
+    <line x1="120" y1="320" x2="780" y2="320" stroke="#2a2e33"/>
+    <text x="135" y="342" fill="#9ecbff" font-family="monospace">GRUB_CMDLINE_LINUX</text>
+    <text x="370" y="342" fill="#e6e6e6">"resume=/dev/sda2"</text>
+    <line x1="120" y1="354" x2="780" y2="354" stroke="#2a2e33"/>
+    <text x="135" y="376" fill="#9ecbff" font-family="monospace">GRUB_DISABLE_OS_PROBER</text>
+    <text x="370" y="376" fill="#e6e6e6">false</text>
+  </g>
+
+  <text x="120" y="428" fill="#6b6f76" font-size="10">Backs up to /etc/default/grub.bak, then regenerates after a confirmation showing the exact command.</text>
+
+  <!-- footer -->
+  <line x1="100" y1="453" x2="800" y2="453" stroke="#444649"/>
+  <rect x="566" y="461" width="64" height="26" rx="4" fill="#3a3f45"/>
+  <text x="582" y="478" fill="#f0f0f0" font-size="12">Close</text>
+  <rect x="640" y="461" width="130" height="26" rx="4" fill="#0d6efd"/>
+  <text x="654" y="478" fill="#fff" font-size="12">Save &amp; regenerate</text>
+</svg>

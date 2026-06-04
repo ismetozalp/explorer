@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <rect width="900" height="540" fill="#000" opacity="0.45"/>
+
+  <rect x="100" y="35" width="700" height="470" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="100" y="35" width="700" height="42" rx="8" fill="#23262b"/>
+  <rect x="100" y="67" width="700" height="10" fill="#23262b"/>
+  <text x="120" y="62" fill="#f0f0f0" font-size="15" font-weight="bold">Mounts <tspan fill="#a6a6a6" font-weight="normal">— Network share</tspan></text>
+  <text x="774" y="62" fill="#a6a6a6" font-size="16">×</text>
+  <line x1="100" y1="77" x2="800" y2="77" stroke="#444649"/>
+
+  <!-- tabs -->
+  <g font-size="12">
+    <text x="120" y="102" fill="#a6a6a6">/etc/fstab</text>
+    <text x="200" y="102" fill="#a6a6a6">Mounted</text>
+    <text x="285" y="102" fill="#75b6fd">Network share</text>
+    <rect x="283" y="110" width="86" height="2" fill="#75b6fd"/>
+  </g>
+  <line x1="100" y1="116" x2="800" y2="116" stroke="#34383d"/>
+
+  <g font-size="12">
+    <!-- type selector -->
+    <text x="120" y="142" fill="#a6a6a6">Type</text>
+    <rect x="200" y="130" width="86" height="22" rx="4" fill="#0d6efd"/>
+    <text x="214" y="145" fill="#fff" font-size="11">SMB / CIFS</text>
+    <rect x="286" y="130" width="50" height="22" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="300" y="145" fill="#cfd3d8" font-size="11">NFS</text>
+
+    <!-- host + discover -->
+    <text x="120" y="178" fill="#a6a6a6">Host</text>
+    <rect x="200" y="166" width="430" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="183" fill="#f0f0f0">192.168.0.14</text>
+    <rect x="640" y="166" width="78" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="652" y="183" fill="#cfd3d8" font-size="11">Discover</text>
+    <!-- host chip -->
+    <rect x="200" y="196" width="248" height="20" rx="10" fill="#23262b" stroke="#3a3f45"/>
+    <text x="212" y="210" fill="#cfd3d8" font-size="10">MYCLOUDEX2ULTRA · 192.168.0.14 (scan)</text>
+
+    <!-- share + browse -->
+    <text x="120" y="244" fill="#a6a6a6">Share</text>
+    <rect x="200" y="232" width="430" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="249" fill="#f0f0f0">nas</text>
+    <rect x="640" y="232" width="78" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="652" y="249" fill="#cfd3d8" font-size="11">Browse</text>
+    <!-- share chips -->
+    <rect x="200" y="262" width="58" height="20" rx="10" fill="#23262b" stroke="#3a3f45"/>
+    <text x="212" y="276" fill="#cfd3d8" font-size="10">Public</text>
+    <rect x="264" y="262" width="56" height="20" rx="10" fill="#23262b" stroke="#3a3f45"/>
+    <text x="276" y="276" fill="#cfd3d8" font-size="10">ismet</text>
+    <rect x="326" y="262" width="98" height="20" rx="10" fill="#23262b" stroke="#3a3f45"/>
+    <text x="338" y="276" fill="#cfd3d8" font-size="10">Transmission</text>
+
+    <!-- mount point -->
+    <text x="120" y="310" fill="#a6a6a6">Mount point</text>
+    <rect x="200" y="298" width="518" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="315" fill="#f0f0f0">/mnt/nas</text>
+
+    <!-- credentials -->
+    <text x="120" y="346" fill="#a6a6a6">Credentials</text>
+    <rect x="200" y="334" width="60" height="22" rx="4" fill="#0d6efd"/>
+    <text x="218" y="349" fill="#fff" font-size="11">Saved</text>
+    <rect x="260" y="334" width="48" height="22" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="272" y="349" fill="#cfd3d8" font-size="11">New</text>
+    <rect x="308" y="334" width="56" height="22" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="320" y="349" fill="#cfd3d8" font-size="11">Guest</text>
+
+    <!-- saved set -->
+    <text x="120" y="382" fill="#a6a6a6">Saved set</text>
+    <rect x="200" y="370" width="518" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="387" fill="#f0f0f0">wdnas</text>
+    <text x="700" y="387" fill="#a6a6a6">▾</text>
+
+    <!-- option toggles -->
+    <g font-size="11">
+      <rect x="200" y="408" width="13" height="13" rx="3" fill="#0d6efd"/><text x="204" y="418" fill="#fff" font-size="9">✓</text>
+      <text x="220" y="419" fill="#cfd3d8">_netdev</text>
+      <rect x="284" y="408" width="13" height="13" rx="3" fill="#0d6efd"/><text x="288" y="418" fill="#fff" font-size="9">✓</text>
+      <text x="304" y="419" fill="#cfd3d8">nofail</text>
+      <rect x="356" y="408" width="13" height="13" rx="3" fill="#0d6efd"/><text x="360" y="418" fill="#fff" font-size="9">✓</text>
+      <text x="376" y="419" fill="#cfd3d8">automount</text>
+      <rect x="456" y="408" width="13" height="13" rx="3" fill="#1b1d21" stroke="#444649"/>
+      <text x="476" y="419" fill="#cfd3d8">read-only</text>
+    </g>
+
+    <!-- add & save -->
+    <rect x="200" y="438" width="92" height="26" rx="4" fill="#0d6efd"/>
+    <text x="214" y="455" fill="#fff" font-size="11">Add &amp; save</text>
+    <text x="302" y="455" fill="#6b6f76" font-size="10">Writes the credentials file, adds the fstab entry, then mounts it.</text>
+  </g>
+
+  <!-- footer -->
+  <line x1="100" y1="471" x2="800" y2="471" stroke="#444649"/>
+  <rect x="610" y="473" width="64" height="26" rx="4" fill="#3a3f45"/>
+  <text x="626" y="490" fill="#f0f0f0" font-size="12">Close</text>
+  <rect x="684" y="473" width="92" height="26" rx="4" fill="#0d6efd"/>
+  <text x="698" y="490" fill="#fff" font-size="12">Add &amp; save</text>
+</svg>

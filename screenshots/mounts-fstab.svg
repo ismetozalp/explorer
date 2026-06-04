@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="540" fill="#1b1d21"/>
+  <rect width="900" height="540" fill="#000" opacity="0.45"/>
+
+  <!-- modal -->
+  <rect x="100" y="45" width="700" height="450" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="100" y="45" width="700" height="42" rx="8" fill="#23262b"/>
+  <rect x="100" y="77" width="700" height="10" fill="#23262b"/>
+  <text x="120" y="72" fill="#f0f0f0" font-size="15" font-weight="bold">Mounts <tspan fill="#a6a6a6" font-weight="normal">— /etc/fstab</tspan></text>
+  <text x="774" y="72" fill="#a6a6a6" font-size="16">×</text>
+  <line x1="100" y1="87" x2="800" y2="87" stroke="#444649"/>
+
+  <!-- tabs -->
+  <g font-size="12">
+    <text x="120" y="112" fill="#75b6fd">/etc/fstab</text>
+    <rect x="118" y="120" width="62" height="2" fill="#75b6fd"/>
+    <text x="200" y="112" fill="#a6a6a6">Mounted</text>
+    <rect x="262" y="103" width="22" height="14" rx="7" fill="#23262b"/>
+    <text x="267" y="113" fill="#a6a6a6" font-size="9">30</text>
+    <text x="305" y="112" fill="#a6a6a6">Network share</text>
+  </g>
+  <line x1="100" y1="126" x2="800" y2="126" stroke="#34383d"/>
+
+  <!-- toolbar -->
+  <g font-size="11">
+    <rect x="120" y="138" width="74" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="132" y="154" fill="#cfd3d8">⟳ Reload</text>
+    <rect x="200" y="138" width="64" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="212" y="154" fill="#cfd3d8">Raw text</text>
+    <rect x="270" y="138" width="84" height="24" rx="4" fill="#1b1d21" stroke="#444649"/>
+    <text x="282" y="154" fill="#cfd3d8">＋ Add entry</text>
+    <rect x="636" y="142" width="14" height="14" rx="3" fill="#0d6efd"/>
+    <text x="640" y="153" fill="#fff" font-size="10">✓</text>
+    <text x="656" y="153" fill="#a6a6a6">Mount new entries on save</text>
+  </g>
+
+  <!-- table -->
+  <rect x="120" y="174" width="660" height="248" rx="6" fill="#1b1d21" stroke="#444649"/>
+  <rect x="120" y="174" width="660" height="26" fill="#23262b"/>
+  <g font-size="10.5" fill="#a6a6a6" font-weight="bold">
+    <text x="135" y="191"></text>
+    <text x="160" y="191">Device / UUID</text>
+    <text x="330" y="191">Mount point</text>
+    <text x="455" y="191">Type</text>
+    <text x="515" y="191">Options</text>
+    <text x="688" y="191">Dump</text>
+    <text x="730" y="191">Pass</text>
+  </g>
+  <line x1="120" y1="200" x2="780" y2="200" stroke="#34383d"/>
+
+  <!-- rows -->
+  <g font-size="11" fill="#e6e6e6">
+    <!-- row 1: mounted -->
+    <text x="133" y="222" fill="#5cd66b" font-size="12">●</text>
+    <text x="160" y="222">UUID=1c9b…e4</text>
+    <text x="330" y="222">/</text>
+    <text x="455" y="222">ext4</text>
+    <text x="515" y="222" fill="#cfd3d8">defaults</text>
+    <text x="698" y="222">0</text>
+    <text x="740" y="222">1</text>
+    <line x1="120" y1="234" x2="780" y2="234" stroke="#2a2e33"/>
+    <!-- row 2 -->
+    <text x="133" y="256" fill="#5cd66b" font-size="12">●</text>
+    <text x="160" y="256">UUID=A1B2-C3D4</text>
+    <text x="330" y="256">/boot/efi</text>
+    <text x="455" y="256">vfat</text>
+    <text x="515" y="256" fill="#cfd3d8">umask=0077</text>
+    <text x="698" y="256">0</text>
+    <text x="740" y="256">2</text>
+    <line x1="120" y1="268" x2="780" y2="268" stroke="#2a2e33"/>
+    <!-- row 3: declared not mounted (clickable) -->
+    <text x="133" y="290" fill="#75b6fd" font-size="12">○</text>
+    <text x="160" y="290">//192.168.0.14/nas</text>
+    <text x="330" y="290">/mnt/nas</text>
+    <text x="455" y="290">cifs</text>
+    <text x="515" y="290" fill="#cfd3d8">credentials=…,_netdev</text>
+    <text x="698" y="290">0</text>
+    <text x="740" y="290">0</text>
+    <line x1="120" y1="302" x2="780" y2="302" stroke="#2a2e33"/>
+    <!-- row 4 -->
+    <text x="133" y="324" fill="#5cd66b" font-size="12">●</text>
+    <text x="160" y="324">/dev/sdb1</text>
+    <text x="330" y="324">/data</text>
+    <text x="455" y="324">xfs</text>
+    <text x="515" y="324" fill="#cfd3d8">defaults,nofail</text>
+    <text x="698" y="324">0</text>
+    <text x="740" y="324">2</text>
+    <line x1="120" y1="336" x2="780" y2="336" stroke="#2a2e33"/>
+    <!-- row 5: swap n/a -->
+    <text x="133" y="358" fill="#6b6f76" font-size="12">—</text>
+    <text x="160" y="358">UUID=9f3a…77</text>
+    <text x="330" y="358">none</text>
+    <text x="455" y="358">swap</text>
+    <text x="515" y="358" fill="#cfd3d8">sw</text>
+    <text x="698" y="358">0</text>
+    <text x="740" y="358">0</text>
+  </g>
+
+  <!-- legend -->
+  <g font-size="10" fill="#6b6f76">
+    <text x="133" y="400" fill="#5cd66b">●</text><text x="146" y="400">mounted</text>
+    <text x="210" y="400" fill="#75b6fd">○</text><text x="223" y="400">declared — click to mount</text>
+    <text x="392" y="400" fill="#6b6f76">—</text><text x="405" y="400">not applicable (swap)</text>
+  </g>
+
+  <!-- footer -->
+  <line x1="100" y1="453" x2="800" y2="453" stroke="#444649"/>
+  <rect x="636" y="461" width="64" height="26" rx="4" fill="#3a3f45"/>
+  <text x="652" y="478" fill="#f0f0f0" font-size="12">Close</text>
+  <rect x="710" y="461" width="60" height="26" rx="4" fill="#0d6efd"/>
+  <text x="726" y="478" fill="#fff" font-size="12">Save</text>
+</svg>
