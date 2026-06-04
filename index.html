@@ -74,6 +74,9 @@
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openMounts()" title="Mounts / fstab editor">
         <span>⛁ Mounts</span>
     </button>
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openGrub()" x-show="grub.available" x-cloak title="Edit /etc/default/grub and regenerate the boot config">
+        <span>⏻ GRUB</span>
+    </button>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
@@ -1153,6 +1156,70 @@
                         :disabled="mounts.saving || cifs.add.busy || nfs.add.busy">
                     <span x-show="mounts.saving || cifs.add.busy || nfs.add.busy" class="spinner-border spinner-border-sm me-1"></span>
                     <span x-text="(mounts.saving || cifs.add.busy || nfs.add.busy) ? 'Saving…' : (mounts.view === 'net' ? 'Add & save' : 'Save')"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- GRUB editor -->
+<div class="modal fade" id="grubModal" tabindex="-1" x-data x-init="grubModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">GRUB <span class="text-muted fw-normal">— /etc/default/grub</span></h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger py-2 px-3 mb-2" x-show="grub.error" x-text="grub.error" x-cloak></div>
+
+                <div class="grub-info mb-2">
+                    Regenerate with <code x-text="grub.regenTool === 'update-grub' ? 'update-grub' : ((grub.regenTool || 'grub2-mkconfig') + ' -o ' + (grub.outPath || '?'))"></code>
+                    · <span x-text="grub.isUefi ? 'UEFI' : 'BIOS'"></span><span x-show="grub.hasGrubby"> · grubby available</span>
+                </div>
+
+                <div class="mounts-toolbar mb-2">
+                    <button class="btn btn-sm btn-outline-secondary" @click="loadGrub()" :disabled="grub.loading" title="Reload from disk">⟳ Reload</button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="toggleGrubRaw()" x-text="grub.rawMode ? 'Structured view' : 'Raw text'"></button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="addGrubRow()" x-show="!grub.rawMode">＋ Add key</button>
+                    <label class="form-check form-check-inline mounts-mountafter ms-auto mb-0" x-show="grub.hasGrubby">
+                        <input class="form-check-input" type="checkbox" x-model="grub.applyGrubby">
+                        <span class="form-check-label">Also apply cmdline to existing kernels (grubby)</span>
+                    </label>
+                </div>
+
+                <div class="mounts-loading" x-show="grub.loading">Loading…</div>
+
+                <div class="mounts-table-wrap" x-show="!grub.rawMode && !grub.loading">
+                    <table class="mounts-table grub-table">
+                        <thead><tr><th>Key</th><th>Value</th><th class="mt-rm"></th></tr></thead>
+                        <tbody>
+                            <template x-for="(r, i) in grub.rows" :key="i">
+                                <tr>
+                                    <td class="grub-key"><input class="form-control form-control-sm" x-model="r.key" spellcheck="false" autocomplete="off"></td>
+                                    <td><input class="form-control form-control-sm" x-model="r.value" spellcheck="false" autocomplete="off"></td>
+                                    <td class="mt-rm"><button class="mounts-rm" @click="removeGrubRow(i)" title="Remove key">✕</button></td>
+                                </tr>
+                            </template>
+                            <tr x-show="!grub.rows.length"><td colspan="3" class="mounts-empty">No settings in /etc/default/grub.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div x-show="grub.rawMode && !grub.loading">
+                    <textarea class="form-control mounts-raw" x-model="grub.rawEdited" spellcheck="false" rows="14"></textarea>
+                </div>
+
+                <div class="grub-result mt-2" x-show="grub.regenResult" x-cloak>
+                    <div class="mounts-results-head">Regenerate output</div>
+                    <pre class="grub-result-pre" x-text="grub.regenResult"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-primary" @click="saveGrub()" :disabled="grub.saving">
+                    <span x-show="grub.saving" class="spinner-border spinner-border-sm me-1"></span>
+                    <span x-text="grub.saving ? 'Saving…' : 'Save & regenerate'"></span>
                 </button>
             </div>
         </div>

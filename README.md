@@ -875,6 +875,30 @@ optional `vers=`). *Add & save* assembles a `server:/export` `nfs` entry,
 writes it, and mounts it. If `mount.nfs` (nfs-utils / nfs-common) is
 missing, a distro-specific install command is shown.
 
+### GRUB boot loader (`⏻ GRUB`)
+
+When `/etc/default/grub` exists and a config-regeneration tool is present,
+a **⏻ GRUB** toolbar button opens an editor for it (the button is hidden
+otherwise):
+
+- A **structured key/value table** (add/remove keys) plus a **Raw text**
+  toggle; comments, blank lines and value quoting round-trip untouched.
+- A header line shows the detected regeneration command, BIOS vs UEFI,
+  and whether `grubby` is available.
+- **Save & regenerate** validates the keys, backs up to
+  `/etc/default/grub.bak`, writes the file through the superuser bridge,
+  and — after a confirmation showing the exact command — regenerates the
+  boot config: `update-grub` where present, otherwise
+  `grub2-mkconfig`/`grub-mkconfig -o <path>` with the output path
+  auto-detected (Fedora/RHEL `/etc/grub2*.cfg` symlinks, the UEFI
+  `EFI/<distro>` path, or the BIOS default). The command output is shown
+  in the dialog.
+- If `grubby` is present you can opt in to also push the kernel cmdline
+  (`GRUB_CMDLINE_LINUX`/`GRUB_CMDLINE_LINUX_DEFAULT`) to already-installed
+  kernels.
+
+Editing only `/etc/default/grub` (not `/etc/grub.d/`).
+
 ---
 
 ## Keyboard shortcuts

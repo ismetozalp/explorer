@@ -1551,3 +1551,9 @@ body {
 
 /* Mounts — network-share type selector */
 .cifs-nettype { margin-bottom: .35rem; }
+
+/* GRUB editor */
+.grub-info { font-size: .82rem; color: var(--ex-text-muted); }
+.grub-table .grub-key { width: 38%; }
+.grub-table .grub-key input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.grub-result-pre { max-height: 9rem; overflow: auto; background: var(--ex-bg-alt); border: 1px solid var(--ex-border); border-radius: 6px; padding: .4rem .6rem; font-size: .8rem; white-space: pre-wrap; margin: 0; color: var(--ex-text); }
