@@ -957,10 +957,21 @@
                     <div class="cifs-form">
                         <div class="cifs-row">
                             <label>Host</label>
-                            <input class="form-control form-control-sm" x-model="cifs.add.host" placeholder="server or IP" spellcheck="false" autocomplete="off">
-                            <label>Share</label>
-                            <input class="form-control form-control-sm" x-model="cifs.add.share" placeholder="share name" spellcheck="false" autocomplete="off">
+                            <input class="form-control form-control-sm" x-model="cifs.add.host" list="cifs-hosts" placeholder="server or IP" spellcheck="false" autocomplete="off">
+                            <button class="btn btn-sm btn-outline-secondary" @click="discoverHosts()" :disabled="cifs.disco.scanning" title="Discover SMB hosts on the network (mDNS)">
+                                <span x-show="cifs.disco.scanning" class="spinner-border spinner-border-sm me-1"></span>Discover
+                            </button>
                         </div>
+                        <div class="cifs-row">
+                            <label>Share</label>
+                            <input class="form-control form-control-sm" x-model="cifs.add.share" list="cifs-shares" placeholder="share name" spellcheck="false" autocomplete="off">
+                            <button class="btn btn-sm btn-outline-secondary" @click="browseShares()" :disabled="cifs.disco.browsing" title="List shares on the host (smbclient)">
+                                <span x-show="cifs.disco.browsing" class="spinner-border spinner-border-sm me-1"></span>Browse
+                            </button>
+                        </div>
+                        <div class="cifs-disco-status" x-show="cifs.disco.error" x-text="cifs.disco.error" x-cloak></div>
+                        <datalist id="cifs-hosts"><template x-for="h in cifs.disco.hosts" :key="h.host + '|' + h.addr"><option :value="h.host" x-text="h.label"></option></template></datalist>
+                        <datalist id="cifs-shares"><template x-for="s in cifs.disco.shares" :key="s"><option :value="s"></option></template></datalist>
                         <div class="cifs-row">
                             <label>Mount point</label>
                             <input class="form-control form-control-sm" x-model="cifs.add.mountpoint" list="mt-mountpoints" placeholder="/mnt/share" spellcheck="false" autocomplete="off">

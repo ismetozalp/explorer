@@ -1533,3 +1533,6 @@ body {
 .cifs-creds-head { font-size: .85rem; color: var(--ex-text-muted); margin-bottom: .35rem; }
 .cifs-creds-empty { color: var(--ex-text-muted); font-size: .85rem; }
 .cifs-cred { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; }
+
+/* Mounts — SMB discovery status line */
+.cifs-disco-status { color: var(--ex-text-muted); font-size: .8rem; margin-top: -.1rem; }

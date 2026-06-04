@@ -837,10 +837,14 @@ All mount/unmount actions run through Cockpit's superuser bridge.
 A **Network share** tab adds SMB/CIFS shares with a managed,
 root-only credential store:
 
-- Enter host, share and mount point. Credentials are either a **saved**
-  set, a **new** set (username/password/domain — saved to
-  `/etc/cifs-creds/<name>`, a root-owned `0700` directory with `0600`
-  files), or **guest**.
+- Enter host, share and mount point. **Discover** finds SMB hosts on the
+  network via mDNS (`avahi-browse`), and **Browse** lists a host's shares
+  with `smbclient` (guest, or using the selected saved credential); both
+  feed the Host/Share dropdowns and fall back to manual entry when the
+  tools aren't installed.
+- Credentials are either a **saved** set, a **new** set
+  (username/password/domain — saved to `/etc/cifs-creds/<name>`, a
+  root-owned `0700` directory with `0600` files), or **guest**.
 - The password is written to the credentials file through Cockpit's file
   channel — never placed in `/etc/fstab`, on a command line, or in any
   log. fstab gets only `credentials=/etc/cifs-creds/<name>`.

@@ -189,6 +189,12 @@ Alpine.data('explorer', () => ({
             vers: '', uid: '', gid: '',
             busy: false, error: '',
         },
+        // SMB discovery (mDNS host discovery + smbclient share browse)
+        disco: {
+            hasAvahi: null, hasSmbclient: null,
+            scanning: false, browsing: false, error: '',
+            hosts: [], shares: [],
+        },
     },
 
     toasts: [],
@@ -3150,7 +3156,93 @@ Alpine.data('explorer', () => ({
 
     async _initCifsTab() {
         if (this.cifs.available === null) this.cifs.available = await this._hasMountCifs();
+        this.cifs.disco.hosts = []; this.cifs.disco.shares = []; this.cifs.disco.error = '';
         await this.refreshCifsCreds();
+    },
+
+    async _hasBin(name) {
+        try {
+            const o = await cockpit.spawn(['sh', '-c', `command -v ${name} 2>/dev/null`], { err: 'ignore' });
+            return !!(o || '').trim();
+        } catch (e) { return false; }
+    },
+
+    // Discover SMB hosts via mDNS (avahi). Bounded with `timeout` so it can't
+    // hang the UI; degrades to manual entry when avahi-browse is absent.
+    async discoverHosts() {
+        const d = this.cifs.disco;
+        if (d.hasAvahi === null) d.hasAvahi = await this._hasBin('avahi-browse');
+        d.scanning = true; d.error = '';
+        const found = new Map();
+        try {
+            if (d.hasAvahi) {
+                const out = await cockpit.spawn(['sh', '-c', 'timeout 5 avahi-browse -rtp _smb._tcp 2>/dev/null'], { err: 'message' });
+                out.split('\n').forEach(line => {
+                    if (!line.startsWith('=')) return;            // resolved records only
+                    const f = line.split(';');                    // =;iface;proto;name;type;domain;hostname;addr;port;txt
+                    const name = f[3] || '', hostname = f[6] || '', addr = f[7] || '';
+                    const host = hostname.replace(/\.local\.?$/i, '') || addr;
+                    if (!host && !addr) return;
+                    const key = addr || host;
+                    if (!found.has(key)) found.set(key, { host: host || addr, addr, label: `${name || host || addr}${addr ? ' · ' + addr : ''}` });
+                });
+            }
+            d.hosts = Array.from(found.values());
+            if (!d.hosts.length) {
+                d.error = d.hasAvahi
+                    ? 'No SMB hosts found via mDNS — type the host manually.'
+                    : 'avahi-browse not found — type the host manually (install avahi-utils for discovery).';
+            }
+        } catch (e) {
+            d.error = 'Discovery failed: ' + ((e.message || String(e)).split('\n')[0]);
+        } finally {
+            d.scanning = false;
+        }
+    },
+
+    // List shares on the current host with smbclient. Guest by default; if a
+    // saved credential is selected, browse with it (read root-only via the
+    // bridge so the secret never hits argv).
+    async browseShares() {
+        const d = this.cifs.disco;
+        const host = (this.cifs.add.host || '').trim().replace(/^[\\/]+/, '');
+        if (!host) { d.error = 'Enter or pick a host first.'; return; }
+        if (d.hasSmbclient === null) d.hasSmbclient = await this._hasBin('smbclient');
+        if (!d.hasSmbclient) { d.error = 'smbclient not found (install smbclient / samba-client) — type the share manually.'; return; }
+        d.browsing = true; d.error = ''; d.shares = [];
+        try {
+            let out;
+            const credName = (this.cifs.add.credMode === 'existing') ? (this.cifs.add.credName || '').trim() : '';
+            if (credName) {
+                out = await cockpit.spawn(['timeout', '8', 'smbclient', '-L', host, '-A', `/etc/cifs-creds/${credName}`], FS.spawnOpts({ admin: true }));
+            } else {
+                out = await cockpit.spawn(['timeout', '8', 'smbclient', '-L', host, '-N'], { err: 'message' });
+            }
+            d.shares = this._parseSmbShares(out);
+            if (!d.shares.length) d.error = 'No shares found (or none visible with these credentials).';
+        } catch (e) {
+            const msg = (e.message || String(e));
+            if (/NT_STATUS_ACCESS_DENIED|NT_STATUS_LOGON_FAILURE|NT_STATUS_NO_LOGON_SERVERS/i.test(msg)) {
+                d.error = 'Access denied browsing shares — choose a saved credential (Saved) and Browse again.';
+            } else {
+                d.error = 'Browse failed: ' + msg.split('\n')[0];
+            }
+        } finally {
+            d.browsing = false;
+        }
+    },
+
+    _parseSmbShares(out) {
+        const shares = []; let inSection = false;
+        (out || '').split('\n').forEach(line => {
+            if (/^\s*Sharename\s+Type/i.test(line)) { inSection = true; return; }
+            if (!inSection) return;
+            if (/^\s*---/.test(line)) return;
+            if (!line.trim()) { inSection = false; return; }
+            const m = line.match(/^\s+(\S.*?)\s+(Disk|Printer|IPC)\b/);
+            if (m && m[2] === 'Disk') { const name = m[1].trim(); if (!name.endsWith('$')) shares.push(name); }
+        });
+        return Array.from(new Set(shares));
     },
 
     async refreshCifsCreds() {
