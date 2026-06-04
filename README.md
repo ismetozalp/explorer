@@ -841,7 +841,8 @@ root-only credential store:
   network via mDNS (`avahi-browse`), and **Browse** lists a host's shares
   with `smbclient` (guest, or using the selected saved credential); both
   feed the Host/Share dropdowns and fall back to manual entry when the
-  tools aren't installed.
+  tools aren't installed. If `smbclient` is missing, **Browse** is
+  disabled and a distro-specific install command is shown.
 - Credentials are either a **saved** set, a **new** set
   (username/password/domain — saved to `/etc/cifs-creds/<name>`, a
   root-owned `0700` directory with `0600` files), or **guest**.

@@ -191,7 +191,7 @@ Alpine.data('explorer', () => ({
         },
         // SMB discovery (mDNS host discovery + smbclient share browse)
         disco: {
-            hasAvahi: null, hasSmbclient: null,
+            hasAvahi: null, hasSmbclient: null, smbInstall: '',
             scanning: false, browsing: false, error: '',
             hosts: [], shares: [],
         },
@@ -3157,7 +3157,49 @@ Alpine.data('explorer', () => ({
     async _initCifsTab() {
         if (this.cifs.available === null) this.cifs.available = await this._hasMountCifs();
         this.cifs.disco.hosts = []; this.cifs.disco.shares = []; this.cifs.disco.error = '';
+        if (this.cifs.disco.hasSmbclient === null) this.cifs.disco.hasSmbclient = await this._hasBin('smbclient');
+        if (this.cifs.disco.hasSmbclient === false && !this.cifs.disco.smbInstall) {
+            this.cifs.disco.smbInstall = await this._installCmdFor();
+        }
         await this.refreshCifsCreds();
+    },
+
+    // Suggest the distro-appropriate install command for smbclient by reading
+    // /etc/os-release (ID + ID_LIKE). The package is 'smbclient' on Debian-likes
+    // and Arch, 'samba-client' on RHEL/Fedora/SUSE/Alpine.
+    async _installCmdFor() {
+        let id = '', like = '';
+        try {
+            const txt = await FS.readText('/etc/os-release');
+            const get = k => { const m = (txt || '').match(new RegExp('^' + k + '=("?)(.*?)\\1$', 'm')); return m ? m[2] : ''; };
+            id = (get('ID') || '').toLowerCase();
+            like = (get('ID_LIKE') || '').toLowerCase();
+        } catch (e) { /* fall through to generic */ }
+        const tokens = new Set([id, ...like.split(/\s+/).filter(Boolean)]);
+        const has = (...names) => names.some(n => tokens.has(n));
+        if (has('debian', 'ubuntu')) return 'sudo apt install smbclient';
+        if (has('fedora', 'rhel', 'centos')) return 'sudo dnf install samba-client';
+        if (has('suse', 'opensuse', 'sles')) return 'sudo zypper install samba-client';
+        if (has('arch')) return 'sudo pacman -S smbclient';
+        if (has('alpine')) return 'sudo apk add samba-client';
+        if (has('gentoo')) return 'sudo emerge net-fs/samba';
+        return 'install the "smbclient" (a.k.a. samba-client) package for your distribution';
+    },
+
+    async copyToClipboard(text) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); document.body.removeChild(ta);
+            }
+            this.toast('Copied to clipboard.', 'success');
+        } catch (e) {
+            this.toast('Copy failed — select and copy manually.', 'warning');
+        }
     },
 
     async _hasBin(name) {

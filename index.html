@@ -970,9 +970,16 @@
                         <div class="cifs-row">
                             <label>Share</label>
                             <input class="form-control form-control-sm" x-model="cifs.add.share" list="cifs-shares" placeholder="share name" spellcheck="false" autocomplete="off">
-                            <button class="btn btn-sm btn-outline-secondary" @click="browseShares()" :disabled="cifs.disco.browsing" title="List shares on the host (smbclient)">
+                            <button class="btn btn-sm btn-outline-secondary" @click="browseShares()" :disabled="cifs.disco.browsing || cifs.disco.hasSmbclient === false" title="List shares on the host (smbclient)">
                                 <span x-show="cifs.disco.browsing" class="spinner-border spinner-border-sm me-1"></span>Browse
                             </button>
+                        </div>
+                        <div class="cifs-install-hint" x-show="cifs.disco.hasSmbclient === false" x-cloak>
+                            Share browsing needs <code>smbclient</code>, which isn't installed.
+                            <span class="cifs-install-line">
+                                <code class="cifs-install-cmd" x-text="cifs.disco.smbInstall"></code>
+                                <button class="cifs-copy" @click="copyToClipboard(cifs.disco.smbInstall)" title="Copy command">⧉</button>
+                            </span>
                         </div>
                         <div class="cifs-chips" x-show="cifs.disco.shares.length" x-cloak>
                             <template x-for="s in cifs.disco.shares" :key="s">

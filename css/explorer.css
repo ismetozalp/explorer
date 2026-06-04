@@ -1541,3 +1541,10 @@ body {
 .cifs-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin: -.05rem 0 .15rem; }
 .cifs-chip { font-size: .78rem; padding: .1rem .5rem; border-radius: 12px; border: 1px solid var(--ex-border-strong); background: var(--ex-bg-alt); color: var(--ex-text); cursor: pointer; }
 .cifs-chip:hover { border-color: var(--ex-accent); color: var(--ex-accent); }
+
+/* Mounts — smbclient install hint */
+.cifs-install-hint { font-size: .8rem; color: var(--ex-text-muted); margin: -.05rem 0 .2rem; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.cifs-install-line { display: inline-flex; align-items: center; gap: .35rem; }
+.cifs-install-cmd { background: var(--ex-bg-alt); border: 1px solid var(--ex-border); border-radius: 4px; padding: .05rem .4rem; color: var(--ex-text); user-select: all; }
+.cifs-copy { background: none; border: 1px solid var(--ex-border); border-radius: 4px; color: var(--ex-text-muted); cursor: pointer; padding: 0 .35rem; line-height: 1.4; }
+.cifs-copy:hover { color: var(--ex-accent); border-color: var(--ex-accent); }
