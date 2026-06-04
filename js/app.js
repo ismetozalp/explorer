@@ -1665,6 +1665,12 @@ Alpine.data('explorer', () => ({
             const tab = this.activeTab();
             if (tab && tab.kind === 'dir' && Util.dirname(w.path) === tab.path) this.reload(tab);
         } catch (e) {
+            if (!useAdmin && this._looksPermissionDenied(e)) {
+                // Transparently retry through the superuser bridge, and keep
+                // the file flagged so subsequent saves go straight to admin.
+                w.needsAdmin = true; w.permissionDenied = true;
+                return this.saveEditor(true);
+            }
             w.error = e.message || String(e);
             if (this._looksPermissionDenied(e)) { w.permissionDenied = true; w.needsAdmin = true; }
         }
