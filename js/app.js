@@ -1895,53 +1895,135 @@ Alpine.data('explorer', () => ({
     async _uploadOne(tab, file) {
         const dest = Util.joinPath(tab.path, file.name);
         const op = this._beginOp('Upload ' + file.name);
-        op.indeterminate = true;
-        op.statusText = `${Util.humanSize(file.size)}…`;
         try {
-            // Read whole file as base64 (single-shot upload — works for
-            // hundreds of MB before browser memory becomes the bottleneck).
-            const b64 = await new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onload = () => {
-                    const s = r.result || '';
-                    const i = s.indexOf(',');
-                    resolve(i >= 0 ? s.slice(i + 1) : s);
-                };
-                r.onerror = () => reject(new Error('FileReader failed'));
-                r.readAsDataURL(file);
-            });
-            // Drive a stream channel: spawn `base64 -d > dest`, write the
-            // base64 to its stdin, send the `done` control to half-close,
-            // then wait for the channel's close event. Same channel pattern
-            // that works for rsync; sidesteps the cancellation we saw from
-            // cockpit.spawn(..., {input: …}).
-            await new Promise((resolve, reject) => {
-                const channel = cockpit.channel({
+            await this._doUpload(op, dest, file, {});
+            this._endOp(op, 'done');
+        } catch (e) {
+            console.error('Upload failed:', e, 'dest:', dest);
+            this._failOp(op, e, () => this._doUpload(op, dest, file, { admin: true }));
+        }
+    },
+
+    // Core single-file upload. Reads the File as base64 and streams it to
+    // `base64 -d > dest`. Does NOT touch the op lifecycle (the caller owns
+    // _endOp/_failOp) so it can be reused for the admin retry and for the
+    // folder-tree uploader. opts.admin runs the channel as root; opts.silent
+    // leaves op.statusText/indeterminate alone (the tree driver manages them).
+    _doUpload(op, dest, file, opts) {
+        opts = opts || {};
+        if (!opts.silent) {
+            op.indeterminate = true;
+            op.statusText = `${Util.humanSize(file.size)}…`;
+        }
+        return new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onerror = () => reject(new Error('Could not read ' + file.name));
+            r.onload = () => {
+                const s = r.result || '';
+                const i = s.indexOf(',');
+                const b64 = i >= 0 ? s.slice(i + 1) : s;
+                const chanOpts = {
                     payload: 'stream',
                     spawn: ['sh', '-c', `base64 -d > ${Util.shq(dest)}`],
-                    err: 'out',
-                });
-                _setOpCallback(op.id, 'cancel', () => { try { channel.close('cancelled'); } catch (e) {} });
+                    err: 'message',
+                };
+                if (opts.admin) chanOpts.superuser = 'require';
+                const channel = cockpit.channel(chanOpts);
+                _setOpCallback(op.id, 'cancel', () => { op._cancelled = true; try { channel.close('cancelled'); } catch (e) {} });
                 op.canCancel = true;
                 channel.addEventListener('close', (ev, info) => {
-                    if (info && info.problem === 'cancelled') return reject(new Error('Cancelled'));
-                    if (info && info.problem) {
-                        const e = new Error(info.message || info.problem);
-                        e.problem = info.problem;
+                    const problem = info && info.problem;
+                    if (problem === 'cancelled') return reject(new Error('Cancelled'));
+                    const status = info && info['exit-status'];
+                    const msg = (info && info.message) || problem || '';
+                    if (problem || (status != null && status !== 0)) {
+                        const e = new Error(msg || ('base64 exit ' + status));
+                        e.permissionDenied = /permission denied|eacces|cannot create|read-only/i.test(msg);
+                        e.problem = problem;
                         return reject(e);
                     }
-                    const status = info && info['exit-status'];
-                    if (status != null && status !== 0) return reject(new Error('base64 exit ' + status));
                     resolve();
                 });
                 channel.send(b64);
                 channel.control({ command: 'done' });
-            });
-            this._endOp(op, 'done');
+            };
+            r.readAsDataURL(file);
+        });
+    },
+
+    // Recursively flatten a dropped FileSystemEntry tree into
+    // { dirs:[path,…] (pre-order), files:[{file, dest},…] }.
+    async _gatherEntry(entry, destDir, acc) {
+        if (!entry) return;
+        if (entry.isFile) {
+            const file = await new Promise((res, rej) => entry.file(res, rej));
+            acc.files.push({ file, dest: Util.joinPath(destDir, entry.name) });
+        } else if (entry.isDirectory) {
+            const dirPath = Util.joinPath(destDir, entry.name);
+            acc.dirs.push(dirPath);
+            const reader = entry.createReader();
+            // readEntries yields at most ~100 entries per call — loop until empty.
+            for (;;) {
+                const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+                if (!batch.length) break;
+                for (const child of batch) await this._gatherEntry(child, dirPath, acc);
+            }
+        }
+    },
+
+    // Upload one or more dropped folders (and any loose files): recreate the
+    // directory tree with `mkdir -p`, then stream each file under one op with
+    // batch progress. Retries the whole batch as admin on permission errors.
+    async _uploadEntries(pane, destDir, entries) {
+        const label = entries.length === 1 ? entries[0].name : entries.length + ' items';
+        const op = this._beginOp('Upload ' + label);
+        op.indeterminate = true;
+        op.statusText = 'Scanning…';
+        op.canCancel = true;
+        _setOpCallback(op.id, 'cancel', () => { op._cancelled = true; });
+        const acc = { dirs: [], files: [] };
+        try {
+            for (const en of entries) {
+                if (op._cancelled) throw new Error('Cancelled');
+                await this._gatherEntry(en, destDir, acc);
+            }
+            const run = (admin) => this._doUploadTree(op, acc, { admin });
+            try {
+                await run(false);
+                this._endOp(op, 'done');
+            } catch (e) {
+                if (e.message === 'Cancelled') this._failOp(op, e);
+                else this._failOp(op, e, () => run(true));
+            }
         } catch (e) {
-            console.error('Upload failed:', e, 'dest:', dest);
             this._failOp(op, e);
         }
+        this.reload(pane);
+    },
+
+    async _doUploadTree(op, acc, opts) {
+        opts = opts || {};
+        // Recreate directories first (acc.dirs is pre-order, so parents precede
+        // children); mkdir -p is idempotent so re-running as admin is safe.
+        op.indeterminate = true;
+        op.statusText = acc.dirs.length ? 'Creating folders…' : '';
+        const spawnOpts = opts.admin ? { superuser: 'require', err: 'message' } : { err: 'message' };
+        for (const d of acc.dirs) {
+            if (op._cancelled) throw new Error('Cancelled');
+            await cockpit.spawn(['mkdir', '-p', d], spawnOpts);
+        }
+        // Then stream files, with done/total progress.
+        op.indeterminate = false;
+        const total = acc.files.length;
+        let done = 0;
+        for (const { file, dest } of acc.files) {
+            if (op._cancelled) throw new Error('Cancelled');
+            op.statusText = `${file.name} — ${done + 1}/${total}`;
+            await this._doUpload(op, dest, file, { admin: opts.admin, silent: true });
+            done++;
+            op.progress = total ? Math.round((done / total) * 100) : 100;
+        }
+        op.indeterminate = false;
     },
 
 
@@ -1990,18 +2072,43 @@ Alpine.data('explorer', () => ({
         // pane wrapper's class won't be cleared by its own handler).
         document.querySelectorAll('.drag-over, .drag-over-row').forEach(el => el.classList.remove('drag-over', 'drag-over-row'));
 
+        // Capture the drop payload SYNCHRONOUSLY — the DataTransfer and its
+        // entries become invalid once this handler first awaits. webkitGetAsEntry
+        // is the only way to see directories (dataTransfer.files drops them).
+        let dropEntries = null;
+        const dt = ev.dataTransfer;
+        if (dt && dt.items && dt.items.length && typeof dt.items[0].webkitGetAsEntry === 'function') {
+            dropEntries = [];
+            for (let i = 0; i < dt.items.length; i++) {
+                if (dt.items[i].kind === 'file') {
+                    const en = dt.items[i].webkitGetAsEntry();
+                    if (en) dropEntries.push(en);
+                }
+            }
+        }
+        const dropFiles = dt && dt.files ? Array.from(dt.files) : [];
+
         // Destination: dropping onto a *directory* row drops INTO that folder;
         // anywhere else (empty space, or a file row) lands in the pane's folder.
         const intoDir = targetFile && (targetFile.type === 'd' || (targetFile.type === 'l' && targetFile.symlinkTarget));
         const target = intoDir ? targetFile.path : pane.path;
 
-        // From OS (upload)
-        if (ev.dataTransfer.files && ev.dataTransfer.files.length) {
-            const files = Array.from(ev.dataTransfer.files);
-            // Upload into `target` (a subfolder, or the pane's folder).
+        // From OS (upload).
+        // If a folder was dropped (entry API), walk the tree and recreate it.
+        if (dropEntries && dropEntries.some(en => en.isDirectory)) {
+            await this._uploadEntries(pane, target, dropEntries);
+            return;
+        }
+        // Plain file(s): one op each (existing behaviour).
+        if (dropFiles.length) {
             const dst = { path: target };
-            for (const f of files) await this._uploadOne(dst, f);
+            for (const f of dropFiles) await this._uploadOne(dst, f);
             this.reload(pane);
+            return;
+        }
+        // A folder was dropped but the browser lacks the entry API.
+        if (dt && dt.types && Array.prototype.includes.call(dt.types, 'Files')) {
+            this.toast('Folder upload isn\'t supported in this browser', 'warning');
             return;
         }
         // Internal move/copy
@@ -2609,6 +2716,9 @@ Alpine.data('explorer', () => ({
             this.toast('"' + (action.label || 'This action') + '" requires GitHub (gh) — set it up first.', 'warning');
             return;
         }
+        // privilege:'ask' → choose elevation now (Cockpit handles admin auth).
+        action = await this._resolveActionPrivilege(action);
+        if (!action) return;
         const tab = this.currentPane();
         const sel = this.selectedFiles(tab);
         if (!sel.length) return;
@@ -2706,6 +2816,9 @@ Alpine.data('explorer', () => ({
         const ctx = this._globalContext(action);
         // Close the picker first so the confirm/output isn't stacked behind it.
         try { bootstrap.Modal.getOrCreateInstance(this.globalActionsModalEl).hide(); } catch (e) {}
+        // privilege:'ask' → choose elevation now (Cockpit handles admin auth).
+        action = await this._resolveActionPrivilege(action);
+        if (!action) return;
         const msg = action.confirmMessage
             ? Util.fillText(action.confirmMessage, ctx)
             : `Run "${action.label || 'action'}"?`;
@@ -3020,6 +3133,26 @@ Alpine.data('explorer', () => ({
         if ((this.customActions.system || []).includes(action)) return 'system';
         if ((this.customActions.builtin || []).includes(action)) return 'builtin';
         return 'user';
+    },
+
+    // privilege:'ask' lets the user choose elevation at launch instead of
+    // baking it into the action. Returns the action unchanged for other
+    // privileges; for 'ask' it shows a "Run as me / Run as administrator"
+    // choice and returns a shallow clone with privilege resolved to
+    // 'user'/'require' (so every step — pre/main/post — runs consistently),
+    // or null if the user cancelled. Choosing administrator runs the action
+    // through Cockpit's superuser bridge, which handles authentication.
+    async _resolveActionPrivilege(action) {
+        if (!action || action.privilege !== 'ask') return action;
+        const choice = await this.askChoice(
+            action.label || 'Run action',
+            'How should this action run?',
+            [
+                { id: 'user',  label: 'Run as me',            variant: 'outline-primary' },
+                { id: 'admin', label: 'Run as administrator', variant: 'primary' },
+            ]);
+        if (choice == null || choice === false || choice === 'cancel') return null;
+        return { ...action, privilege: choice === 'admin' ? 'require' : 'user' };
     },
 
     // Run a command in a streaming output tab that understands the prompt

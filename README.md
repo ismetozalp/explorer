@@ -744,9 +744,12 @@ directory view.
   name.) The renamed transfer goes through `mv -T` for same-filesystem
   moves, `rsync` for cross-filesystem moves and copies, or `cp -aT` as a
   fallback.
-- Drag files from your desktop into a tab → chunked upload, with
-  progress and cancel. Dropping the upload onto a folder row uploads
-  into that folder.
+- Drag files **or folders** from your desktop into a tab → upload, with
+  progress and cancel. Dropping onto a folder row uploads into that
+  folder. Dropping a folder recreates its whole directory tree on the
+  server (empty subfolders included) and streams every file under a single
+  progress entry; a whole-batch **Retry as administrator** appears if any
+  write hits *Permission denied*.
 - For downloading multiple files, use the *Download* context menu
   item — a small dialog offers an archive-format **dropdown**
   (tar.gz / zip / tar / tar.bz2 / tar.xz), then the plugin compresses to
@@ -756,9 +759,15 @@ directory view.
 
 ### Uploads
 
-Chunked via Cockpit's binary stream channel (default chunk size 4 MB,
-configurable in Settings). Progress and cancel button in the operations
-tray.
+Files stream through Cockpit's stream channel (`base64 -d > dest`).
+**Folder uploads** (drag-and-drop only) walk the dropped directory tree via
+the browser's entry API, recreate it with `mkdir -p`, then upload each file
+in order. Uploads run as the logged-in user; on *Permission denied* the
+operation offers **Retry as administrator**, which re-runs the writes (and
+any `mkdir`) through the superuser bridge. Progress and cancel are shown in
+the operations tray. (Folder drag-and-drop needs a Chromium/Firefox-class
+browser; if the entry API is missing the plugin says so rather than
+silently dropping the folder.)
 
 ### Operations tray
 
@@ -867,7 +876,7 @@ mode these edit the document text for you).
 | `appliesTo`  | `""` · `both` · `file` · `dir` · `symlink` · `archive` · `global` | Restrict to a kind of target: empty = any item, `both` = files and directories, or one specific kind. `global` = a **file-independent action** that is hidden from the right-click menu and instead listed in the toolbar **▶ Run** popup (see below). |
 | `pattern`    | regex (string)                                                  | Only show the action when the target *name* matches this regex. With several items selected, **all** of them must match. |
 | `output`     | `toast` · `modal` · `tray` · `pane`                             | How output is presented (see below).                                    |
-| `privilege`  | `user` · `try` · `require`                                      | Run as user, try-then-elevate, or require admin.                        |
+| `privilege`  | `user` · `ask` · `try` · `require`                              | Run as user; **ask** at launch (a *Run as me / Run as administrator* choice — administrator runs through Cockpit's superuser bridge, which prompts for auth); try-then-elevate; or always require admin. The chosen privilege applies to the whole run (pre/main/post). |
 | `confirm`    | bool                                                            | Show a confirmation dialog before running.                              |
 | `confirmMessage` | string (optional)                                           | Custom text for the confirm dialog (templated). Blank = a default "Run X?". |
 | `preCommand` | shell command (optional)                                        | Runs **before** `command` (same privilege). Good for prep/reset steps.  |
