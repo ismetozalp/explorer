@@ -193,6 +193,7 @@ Alpine.data('explorer', () => ({
         disco: {
             hasAvahi: null, hasNmblookup: null, hasSmbclient: null, smbInstall: '',
             scanning: false, browsing: false, error: '',
+            sweeping: false, sweepDone: 0, sweepTotal: 0,
             hosts: [], shares: [],
         },
     },
@@ -3211,19 +3212,22 @@ Alpine.data('explorer', () => ({
 
     // Discover SMB hosts via mDNS (avahi). Bounded with `timeout` so it can't
     // hang the UI; degrades to manual entry when avahi-browse is absent.
+    // Merge a host into the results map, enriching a bare-IP entry if a real
+    // name later resolves for the same address.
+    _addHostTo(found, host, addr, label) {
+        const key = addr || host;
+        if (!key) return;
+        if (!found.has(key)) { found.set(key, { host: host || addr, addr, label }); return; }
+        const cur = found.get(key);
+        if ((!cur.host || cur.host === cur.addr) && host && host !== addr) { cur.host = host; cur.label = label; }
+    },
+
     async discoverHosts() {
         const d = this.cifs.disco;
         if (d.hasAvahi === null) d.hasAvahi = await this._hasBin('avahi-browse');
         if (d.hasNmblookup === null) d.hasNmblookup = await this._hasBin('nmblookup');
         d.scanning = true; d.error = '';
         const found = new Map();
-        const addHost = (host, addr, label) => {
-            const key = addr || host;
-            if (!key) return;
-            if (!found.has(key)) { found.set(key, { host: host || addr, addr, label }); return; }
-            const cur = found.get(key);            // enrich a bare-IP entry with a resolved name
-            if ((!cur.host || cur.host === cur.addr) && host && host !== addr) { cur.host = host; cur.label = label; }
-        };
         try {
             // mDNS / Bonjour
             if (d.hasAvahi) {
@@ -3235,12 +3239,12 @@ Alpine.data('explorer', () => ({
                         const name = f[3] || '', hostname = f[6] || '', addr = f[7] || '';
                         const host = hostname.replace(/\.local\.?$/i, '') || addr;
                         if (!host && !addr) return;
-                        addHost(host, addr, `${name || host || addr}${addr ? ' · ' + addr : ''}`);
+                        this._addHostTo(found, host, addr, `${name || host || addr}${addr ? ' · ' + addr : ''}`);
                     });
                 } catch (e) { /* ignore, try NetBIOS */ }
             }
-            // NetBIOS broadcast — finds hosts that don't advertise over mDNS and
-            // works without a master browser (each host answers directly).
+            // NetBIOS broadcast — works without a master browser when hosts
+            // answer the wildcard query (many consumer NAS boxes don't).
             if (d.hasNmblookup) {
                 try {
                     const out = await cockpit.spawn(['timeout', '5', 'nmblookup', '*'], { err: 'message' });
@@ -3250,34 +3254,122 @@ Alpine.data('explorer', () => ({
                         if (m) ips.push(m[1]);
                     });
                     const uniqueIps = Array.from(new Set(ips)).slice(0, 32);
-                    // resolve NetBIOS names in parallel (best-effort, bounded)
                     const names = await Promise.all(uniqueIps.map(async ip => {
                         try {
                             const a = await cockpit.spawn(['timeout', '2', 'nmblookup', '-A', ip], { err: 'message' });
                             return this._parseNbName(a);
                         } catch (e) { return ''; }
                     }));
-                    uniqueIps.forEach((ip, i) => {
-                        const nm = names[i];
-                        addHost(nm || ip, ip, `${nm || ip} · ${ip} (NetBIOS)`);
-                    });
+                    uniqueIps.forEach((ip, i) => this._addHostTo(found, names[i] || ip, ip, `${names[i] || ip} · ${ip} (NetBIOS)`));
                 } catch (e) { /* ignore NetBIOS errors */ }
             }
             d.hosts = Array.from(found.values());
+
+            // Nothing from the broadcast methods? Offer a directed subnet sweep
+            // (reliable even when the broadcast is suppressed / no master browser).
+            if (!d.hosts.length && (d.hasNmblookup || true)) {
+                const def = await this._localSubnetCidr();
+                const cidr = await this.askPrompt('Scan a subnet for SMB hosts?',
+                    'Nothing answered mDNS or the NetBIOS broadcast. Enter a subnet (CIDR) to scan directly, or Cancel to type the host manually.',
+                    def);
+                if (cidr && cidr.trim()) {
+                    await this._sweepSubnet(cidr.trim(), found);
+                    d.hosts = Array.from(found.values());
+                }
+            }
+
             if (d.hosts.length) {
                 this.toast(`Found ${d.hosts.length} SMB host${d.hosts.length === 1 ? '' : 's'}.`, 'success');
-            } else if (!d.hasAvahi && !d.hasNmblookup) {
-                d.error = 'No discovery tools found — install avahi-utils (mDNS) and/or samba/nmblookup (NetBIOS), or type the host manually.';
-                this.toast(d.error, 'info');
-            } else {
-                d.error = 'No SMB hosts found — type the host manually.';
+            } else if (!d.error) {
+                d.error = (!d.hasAvahi && !d.hasNmblookup)
+                    ? 'No discovery tools found — install avahi-utils (mDNS) and/or samba/nmblookup (NetBIOS), or type the host manually.'
+                    : 'No SMB hosts found — type the host manually.';
                 this.toast(d.error, 'info');
             }
         } catch (e) {
             d.error = 'Discovery failed: ' + ((e.message || String(e)).split('\n')[0]);
             this.toast(d.error, 'danger');
         } finally {
-            d.scanning = false;
+            d.scanning = false; d.sweeping = false;
+        }
+    },
+
+    // Default CIDR for the sweep prompt: the host's own global IPv4 + prefix,
+    // reduced to its network address (e.g. 192.168.0.79/24 -> 192.168.0.0/24).
+    async _localSubnetCidr() {
+        try {
+            const out = await cockpit.spawn(['sh', '-c', 'ip -4 -o addr show scope global 2>/dev/null'], { err: 'message' });
+            const m = out.match(/inet\s+(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})/);
+            if (m) {
+                const o = m[1].split('.').map(Number), p = parseInt(m[2], 10);
+                const ipNum = ((o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3]) >>> 0;
+                const mask = p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0;
+                const net = (ipNum & mask) >>> 0;
+                return `${(net >>> 24) & 255}.${(net >>> 16) & 255}.${(net >>> 8) & 255}.${net & 255}/${p}`;
+            }
+        } catch (e) { /* fall through */ }
+        return '192.168.0.0/24';
+    },
+
+    // Expand a CIDR (/23../30 only, to stay bounded) into its usable host IPs.
+    _cidrHosts(cidr) {
+        const m = (cidr || '').trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
+        if (!m) return { error: 'Enter a subnet like 192.168.0.0/24.' };
+        const o = m[1].split('.').map(Number), p = parseInt(m[2], 10);
+        if (o.some(x => x > 255)) return { error: 'Invalid IPv4 address.' };
+        if (p < 23 || p > 30) return { error: 'Use a prefix between /23 and /30 to keep the scan bounded.' };
+        const ipNum = ((o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3]) >>> 0;
+        const mask = (0xFFFFFFFF << (32 - p)) >>> 0;
+        const net = (ipNum & mask) >>> 0;
+        const bcast = (net | (~mask >>> 0)) >>> 0;
+        const hosts = [];
+        for (let n = net + 1; n < bcast; n++) hosts.push(`${(n >>> 24) & 255}.${(n >>> 16) & 255}.${(n >>> 8) & 255}.${n & 255}`);
+        return { hosts };
+    },
+
+    // Bounded-concurrency async map.
+    async _pool(items, limit, worker) {
+        const out = new Array(items.length); let i = 0;
+        const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+            while (i < items.length) { const idx = i++; out[idx] = await worker(items[idx], idx); }
+        });
+        await Promise.all(runners);
+        return out;
+    },
+
+    // Probe one IP for SMB: directed NetBIOS name query (the method proven to
+    // work even when the broadcast doesn't) plus a TCP/445 check, run together
+    // so each host costs ~1s. Returns {ip,name} or null.
+    async _probeSmbHost(ip, hasNb) {
+        let nbName = '', open445 = false;
+        const tasks = [];
+        if (hasNb) tasks.push((async () => {
+            try { const a = await cockpit.spawn(['timeout', '1', 'nmblookup', '-A', ip], { err: 'message' }); nbName = this._parseNbName(a); } catch (e) {}
+        })());
+        tasks.push((async () => {
+            try { await cockpit.spawn(['timeout', '1', 'bash', '-c', `exec 3<>/dev/tcp/${ip}/445`], { err: 'message' }); open445 = true; } catch (e) {}
+        })());
+        await Promise.all(tasks);
+        if (nbName) return { ip, name: nbName };
+        if (open445) return { ip, name: '' };
+        return null;
+    },
+
+    async _sweepSubnet(cidr, found) {
+        const d = this.cifs.disco;
+        const parsed = this._cidrHosts(cidr);
+        if (parsed.error) { d.error = parsed.error; this.toast(parsed.error, 'warning'); return; }
+        const hasNb = (d.hasNmblookup !== null) ? d.hasNmblookup : await this._hasBin('nmblookup');
+        d.sweeping = true; d.sweepTotal = parsed.hosts.length; d.sweepDone = 0;
+        try {
+            const results = await this._pool(parsed.hosts, 32, async (ip) => {
+                const r = await this._probeSmbHost(ip, hasNb);
+                d.sweepDone++;
+                return r;
+            });
+            results.filter(Boolean).forEach(r => this._addHostTo(found, r.name || r.ip, r.ip, `${r.name || r.ip} · ${r.ip} (scan)`));
+        } finally {
+            d.sweeping = false;
         }
     },
 

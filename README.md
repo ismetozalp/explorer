@@ -846,6 +846,11 @@ root-only credential store:
   dropdowns and fall back to manual entry when the tools aren't installed.
   If `smbclient` is missing, **Browse** is disabled and a distro-specific
   install command is shown.
+- If neither mDNS nor the NetBIOS broadcast turns up anything, Discover
+  offers a **directed subnet scan** (default = your interface's network,
+  e.g. `192.168.0.0/24`; prefixes `/23`–`/30`). It probes each address in
+  parallel with `nmblookup -A` and a TCP/445 check — reliable even when
+  the broadcast is suppressed or there's no master browser.
 - Credentials are either a **saved** set, a **new** set
   (username/password/domain — saved to `/etc/cifs-creds/<name>`, a
   root-owned `0700` directory with `0600` files), or **guest**.

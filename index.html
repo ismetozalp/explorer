@@ -958,8 +958,8 @@
                         <div class="cifs-row">
                             <label>Host</label>
                             <input class="form-control form-control-sm" x-model="cifs.add.host" list="cifs-hosts" placeholder="server or IP" spellcheck="false" autocomplete="off">
-                            <button class="btn btn-sm btn-outline-secondary" @click="discoverHosts()" :disabled="cifs.disco.scanning" title="Discover SMB hosts on the network (mDNS + NetBIOS)">
-                                <span x-show="cifs.disco.scanning" class="spinner-border spinner-border-sm me-1"></span>Discover
+                            <button class="btn btn-sm btn-outline-secondary" @click="discoverHosts()" :disabled="cifs.disco.scanning || cifs.disco.sweeping" title="Discover SMB hosts on the network (mDNS + NetBIOS), with optional subnet scan">
+                                <span x-show="cifs.disco.scanning || cifs.disco.sweeping" class="spinner-border spinner-border-sm me-1"></span>Discover
                             </button>
                         </div>
                         <div class="cifs-chips" x-show="cifs.disco.hosts.length" x-cloak>
@@ -986,6 +986,7 @@
                                 <button class="cifs-chip" @click="cifs.add.share = s" x-text="s"></button>
                             </template>
                         </div>
+                        <div class="cifs-disco-status" x-show="cifs.disco.sweeping" x-cloak>Scanning subnet… <span x-text="cifs.disco.sweepDone"></span>/<span x-text="cifs.disco.sweepTotal"></span></div>
                         <div class="cifs-disco-status" x-show="cifs.disco.error" x-text="cifs.disco.error" x-cloak></div>
                         <datalist id="cifs-hosts"><template x-for="h in cifs.disco.hosts" :key="h.host + '|' + h.addr"><option :value="h.host" x-text="h.label"></option></template></datalist>
                         <datalist id="cifs-shares"><template x-for="s in cifs.disco.shares" :key="s"><option :value="s"></option></template></datalist>
