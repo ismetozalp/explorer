@@ -1382,6 +1382,7 @@ body {
     color: var(--ex-accent); cursor: pointer; border-radius: 4px; padding: 6px;
 }
 .tmux-new:hover { background: var(--ex-selected); }
+.tmux-conf { margin-top: 6px; border-style: solid; }
 [data-bs-theme="dark"] .tmux-panel { background: #292d31; border-color: var(--ex-border-strong); }
 
 /* ===== Windows-style window controls (preview / editor headers) ===== */

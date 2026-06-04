@@ -133,7 +133,14 @@ GRUB** button edits it (structured or raw), then regenerates the boot
 config with the detected, BIOS/UEFI-aware command (after a confirmation),
 with an optional `grubby` pass for existing kernels.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full 1.1.0 release notes.
+**New in 1.1.1 — tmux: edit your `~/.tmux.conf`**
+
+![tmux session manager](screenshots/tmux-sessions.svg)
+
+When you have a `~/.tmux.conf`, the **▤ tmux** panel shows an **⚙ Edit
+.tmux.conf** button that opens it straight in the editor.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full release notes.
 
 ---
 
@@ -504,6 +511,8 @@ attached — plus a **＋ New session…** entry at the bottom.
   spaces, `.` or `:`) and opens a fresh terminal tab running that session.
 - **✕** next to a session kills it (with confirmation) and closes its tab.
 - **⟳** refreshes the list.
+- **⚙ Edit .tmux.conf** appears at the bottom of the panel **only when you
+  have a `~/.tmux.conf`**; click it to open that file in the editor.
 
 Sessions are attached with `tmux new-session -A -s <name>`, so opening an
 existing name attaches to it and a new name creates it. Sessions are

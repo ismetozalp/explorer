@@ -4791,7 +4791,7 @@ Alpine.data('explorer', () => ({
     shells: ['/bin/sh', '/bin/bash'],
 
     // ─── tmux session manager ────────────────────────────────────────────────
-    tmux: { available: false, bin: '', open: false, loading: false, error: '', sessions: [], top: 40, right: 8 },
+    tmux: { available: false, bin: '', open: false, loading: false, error: '', sessions: [], top: 40, right: 8, hasConf: false },
 
     // ─── run command state ───────────────────────────────────────────────────
     runCmd: { cwd: '/', shell: '/bin/sh', command: '', admin: false },
@@ -5107,6 +5107,7 @@ Alpine.data('explorer', () => ({
     async refreshTmuxSessions() {
         this.tmux.loading = true;
         this.tmux.error = '';
+        this._checkTmuxConf();
         try {
             this.tmux.sessions = await this._listTmuxSessions();
         } catch (e) {
@@ -5115,6 +5116,28 @@ Alpine.data('explorer', () => ({
         } finally {
             this.tmux.loading = false;
         }
+    },
+
+    _tmuxConfPath() { return (this.homePath || '') + '/.tmux.conf'; },
+
+    // Show the "Edit .tmux.conf" button only when the user actually has one.
+    async _checkTmuxConf() {
+        try {
+            const out = await cockpit.spawn(['sh', '-c', `test -f ${Util.shq(this._tmuxConfPath())} && echo Y`], { err: 'message' });
+            this.tmux.hasConf = (out || '').trim() === 'Y';
+        } catch (e) { this.tmux.hasConf = false; }
+    },
+
+    async _statSize(path) {
+        try { const o = await cockpit.spawn(['stat', '-c', '%s', path], { err: 'message' }); return parseInt((o || '').trim(), 10) || 0; }
+        catch (e) { return 0; }
+    },
+
+    async editTmuxConf() {
+        const path = this._tmuxConfPath();
+        this.tmux.open = false;
+        const size = await this._statSize(path);
+        await this.openEditor({ path, name: '.tmux.conf', type: 'f', size });
     },
 
     toggleTmuxPanel(ev) {

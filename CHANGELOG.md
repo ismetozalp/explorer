@@ -2,6 +2,13 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.1
+
+- **tmux: Edit `~/.tmux.conf`.** When the user has a `~/.tmux.conf`, the
+  **▤ tmux** panel shows an **⚙ Edit .tmux.conf** button (detected each
+  time the panel opens) that opens the file directly in the editor. The
+  button is hidden when no such file exists.
+
 ## 1.1.0
 
 A big release centred on a new **Mounts panel** and a **GRUB editor**,

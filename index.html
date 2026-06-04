@@ -68,6 +68,7 @@
             </div>
             <div class="tmux-panel-foot">
                 <button class="tmux-new" @click="newTmuxSession()">＋ New session…</button>
+                <button class="tmux-new tmux-conf" x-show="tmux.hasConf" x-cloak @click="editTmuxConf()" title="Edit ~/.tmux.conf">⚙ Edit .tmux.conf</button>
             </div>
         </div>
     </div>
