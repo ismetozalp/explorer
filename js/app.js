@@ -3188,13 +3188,17 @@ Alpine.data('explorer', () => ({
                 });
             }
             d.hosts = Array.from(found.values());
-            if (!d.hosts.length) {
+            if (d.hosts.length) {
+                this.toast(`Found ${d.hosts.length} SMB host${d.hosts.length === 1 ? '' : 's'}.`, 'success');
+            } else {
                 d.error = d.hasAvahi
                     ? 'No SMB hosts found via mDNS — type the host manually.'
                     : 'avahi-browse not found — type the host manually (install avahi-utils for discovery).';
+                this.toast(d.error, 'info');
             }
         } catch (e) {
             d.error = 'Discovery failed: ' + ((e.message || String(e)).split('\n')[0]);
+            this.toast(d.error, 'danger');
         } finally {
             d.scanning = false;
         }
@@ -3206,9 +3210,9 @@ Alpine.data('explorer', () => ({
     async browseShares() {
         const d = this.cifs.disco;
         const host = (this.cifs.add.host || '').trim().replace(/^[\\/]+/, '');
-        if (!host) { d.error = 'Enter or pick a host first.'; return; }
+        if (!host) { d.error = 'Enter or pick a host first.'; this.toast(d.error, 'warning'); return; }
         if (d.hasSmbclient === null) d.hasSmbclient = await this._hasBin('smbclient');
-        if (!d.hasSmbclient) { d.error = 'smbclient not found (install smbclient / samba-client) — type the share manually.'; return; }
+        if (!d.hasSmbclient) { d.error = 'smbclient not found (install smbclient / samba-client) — type the share manually.'; this.toast(d.error, 'danger'); return; }
         d.browsing = true; d.error = ''; d.shares = [];
         try {
             let out;
@@ -3219,7 +3223,12 @@ Alpine.data('explorer', () => ({
                 out = await cockpit.spawn(['timeout', '8', 'smbclient', '-L', host, '-N'], { err: 'message' });
             }
             d.shares = this._parseSmbShares(out);
-            if (!d.shares.length) d.error = 'No shares found (or none visible with these credentials).';
+            if (d.shares.length) {
+                this.toast(`Found ${d.shares.length} share${d.shares.length === 1 ? '' : 's'}: ${d.shares.join(', ')}`, 'success');
+            } else {
+                d.error = 'No shares found (or none visible with these credentials).';
+                this.toast(d.error, 'warning');
+            }
         } catch (e) {
             const msg = (e.message || String(e));
             if (/NT_STATUS_ACCESS_DENIED|NT_STATUS_LOGON_FAILURE|NT_STATUS_NO_LOGON_SERVERS/i.test(msg)) {
@@ -3227,6 +3236,7 @@ Alpine.data('explorer', () => ({
             } else {
                 d.error = 'Browse failed: ' + msg.split('\n')[0];
             }
+            this.toast(d.error, 'danger');
         } finally {
             d.browsing = false;
         }

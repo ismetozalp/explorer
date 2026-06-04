@@ -962,12 +962,22 @@
                                 <span x-show="cifs.disco.scanning" class="spinner-border spinner-border-sm me-1"></span>Discover
                             </button>
                         </div>
+                        <div class="cifs-chips" x-show="cifs.disco.hosts.length" x-cloak>
+                            <template x-for="h in cifs.disco.hosts" :key="h.host + '|' + h.addr">
+                                <button class="cifs-chip" @click="cifs.add.host = h.host" x-text="h.label"></button>
+                            </template>
+                        </div>
                         <div class="cifs-row">
                             <label>Share</label>
                             <input class="form-control form-control-sm" x-model="cifs.add.share" list="cifs-shares" placeholder="share name" spellcheck="false" autocomplete="off">
                             <button class="btn btn-sm btn-outline-secondary" @click="browseShares()" :disabled="cifs.disco.browsing" title="List shares on the host (smbclient)">
                                 <span x-show="cifs.disco.browsing" class="spinner-border spinner-border-sm me-1"></span>Browse
                             </button>
+                        </div>
+                        <div class="cifs-chips" x-show="cifs.disco.shares.length" x-cloak>
+                            <template x-for="s in cifs.disco.shares" :key="s">
+                                <button class="cifs-chip" @click="cifs.add.share = s" x-text="s"></button>
+                            </template>
                         </div>
                         <div class="cifs-disco-status" x-show="cifs.disco.error" x-text="cifs.disco.error" x-cloak></div>
                         <datalist id="cifs-hosts"><template x-for="h in cifs.disco.hosts" :key="h.host + '|' + h.addr"><option :value="h.host" x-text="h.label"></option></template></datalist>
