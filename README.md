@@ -838,11 +838,14 @@ A **Network share** tab adds SMB/CIFS shares with a managed,
 root-only credential store:
 
 - Enter host, share and mount point. **Discover** finds SMB hosts on the
-  network via mDNS (`avahi-browse`), and **Browse** lists a host's shares
-  with `smbclient` (guest, or using the selected saved credential); both
-  feed the Host/Share dropdowns and fall back to manual entry when the
-  tools aren't installed. If `smbclient` is missing, **Browse** is
-  disabled and a distro-specific install command is shown.
+  network via mDNS (`avahi-browse`) and a NetBIOS broadcast
+  (`nmblookup '*'`, names resolved with `nmblookup -A`) — the latter
+  catches boxes that don't advertise over mDNS and works without a master
+  browser. **Browse** lists a host's shares with `smbclient` (guest, or
+  using the selected saved credential); both feed the Host/Share
+  dropdowns and fall back to manual entry when the tools aren't installed.
+  If `smbclient` is missing, **Browse** is disabled and a distro-specific
+  install command is shown.
 - Credentials are either a **saved** set, a **new** set
   (username/password/domain — saved to `/etc/cifs-creds/<name>`, a
   root-owned `0700` directory with `0600` files), or **guest**.

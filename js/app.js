@@ -191,7 +191,7 @@ Alpine.data('explorer', () => ({
         },
         // SMB discovery (mDNS host discovery + smbclient share browse)
         disco: {
-            hasAvahi: null, hasSmbclient: null, smbInstall: '',
+            hasAvahi: null, hasNmblookup: null, hasSmbclient: null, smbInstall: '',
             scanning: false, browsing: false, error: '',
             hosts: [], shares: [],
         },
@@ -3214,28 +3214,63 @@ Alpine.data('explorer', () => ({
     async discoverHosts() {
         const d = this.cifs.disco;
         if (d.hasAvahi === null) d.hasAvahi = await this._hasBin('avahi-browse');
+        if (d.hasNmblookup === null) d.hasNmblookup = await this._hasBin('nmblookup');
         d.scanning = true; d.error = '';
         const found = new Map();
+        const addHost = (host, addr, label) => {
+            const key = addr || host;
+            if (!key) return;
+            if (!found.has(key)) { found.set(key, { host: host || addr, addr, label }); return; }
+            const cur = found.get(key);            // enrich a bare-IP entry with a resolved name
+            if ((!cur.host || cur.host === cur.addr) && host && host !== addr) { cur.host = host; cur.label = label; }
+        };
         try {
+            // mDNS / Bonjour
             if (d.hasAvahi) {
-                const out = await cockpit.spawn(['sh', '-c', 'timeout 5 avahi-browse -rtp _smb._tcp 2>/dev/null'], { err: 'message' });
-                out.split('\n').forEach(line => {
-                    if (!line.startsWith('=')) return;            // resolved records only
-                    const f = line.split(';');                    // =;iface;proto;name;type;domain;hostname;addr;port;txt
-                    const name = f[3] || '', hostname = f[6] || '', addr = f[7] || '';
-                    const host = hostname.replace(/\.local\.?$/i, '') || addr;
-                    if (!host && !addr) return;
-                    const key = addr || host;
-                    if (!found.has(key)) found.set(key, { host: host || addr, addr, label: `${name || host || addr}${addr ? ' · ' + addr : ''}` });
-                });
+                try {
+                    const out = await cockpit.spawn(['sh', '-c', 'timeout 5 avahi-browse -rtp _smb._tcp 2>/dev/null'], { err: 'message' });
+                    out.split('\n').forEach(line => {
+                        if (!line.startsWith('=')) return;        // resolved records only
+                        const f = line.split(';');                // =;iface;proto;name;type;domain;hostname;addr;port;txt
+                        const name = f[3] || '', hostname = f[6] || '', addr = f[7] || '';
+                        const host = hostname.replace(/\.local\.?$/i, '') || addr;
+                        if (!host && !addr) return;
+                        addHost(host, addr, `${name || host || addr}${addr ? ' · ' + addr : ''}`);
+                    });
+                } catch (e) { /* ignore, try NetBIOS */ }
+            }
+            // NetBIOS broadcast — finds hosts that don't advertise over mDNS and
+            // works without a master browser (each host answers directly).
+            if (d.hasNmblookup) {
+                try {
+                    const out = await cockpit.spawn(['timeout', '5', 'nmblookup', '*'], { err: 'message' });
+                    const ips = [];
+                    out.split('\n').forEach(line => {
+                        const m = line.match(/^(\d{1,3}(?:\.\d{1,3}){3})\s/);
+                        if (m) ips.push(m[1]);
+                    });
+                    const uniqueIps = Array.from(new Set(ips)).slice(0, 32);
+                    // resolve NetBIOS names in parallel (best-effort, bounded)
+                    const names = await Promise.all(uniqueIps.map(async ip => {
+                        try {
+                            const a = await cockpit.spawn(['timeout', '2', 'nmblookup', '-A', ip], { err: 'message' });
+                            return this._parseNbName(a);
+                        } catch (e) { return ''; }
+                    }));
+                    uniqueIps.forEach((ip, i) => {
+                        const nm = names[i];
+                        addHost(nm || ip, ip, `${nm || ip} · ${ip} (NetBIOS)`);
+                    });
+                } catch (e) { /* ignore NetBIOS errors */ }
             }
             d.hosts = Array.from(found.values());
             if (d.hosts.length) {
                 this.toast(`Found ${d.hosts.length} SMB host${d.hosts.length === 1 ? '' : 's'}.`, 'success');
+            } else if (!d.hasAvahi && !d.hasNmblookup) {
+                d.error = 'No discovery tools found — install avahi-utils (mDNS) and/or samba/nmblookup (NetBIOS), or type the host manually.';
+                this.toast(d.error, 'info');
             } else {
-                d.error = d.hasAvahi
-                    ? 'No SMB hosts found via mDNS — type the host manually.'
-                    : 'avahi-browse not found — type the host manually (install avahi-utils for discovery).';
+                d.error = 'No SMB hosts found — type the host manually.';
                 this.toast(d.error, 'info');
             }
         } catch (e) {
@@ -3244,6 +3279,19 @@ Alpine.data('explorer', () => ({
         } finally {
             d.scanning = false;
         }
+    },
+
+    // Pick the UNIQUE workstation name (the <00> entry that is not <GROUP>)
+    // out of an `nmblookup -A <ip>` name table.
+    _parseNbName(out) {
+        for (const line of (out || '').split('\n')) {
+            const m = line.match(/^\s+(\S.*?)\s+<00>\s+-\s+(<GROUP>\s+)?[A-Z]\s+<ACTIVE>/);
+            if (m && !m[2]) {
+                const name = m[1].trim();
+                if (name && !/__MSBROWSE__|^\.\./.test(name)) return name;
+            }
+        }
+        return '';
     },
 
     // List shares on the current host with smbclient. Guest by default; if a

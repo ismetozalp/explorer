@@ -958,7 +958,7 @@
                         <div class="cifs-row">
                             <label>Host</label>
                             <input class="form-control form-control-sm" x-model="cifs.add.host" list="cifs-hosts" placeholder="server or IP" spellcheck="false" autocomplete="off">
-                            <button class="btn btn-sm btn-outline-secondary" @click="discoverHosts()" :disabled="cifs.disco.scanning" title="Discover SMB hosts on the network (mDNS)">
+                            <button class="btn btn-sm btn-outline-secondary" @click="discoverHosts()" :disabled="cifs.disco.scanning" title="Discover SMB hosts on the network (mDNS + NetBIOS)">
                                 <span x-show="cifs.disco.scanning" class="spinner-border spinner-border-sm me-1"></span>Discover
                             </button>
                         </div>
