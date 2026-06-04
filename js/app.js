@@ -156,6 +156,24 @@ Alpine.data('explorer', () => ({
 
     settingsModalEl: null,
 
+    // Mounts / fstab editor (⛁ Mounts toolbar button)
+    mounts: {
+        loading: false, error: '', raw: '', rawMode: false, rawEdited: '',
+        rows: [], trailer: [], findmnt: false, mountAfter: true,
+        saving: false, mountResults: [],
+        // Field suggestions (datalists). devices/mountpoints/fstypes are
+        // populated from the live system on open; the rest are static.
+        suggest: {
+            devices: [], bySpec: {}, mountpoints: [], fstypes: [],
+            mntopts: ['defaults', 'defaults,noatime', 'defaults,nofail',
+                'defaults,nofail,x-systemd.automount', 'ro', 'rw', 'noatime',
+                'relatime', 'nodev,nosuid,noexec', 'noauto', 'user', 'users',
+                '_netdev', 'defaults,_netdev', 'errors=remount-ro', 'discard'],
+            freq: ['0', '1'], passno: ['0', '1', '2'],
+        },
+    },
+    mountsModalEl: null,
+
     toasts: [],
 
     dragData: null, // { paths: [...], sourceTabId }
@@ -2947,6 +2965,316 @@ Alpine.data('explorer', () => ({
 
 
     // ───── Operations tray ───────────────────────────────────────────────────
+    // ───── Mounts / fstab editor ───────────────────────────────────────────
+    async _hasFindmnt() {
+        try {
+            const out = await cockpit.spawn(['sh', '-c', 'command -v findmnt 2>/dev/null'], { err: 'ignore' });
+            return !!(out || '').trim();
+        } catch (e) { return false; }
+    },
+
+    // List currently-mounted targets (mount points). Prefers findmnt; falls
+    // back to /proc/self/mounts so the mounted/unmounted indicator still works
+    // on minimal systems without util-linux's findmnt.
+    async _listMounted() {
+        if (this.mounts.findmnt) {
+            try {
+                const out = await cockpit.spawn(['findmnt', '-rno', 'TARGET'], { err: 'message' });
+                return out.split('\n').map(s => s.trim()).filter(Boolean);
+            } catch (e) { /* fall through */ }
+        }
+        try {
+            const out = await cockpit.spawn(['sh', '-c', 'cat /proc/self/mounts'], { err: 'message' });
+            // field 2 is the mount point; octal escapes (e.g. \040 for space)
+            return out.split('\n').map(l => l.split(' ')[1]).filter(Boolean)
+                .map(s => s.replace(/\\040/g, ' ').replace(/\\011/g, '\t').replace(/\\134/g, '\\'));
+        } catch (e) { return []; }
+    },
+
+    // Parse /etc/fstab into structured rows. Comment and blank lines are
+    // buffered onto the next entry's `_lead` (and any trailing ones into
+    // `trailer`) so the file round-trips faithfully on save.
+    _parseFstab(text) {
+        const lines = (text || '').split('\n');
+        const rows = [];
+        let lead = [];
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed === '' || trimmed.startsWith('#')) { lead.push(line); continue; }
+            const parts = trimmed.split(/\s+/);
+            rows.push({
+                spec: parts[0] || '',
+                file: parts[1] || '',
+                vfstype: parts[2] || '',
+                mntops: parts[3] || 'defaults',
+                freq: parts[4] !== undefined ? parts[4] : '0',
+                passno: parts[5] !== undefined ? parts[5] : '0',
+                _lead: lead,
+                mounted: null,
+            });
+            lead = [];
+        }
+        return { rows, trailer: lead };
+    },
+
+    _serializeFstab() {
+        const out = [];
+        for (const r of this.mounts.rows) {
+            for (const l of (r._lead || [])) out.push(l);
+            const freq = (String(r.freq == null ? '0' : r.freq).trim()) || '0';
+            const passno = (String(r.passno == null ? '0' : r.passno).trim()) || '0';
+            out.push([
+                (r.spec || '').trim(),
+                (r.file || '').trim(),
+                (r.vfstype || '').trim(),
+                ((r.mntops || '').trim() || 'defaults'),
+                freq, passno,
+            ].join('\t'));
+        }
+        for (const l of (this.mounts.trailer || [])) out.push(l);
+        // Collapse trailing blank lines; guarantee exactly one final newline.
+        return out.join('\n').replace(/\n*$/, '') + '\n';
+    },
+
+    _validateFstabRows(rows) {
+        const errs = [];
+        rows.forEach((r, i) => {
+            const n = i + 1;
+            const spec = (r.spec || '').trim(), file = (r.file || '').trim(), vt = (r.vfstype || '').trim();
+            const freq = String(r.freq == null ? '' : r.freq).trim();
+            const passno = String(r.passno == null ? '' : r.passno).trim();
+            if (!spec || !file || !vt) { errs.push(`Row ${n}: device, mount point and type are required`); return; }
+            if (vt !== 'swap' && file !== 'none' && !file.startsWith('/')) errs.push(`Row ${n}: mount point should be an absolute path`);
+            if (freq && !/^\d+$/.test(freq)) errs.push(`Row ${n}: dump must be a number`);
+            if (passno && !/^\d+$/.test(passno)) errs.push(`Row ${n}: pass must be a number`);
+        });
+        return errs;
+    },
+
+    async _refreshMountedState() {
+        const targets = await this._listMounted();
+        for (const r of this.mounts.rows) {
+            const f = (r.file || '').trim(), vt = (r.vfstype || '').trim();
+            r.mounted = (vt === 'swap' || f === 'none' || !f) ? null : targets.includes(f);
+        }
+    },
+
+    async openMounts() {
+        this.mounts.findmnt = await this._hasFindmnt();
+        this.mounts.rawMode = false;
+        this.mounts.mountResults = [];
+        await this.loadFstab();
+        bootstrap.Modal.getOrCreateInstance(this.mountsModalEl).show();
+        // Populate field suggestions in the background (non-blocking).
+        this._loadMountSuggestions();
+    },
+
+    // Scan the live system to populate the field datalists. Each scan is
+    // best-effort and degrades to an empty/curated list if its tool is absent.
+    async _loadMountSuggestions() {
+        try {
+            const [dev, mps, fst] = await Promise.all([
+                this._scanBlockDevices(), this._scanMountpoints(), this._scanFstypes(),
+            ]);
+            this.mounts.suggest.devices = dev.devices;
+            this.mounts.suggest.bySpec = dev.bySpec;
+            this.mounts.suggest.mountpoints = mps;
+            this.mounts.suggest.fstypes = fst;
+        } catch (e) { /* suggestions are optional */ }
+    },
+
+    async _scanBlockDevices() {
+        const devices = [], bySpec = {}, seen = new Set();
+        const add = (value, label, fstype) => {
+            if (!value || seen.has(value)) return;
+            seen.add(value);
+            devices.push({ value, label });
+            bySpec[value] = { fstype: fstype || '' };
+        };
+        let out = '';
+        try {
+            out = await cockpit.spawn(
+                ['lsblk', '-P', '-o', 'NAME,UUID,LABEL,FSTYPE,SIZE,TYPE,MOUNTPOINT'],
+                { err: 'message' });
+        } catch (e) {
+            // Fallback: blkid -o export (key=value blocks separated by blank lines)
+            try {
+                const b = await cockpit.spawn(['sh', '-c', 'blkid -o export 2>/dev/null'], { err: 'message' });
+                for (const blk of b.split(/\n\s*\n/)) {
+                    const m = {};
+                    blk.split('\n').forEach(l => { const i = l.indexOf('='); if (i > 0) m[l.slice(0, i)] = l.slice(i + 1); });
+                    if (!m.UUID && !m.LABEL) continue;
+                    const dev = m.DEVNAME || '', fst = m.TYPE || '';
+                    if (m.UUID) add(`UUID=${m.UUID}`, `${dev}${fst ? ' · ' + fst : ''}${m.LABEL ? ' · "' + m.LABEL + '"' : ''}`, fst);
+                    if (m.LABEL) add(`LABEL=${m.LABEL}`, `${dev}${fst ? ' · ' + fst : ''}`, fst);
+                    if (dev && fst) add(dev, `${fst}`, fst);
+                }
+            } catch (e2) { /* no enumeration available */ }
+            return { devices, bySpec };
+        }
+        const re = /(\w+)="([^"]*)"/g;
+        out.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            const m = {}; let mm; re.lastIndex = 0;
+            while ((mm = re.exec(line)) !== null) m[mm[1]] = mm[2];
+            const name = m.NAME || '';
+            if (!name) return;
+            const type = m.TYPE || '';
+            if (type === 'loop' || type === 'rom') return;
+            const dev = name.startsWith('/dev/') ? name : '/dev/' + name;
+            const fst = m.FSTYPE || '';
+            const tail = `${fst ? ' · ' + fst : ''}${m.SIZE ? ' · ' + m.SIZE : ''}${m.MOUNTPOINT ? ' · @' + m.MOUNTPOINT : ''}`;
+            if (m.UUID) add(`UUID=${m.UUID}`, `${dev}${tail}${m.LABEL ? ' · "' + m.LABEL + '"' : ''}`, fst);
+            if (m.LABEL) add(`LABEL=${m.LABEL}`, `${dev}${fst ? ' · ' + fst : ''}`, fst);
+            if (fst) add(dev, `${fst}${m.SIZE ? ' · ' + m.SIZE : ''}`, fst);
+        });
+        return { devices, bySpec };
+    },
+
+    async _scanMountpoints() {
+        const set = new Set(['/mnt', '/media', '/srv', '/data', '/boot', '/boot/efi', '/opt', '/home']);
+        try {
+            const out = await cockpit.spawn(
+                ['sh', '-c', 'find /mnt /media -mindepth 1 -maxdepth 1 -type d 2>/dev/null'],
+                { err: 'message' });
+            out.split('\n').map(s => s.trim()).filter(Boolean).forEach(p => set.add(p));
+        } catch (e) { /* none */ }
+        return Array.from(set).sort();
+    },
+
+    async _scanFstypes() {
+        const curated = ['ext4', 'ext3', 'ext2', 'xfs', 'btrfs', 'vfat', 'exfat',
+            'ntfs', 'ntfs-3g', 'f2fs', 'swap', 'tmpfs', 'nfs', 'nfs4', 'cifs',
+            'iso9660', 'udf', 'auto', 'bind', 'overlay', 'zfs'];
+        const set = new Set(curated);
+        try {
+            const txt = await FS.readText('/proc/filesystems');
+            (txt || '').split('\n').forEach(l => { const t = l.trim().split(/\s+/).pop(); if (t) set.add(t); });
+        } catch (e) { /* curated only */ }
+        const extras = Array.from(set).filter(t => !curated.includes(t)).sort();
+        return curated.concat(extras);
+    },
+
+    // When a device is chosen from the suggestion list, fill in its filesystem
+    // type if the Type column is still empty.
+    onSpecChanged(r) {
+        const info = this.mounts.suggest.bySpec[(r.spec || '').trim()];
+        if (info && info.fstype && !(r.vfstype || '').trim()) r.vfstype = info.fstype;
+    },
+
+    async loadFstab() {
+        this.mounts.loading = true;
+        this.mounts.error = '';
+        this.mounts.mountResults = [];
+        try {
+            let text = '';
+            try { text = await FS.readText('/etc/fstab', { adminTry: true }); } catch (e) { text = ''; }
+            this.mounts.raw = text;
+            const parsed = this._parseFstab(text);
+            this.mounts.rows = parsed.rows;
+            this.mounts.trailer = parsed.trailer;
+            this.mounts.rawEdited = this._serializeFstab();
+            await this._refreshMountedState();
+        } catch (e) {
+            this.mounts.error = e.message || String(e);
+        } finally {
+            this.mounts.loading = false;
+        }
+    },
+
+    addFstabRow() {
+        this.mounts.rows.push({ spec: '', file: '', vfstype: '', mntops: 'defaults', freq: '0', passno: '0', _lead: [], mounted: null });
+    },
+
+    removeFstabRow(i) { this.mounts.rows.splice(i, 1); },
+
+    toggleFstabRaw() {
+        if (!this.mounts.rawMode) {
+            this.mounts.rawEdited = this._serializeFstab();
+            this.mounts.rawMode = true;
+        } else {
+            const parsed = this._parseFstab(this.mounts.rawEdited);
+            this.mounts.rows = parsed.rows;
+            this.mounts.trailer = parsed.trailer;
+            this.mounts.rawMode = false;
+            this._refreshMountedState();
+        }
+    },
+
+    async saveFstab() {
+        // Resolve the rows to validate/serialize from the active view.
+        let rows;
+        if (this.mounts.rawMode) {
+            const parsed = this._parseFstab(this.mounts.rawEdited);
+            rows = parsed.rows;
+        } else {
+            rows = this.mounts.rows;
+        }
+        const errs = this._validateFstabRows(rows);
+        if (errs.length) {
+            this.mounts.error = errs.join('   •   ');
+            this.toast('Fix the highlighted issues before saving.', 'warning');
+            return;
+        }
+        this.mounts.error = '';
+
+        let text;
+        if (this.mounts.rawMode) {
+            text = this.mounts.rawEdited;
+            if (!text.endsWith('\n')) text += '\n';
+        } else {
+            text = this._serializeFstab();
+        }
+
+        this.mounts.saving = true;
+        this.mounts.mountResults = [];
+        const op = this._beginOp('Save /etc/fstab');
+        op.indeterminate = true;
+        try {
+            op.statusText = 'Backing up to /etc/fstab.bak';
+            await cockpit.spawn(['sh', '-c', 'cp -a /etc/fstab /etc/fstab.bak 2>/dev/null || true'], FS.spawnOpts({ admin: true }));
+
+            op.statusText = 'Writing /etc/fstab';
+            await FS.writeText('/etc/fstab', text, { admin: true });
+
+            if (this.mounts.mountAfter) {
+                op.statusText = 'Reloading systemd';
+                try { await cockpit.spawn(['systemctl', 'daemon-reload'], FS.spawnOpts({ admin: true })); } catch (e) { /* non-systemd or transient */ }
+
+                const mounted = await this._listMounted();
+                const results = [];
+                for (const r of rows) {
+                    const file = (r.file || '').trim();
+                    const vt = (r.vfstype || '').trim();
+                    if (!file || file === 'none' || vt === 'swap') continue;
+                    if (mounted.includes(file)) continue; // already mounted
+                    op.statusText = 'Mounting ' + file;
+                    try {
+                        await cockpit.spawn(['sh', '-c', `mkdir -p ${Util.shq(file)} && mount ${Util.shq(file)}`], FS.spawnOpts({ admin: true }));
+                        results.push({ file, ok: true });
+                    } catch (e) {
+                        results.push({ file, ok: false, err: (e.message || String(e)).trim() });
+                    }
+                }
+                this.mounts.mountResults = results;
+                const failed = results.filter(r => !r.ok);
+                if (failed.length) this.toast(`Saved. ${failed.length} mount(s) failed — see results.`, 'warning');
+                else if (results.length) this.toast(`Saved and mounted ${results.length} entr${results.length === 1 ? 'y' : 'ies'}.`, 'success');
+                else this.toast('Saved. No new mounts needed.', 'success');
+            } else {
+                this.toast('Saved /etc/fstab.', 'success');
+            }
+            this._endOp(op, 'done');
+            await this.loadFstab();
+        } catch (e) {
+            this._failOp(op, e);
+            this.mounts.error = e.message || String(e);
+            this.toast('Failed to save /etc/fstab: ' + (e.message || e), 'danger');
+        } finally {
+            this.mounts.saving = false;
+        }
+    },
+
     _beginOp(label) {
         const op = {
             id: this.nextOpSeq++,

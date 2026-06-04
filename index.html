@@ -70,6 +70,9 @@
             </div>
         </div>
     </div>
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openMounts()" title="Mounts / fstab editor">
+        <span>⛁ Mounts</span>
+    </button>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
@@ -806,6 +809,105 @@
                 <button class="btn btn-secondary" @click="resolveDropChoice(null)">Cancel</button>
                 <button class="btn btn-outline-primary" @click="resolveDropChoice('copy')">Copy</button>
                 <button class="btn btn-primary" x-show="!dropChoice.forceCopy" @click="resolveDropChoice('move')">Move</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mounts / fstab editor -->
+<div class="modal fade" id="mountsModal" tabindex="-1" x-data x-init="mountsModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Mounts <span class="text-muted fw-normal">— /etc/fstab</span></h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger py-2 px-3 mb-2" x-show="mounts.error" x-text="mounts.error" x-cloak></div>
+
+                <div class="mounts-toolbar mb-2">
+                    <button class="btn btn-sm btn-outline-secondary" @click="loadFstab()" :disabled="mounts.loading" title="Reload from disk">⟳ Reload</button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="toggleFstabRaw()" x-text="mounts.rawMode ? 'Structured view' : 'Raw text'"></button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="addFstabRow()" x-show="!mounts.rawMode">＋ Add entry</button>
+                    <label class="form-check form-check-inline mounts-mountafter ms-auto mb-0">
+                        <input class="form-check-input" type="checkbox" x-model="mounts.mountAfter">
+                        <span class="form-check-label">Mount new entries on save</span>
+                    </label>
+                </div>
+
+                <div class="mounts-loading" x-show="mounts.loading">Loading…</div>
+
+                <!-- structured table -->
+                <div class="mounts-table-wrap" x-show="!mounts.rawMode && !mounts.loading">
+                    <table class="mounts-table">
+                        <thead>
+                            <tr>
+                                <th class="mt-state" title="Mounted state"></th>
+                                <th>Device / UUID</th>
+                                <th>Mount point</th>
+                                <th>Type</th>
+                                <th>Options</th>
+                                <th class="mt-num">Dump</th>
+                                <th class="mt-num">Pass</th>
+                                <th class="mt-rm"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(r, i) in mounts.rows" :key="i">
+                                <tr>
+                                    <td class="mt-state">
+                                        <span class="mt-dot mt-on" x-show="r.mounted === true" title="Mounted">●</span>
+                                        <span class="mt-dot mt-off" x-show="r.mounted === false" title="Declared, not mounted">○</span>
+                                        <span class="mt-dot mt-na" x-show="r.mounted === null" title="Not applicable">—</span>
+                                    </td>
+                                    <td><input class="form-control form-control-sm" x-model="r.spec" list="mt-devices" @change="onSpecChanged(r)" spellcheck="false" autocomplete="off"></td>
+                                    <td><input class="form-control form-control-sm" x-model="r.file" list="mt-mountpoints" spellcheck="false" autocomplete="off"></td>
+                                    <td><input class="form-control form-control-sm mt-type" x-model="r.vfstype" list="mt-fstypes" spellcheck="false" autocomplete="off"></td>
+                                    <td><input class="form-control form-control-sm" x-model="r.mntops" list="mt-mntopts" spellcheck="false" autocomplete="off"></td>
+                                    <td class="mt-num"><input class="form-control form-control-sm" x-model="r.freq" list="mt-freq" spellcheck="false" autocomplete="off"></td>
+                                    <td class="mt-num"><input class="form-control form-control-sm" x-model="r.passno" list="mt-passno" spellcheck="false" autocomplete="off"></td>
+                                    <td class="mt-rm"><button class="mounts-rm" @click="removeFstabRow(i)" title="Remove entry">✕</button></td>
+                                </tr>
+                            </template>
+                            <tr x-show="!mounts.rows.length"><td colspan="8" class="mounts-empty">No entries in /etc/fstab.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- raw text -->
+                <div x-show="mounts.rawMode && !mounts.loading">
+                    <textarea class="form-control mounts-raw" x-model="mounts.rawEdited" spellcheck="false" rows="14"></textarea>
+                    <div class="form-text">Columns: device&nbsp;&nbsp;mount-point&nbsp;&nbsp;type&nbsp;&nbsp;options&nbsp;&nbsp;dump&nbsp;&nbsp;pass. Comments (#) and blank lines are preserved.</div>
+                </div>
+
+                <!-- field suggestions (datalists) -->
+                <datalist id="mt-devices"><template x-for="d in mounts.suggest.devices" :key="d.value"><option :value="d.value" x-text="d.label"></option></template></datalist>
+                <datalist id="mt-mountpoints"><template x-for="p in mounts.suggest.mountpoints" :key="p"><option :value="p"></option></template></datalist>
+                <datalist id="mt-fstypes"><template x-for="t in mounts.suggest.fstypes" :key="t"><option :value="t"></option></template></datalist>
+                <datalist id="mt-mntopts"><template x-for="o in mounts.suggest.mntopts" :key="o"><option :value="o"></option></template></datalist>
+                <datalist id="mt-freq"><template x-for="f in mounts.suggest.freq" :key="f"><option :value="f"></option></template></datalist>
+                <datalist id="mt-passno"><template x-for="p in mounts.suggest.passno" :key="p"><option :value="p"></option></template></datalist>
+
+                <!-- mount results -->
+                <div class="mounts-results mt-2" x-show="mounts.mountResults && mounts.mountResults.length" x-cloak>
+                    <div class="mounts-results-head">Mount results</div>
+                    <template x-for="res in mounts.mountResults" :key="res.file">
+                        <div class="mounts-result" :class="res.ok ? 'ok' : 'bad'">
+                            <span class="mr-icon" x-text="res.ok ? '✓' : '✕'"></span>
+                            <code x-text="res.file"></code>
+                            <span class="mr-err" x-show="!res.ok" x-text="res.err"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="form-text" x-show="!mounts.findmnt && !mounts.loading">findmnt not found — mounted state read from /proc/self/mounts.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-primary" @click="saveFstab()" :disabled="mounts.saving">
+                    <span x-show="mounts.saving" class="spinner-border spinner-border-sm me-1"></span>
+                    <span x-text="mounts.saving ? 'Saving…' : 'Save'"></span>
+                </button>
             </div>
         </div>
     </div>

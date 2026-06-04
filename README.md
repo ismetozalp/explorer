@@ -782,6 +782,36 @@ Any operation that fails with EACCES gives you a *Retry as
 administrator* button that re-runs through Cockpit's superuser bridge.
 Same applies to the editor's *Save as administrator*.
 
+### Mounts (fstab editor)
+
+The **⛁ Mounts** button in the top toolbar opens an editor for
+`/etc/fstab`:
+
+- A **structured table** with one row per entry — device/UUID, mount
+  point, type, options, dump and pass — plus *Add entry* / remove-row
+  controls. Comments and blank lines in the file are preserved on save.
+- **Field suggestions** on every column (native dropdowns): real block
+  devices from `lsblk`/`blkid` (offered as `UUID=`, `LABEL=` and
+  `/dev/…`, labelled with fstype/size/label), existing mount points
+  under `/mnt` and `/media` plus common targets, filesystem types from
+  `/proc/filesystems` merged with a common list, and handy option/dump/
+  pass presets. Picking a device auto-fills its filesystem type.
+- A **Raw text** toggle to edit the file directly when you'd rather work
+  with the plain text; switching back re-parses it into the table.
+- A per-row **mounted indicator**: ● mounted, ○ declared but not
+  mounted, — not applicable (swap / `none`). State comes from `findmnt`,
+  falling back to `/proc/self/mounts` when findmnt isn't installed.
+- **Reload** to re-read the file and refresh the mounted state.
+- **Save** writes the file through Cockpit's superuser bridge after
+  backing up the previous version to `/etc/fstab.bak`, then (when *Mount
+  new entries on save* is ticked) runs `systemctl daemon-reload` and a
+  targeted `mount <point>` for each declared-but-unmounted entry,
+  creating the mount point with `mkdir -p` first. Per-entry results are
+  listed in the dialog.
+
+Basic validation (required fields, absolute mount points, numeric
+dump/pass) runs before anything is written.
+
 ---
 
 ## Keyboard shortcuts
