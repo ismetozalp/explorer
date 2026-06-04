@@ -617,6 +617,7 @@
                     <div class="preview-fallback">
                         <p>This file cannot be previewed inline.</p>
                         <p x-text="activeWin().pv.reason"></p>
+                        <button class="btn btn-sm btn-warning" x-show="activeWin().pv.permissionDenied" @click="retryPreviewAsAdmin(activeWin().id)">Retry as administrator</button>
                     </div>
                 </template>
                 <div class="loading-overlay" x-show="activeWin() && activeWin().loading">Loading…</div>

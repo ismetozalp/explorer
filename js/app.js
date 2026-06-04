@@ -1295,32 +1295,47 @@ Alpine.data('explorer', () => ({
 
         const id = this._newWinId();
         this.windows.push({
-            id, kind: 'preview', path: file.path,
+            id, kind: 'preview', path: file.path, _file: file,
             title: this._winTitle(file.path, 'preview'),
-            pv: { kind: null, content: '', lang: '', url: null, reason: '' },
+            pv: { kind: null, content: '', lang: '', url: null, reason: '', permissionDenied: false },
             loading: true,
         });
         this.activateWindow(id, !opts.minimized);
         await this._loadPreviewInto(id, file);
     },
 
-    async _loadPreviewInto(id, file) {
+    _looksPermissionDenied(e) {
+        if (!e) return false;
+        if (e.permissionDenied) return true;
+        const m = ((e.message || '') + ' ' + (e.problem || '')).toLowerCase();
+        return /permission denied|eacces|access-denied|not permitted|not authorized|operation not permitted/.test(m);
+    },
+
+    async retryPreviewAsAdmin(id) {
+        const w = this._win(id);
+        if (!w || !w._file) return;
+        w.loading = true;
+        await this._loadPreviewInto(id, w._file, true);
+    },
+
+    async _loadPreviewInto(id, file, admin) {
         const limit = (this.settings.previewLimitMB || 10) * 1024 * 1024;
-        const set = (pv) => { const w = this._win(id); if (w) { w.pv = pv; w.loading = false; } };
+        const ropts = admin ? { admin: true } : undefined;
+        const set = (pv) => { const w = this._win(id); if (w) { w.pv = Object.assign({ permissionDenied: false }, pv); w.loading = false; } };
         if (Util.isTextLike(file)) {
             if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
-                const txt = await FS.readText(file.path);
+                const txt = await FS.readText(file.path, ropts);
                 if (Util.looksBinary(txt)) set({ kind: 'binary', reason: 'This looks like a binary file and can’t be shown as text.' });
                 else {
                     const lang = Util.langFromExt(file.name);
                     if (lang !== 'plain' && window.loadPrismLanguage) await window.loadPrismLanguage(lang);
                     set({ kind: 'text', content: txt || '', lang });
                 }
-            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.' }); }
+            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
         } else if (Util.isImage(file) || Util.isPdf(file) || Util.isVideo(file) || Util.isAudio(file)) {
             try {
-                const blob = await FS.readBinaryAsBlob(file.path);
+                const blob = await FS.readBinaryAsBlob(file.path, ropts);
                 const url = URL.createObjectURL(blob);
                 let kind = 'binary';
                 if (Util.isImage(file)) kind = 'image';
@@ -1328,7 +1343,7 @@ Alpine.data('explorer', () => ({
                 else if (Util.isVideo(file)) kind = 'video';
                 else if (Util.isAudio(file)) kind = 'audio';
                 set({ kind, url });
-            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.' }); }
+            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
         } else {
             set({ kind: 'binary', reason: 'No preview available for this file type.' });
         }
@@ -1514,8 +1529,19 @@ Alpine.data('explorer', () => ({
         const lang = this._monacoLang(file.name);
 
         let content = '';
+        let openedAsAdmin = false;
         try { content = await FS.readText(file.path); }
-        catch (e) { this.toast('Could not open: ' + (e.message || e), 'danger'); return; }
+        catch (e) {
+            if (this._looksPermissionDenied(e)) {
+                const ok = await this.askConfirm('Open as administrator',
+                    `Couldn’t read ${file.name} as you. Open it as administrator?`, 'Open as admin');
+                if (!ok) return;
+                try { content = await FS.readText(file.path, { admin: true }); openedAsAdmin = true; }
+                catch (e2) { this.toast('Could not open: ' + (e2.message || e2), 'danger'); return; }
+            } else {
+                this.toast('Could not open: ' + (e.message || e), 'danger'); return;
+            }
+        }
         if (Util.looksBinary(content)) {
             const ok = await this.askConfirm('Binary file',
                 'This looks like a binary file. Editing it as text may corrupt it. Open anyway?', 'Open anyway');
@@ -1533,7 +1559,7 @@ Alpine.data('explorer', () => ({
         this.windows.push({
             id, kind: 'editor', path: file.path, title: this._winTitle(file.path, 'editor'),
             lang, mode: 'code', dirty: false, isMarkdown: isMd, isHtml: isHtml,
-            canWysiwyg: isMd || isHtml, original: content || '', error: '', permissionDenied: false,
+            canWysiwyg: isMd || isHtml, original: content || '', error: '', permissionDenied: openedAsAdmin,
             quillHtml: null, readOnly: false,
         });
         this.activateWindow(id, !opts.minimized);
