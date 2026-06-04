@@ -24,6 +24,7 @@
              x-sort:item="tab.id"
              draggable="true">
             <span class="tab-label" x-text="tabLabel(tab)"></span>
+            <span class="tab-admin-badge" x-show="tab.kind === 'dir' && tab.listAdminPath === tab.path" title="Listing as administrator">root</span>
             <span class="tab-git-badge" x-show="tab.gitInfo && tab.gitInfo.branch" :title="'git: ' + tab.gitInfo?.branch + (tab.gitInfo?.dirty ? ' (dirty)' : '')">⎇</span>
             <button class="tab-close" @click.stop="closeTab(tab.id)" title="Close">×</button>
         </div>

@@ -780,7 +780,14 @@ fails with *Permission denied* — a **Retry as administrator** button.
 
 Any operation that fails with EACCES gives you a *Retry as
 administrator* button that re-runs through Cockpit's superuser bridge.
-Same applies to the editor's *Save as administrator*.
+The same applies to the editor's *Save as administrator*, to opening or
+previewing an unreadable file (*Open / Retry as administrator*), and to
+listing a directory you can't read.
+
+Once you list a root-only directory as administrator, the tab stays
+elevated for that path — reloads and post-save refreshes won't drop back
+and nag you again — and the tab header shows a small **root** badge so
+it's clear the listing is elevated.
 
 ### Mounts (fstab editor)
 

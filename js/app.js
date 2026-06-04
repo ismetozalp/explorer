@@ -370,6 +370,7 @@ Alpine.data('explorer', () => ({
             loading: false,
             error: null,
             errorRetryAsAdmin: false,
+            listAdminPath: null,
             history: [path || this.homePath],
             historyIdx: 0,
             editingPath: false,
@@ -422,6 +423,7 @@ Alpine.data('explorer', () => ({
             loaded: false,
             error: null,
             errorRetryAsAdmin: false,
+            listAdminPath: null,
             history: [path || this.homePath],
             historyIdx: 0,
             editingPath: false,
@@ -641,20 +643,26 @@ Alpine.data('explorer', () => ({
     async _loadDir(tab, opts) {
         if (tab.kind !== 'dir') return;
         opts = opts || {};
+        // Admin listing sticks to the path it was granted for, so reloads and
+        // post-save refreshes of the same directory don't drop back to a
+        // normal-user listing (and re-show the "Retry as administrator" banner).
+        const admin = (opts.admin !== undefined) ? opts.admin : (tab.listAdminPath === tab.path);
         tab.loading = true;
         tab.error = null;
         tab.errorRetryAsAdmin = false;
         try {
-            let files = await FS.listDir(tab.path, { admin: opts.admin });
+            let files = await FS.listDir(tab.path, { admin });
             if (!this.settings.showHidden) files = files.filter(f => !f.name.startsWith('.'));
             tab.files = files;
             // Prune selection to items still present
             const visible = new Set(files.map(f => f.path));
             tab.selection = tab.selection.filter(p => visible.has(p));
             tab.loaded = true;
+            if (admin) tab.listAdminPath = tab.path;
+            else if (tab.listAdminPath === tab.path) tab.listAdminPath = null;
         } catch (e) {
             tab.error = e.message || 'Failed to read directory';
-            tab.errorRetryAsAdmin = e.permissionDenied || !opts.admin;
+            tab.errorRetryAsAdmin = e.permissionDenied || !admin;
             tab.files = [];
         } finally {
             tab.loading = false;

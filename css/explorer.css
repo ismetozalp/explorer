@@ -558,6 +558,22 @@ body {
     font-size: 12px;
 }
 
+.tab-admin-badge {
+    display: inline-block;
+    margin: 0 2px;
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 9px;
+    line-height: 14px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: #e5c07b;
+    background: rgba(229, 192, 123, .16);
+    border: 1px solid rgba(229, 192, 123, .45);
+    vertical-align: middle;
+}
+
 /* ====== Repo strip (current-repo bar) ====== */
 .repo-strip {
     display: flex;
