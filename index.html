@@ -825,6 +825,13 @@
             <div class="modal-body">
                 <div class="alert alert-danger py-2 px-3 mb-2" x-show="mounts.error" x-text="mounts.error" x-cloak></div>
 
+                <div class="mounts-tabs mb-2">
+                    <button class="mounts-tab" :class="{ active: mounts.view === 'fstab' }" @click="switchMountsView('fstab')">/etc/fstab</button>
+                    <button class="mounts-tab" :class="{ active: mounts.view === 'live' }" @click="switchMountsView('live')">Mounted<span class="mounts-tab-count" x-show="mounts.live.rows.length" x-text="mounts.live.rows.length"></span></button>
+                </div>
+
+                <!-- fstab editor pane -->
+                <div x-show="mounts.view === 'fstab'">
                 <div class="mounts-toolbar mb-2">
                     <button class="btn btn-sm btn-outline-secondary" @click="loadFstab()" :disabled="mounts.loading" title="Reload from disk">⟳ Reload</button>
                     <button class="btn btn-sm btn-outline-secondary" @click="toggleFstabRaw()" x-text="mounts.rawMode ? 'Structured view' : 'Raw text'"></button>
@@ -857,7 +864,7 @@
                                 <tr>
                                     <td class="mt-state">
                                         <span class="mt-dot mt-on" x-show="r.mounted === true" title="Mounted">●</span>
-                                        <span class="mt-dot mt-off" x-show="r.mounted === false" title="Declared, not mounted">○</span>
+                                        <button class="mt-dot mt-off mt-mountbtn" x-show="r.mounted === false" @click="mountFstabRow(r)" title="Not mounted — click to mount now">○</button>
                                         <span class="mt-dot mt-na" x-show="r.mounted === null" title="Not applicable">—</span>
                                     </td>
                                     <td><input class="form-control form-control-sm" x-model="r.spec" list="mt-devices" @change="onSpecChanged(r)" spellcheck="false" autocomplete="off"></td>
@@ -880,6 +887,62 @@
                     <div class="form-text">Columns: device&nbsp;&nbsp;mount-point&nbsp;&nbsp;type&nbsp;&nbsp;options&nbsp;&nbsp;dump&nbsp;&nbsp;pass. Comments (#) and blank lines are preserved.</div>
                 </div>
 
+                </div>
+                <!-- /fstab editor pane -->
+
+                <!-- live (currently mounted) pane -->
+                <div x-show="mounts.view === 'live'">
+                    <div class="mounts-toolbar mb-2">
+                        <button class="btn btn-sm btn-outline-secondary" @click="loadLiveMounts()" :disabled="mounts.live.loading" title="Refresh">⟳ Refresh</button>
+                        <button class="btn btn-sm btn-outline-secondary" @click="mounts.adhoc.open = !mounts.adhoc.open" x-text="mounts.adhoc.open ? 'Cancel' : '＋ Mount something…'"></button>
+                    </div>
+
+                    <div class="mounts-adhoc mb-2" x-show="mounts.adhoc.open" x-cloak>
+                        <div class="mounts-adhoc-grid">
+                            <input class="form-control form-control-sm" placeholder="Device / UUID=…" x-model="mounts.adhoc.device" list="mt-devices" spellcheck="false" autocomplete="off">
+                            <input class="form-control form-control-sm" placeholder="Mount point" x-model="mounts.adhoc.mountpoint" list="mt-mountpoints" spellcheck="false" autocomplete="off">
+                            <input class="form-control form-control-sm" placeholder="Type (optional)" x-model="mounts.adhoc.fstype" list="mt-fstypes" spellcheck="false" autocomplete="off">
+                            <input class="form-control form-control-sm" placeholder="Options (optional)" x-model="mounts.adhoc.options" list="mt-mntopts" spellcheck="false" autocomplete="off">
+                            <button class="btn btn-sm btn-primary" @click="mountAdhoc()" :disabled="mounts.adhoc.busy">
+                                <span x-show="mounts.adhoc.busy" class="spinner-border spinner-border-sm me-1"></span>Mount
+                            </button>
+                        </div>
+                        <div class="form-text">Runs <code>mkdir -p</code> then <code>mount</code> via the superuser bridge. Not written to fstab.</div>
+                    </div>
+
+                    <div class="mounts-loading" x-show="mounts.live.loading">Loading…</div>
+                    <div class="alert alert-danger py-2 px-3" x-show="mounts.live.error" x-text="mounts.live.error" x-cloak></div>
+
+                    <div class="mounts-table-wrap" x-show="!mounts.live.loading">
+                        <table class="mounts-table mounts-live">
+                            <thead>
+                                <tr><th>Mount point</th><th>Source</th><th>Type</th><th>Options</th><th class="mt-act"></th></tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(m, i) in mounts.live.rows" :key="m.target + '|' + i">
+                                    <tr>
+                                        <td class="ml-target"><code x-text="m.target"></code></td>
+                                        <td class="ml-source" :title="m.source" x-text="m.source"></td>
+                                        <td x-text="m.fstype"></td>
+                                        <td class="ml-opts" :title="m.options" x-text="m.options"></td>
+                                        <td class="mt-act">
+                                            <template x-if="_isProtectedMount(m)"><span class="ml-sys" title="System / protected mount">system</span></template>
+                                            <template x-if="!_isProtectedMount(m)">
+                                                <span class="ml-actions">
+                                                    <button class="btn btn-xs btn-outline-secondary" @click="remountTarget(m)" :disabled="mounts.busyTarget === m.target" title="Remount (apply options / recover)">remount</button>
+                                                    <button class="btn btn-xs btn-outline-danger" @click="unmountTarget(m)" :disabled="mounts.busyTarget === m.target" title="Unmount">unmount</button>
+                                                </span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="!mounts.live.rows.length && !mounts.live.loading"><td colspan="5" class="mounts-empty">No mounts found.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- /live pane -->
+
                 <!-- field suggestions (datalists) -->
                 <datalist id="mt-devices"><template x-for="d in mounts.suggest.devices" :key="d.value"><option :value="d.value" x-text="d.label"></option></template></datalist>
                 <datalist id="mt-mountpoints"><template x-for="p in mounts.suggest.mountpoints" :key="p"><option :value="p"></option></template></datalist>
@@ -889,7 +952,7 @@
                 <datalist id="mt-passno"><template x-for="p in mounts.suggest.passno" :key="p"><option :value="p"></option></template></datalist>
 
                 <!-- mount results -->
-                <div class="mounts-results mt-2" x-show="mounts.mountResults && mounts.mountResults.length" x-cloak>
+                <div class="mounts-results mt-2" x-show="mounts.view === 'fstab' && mounts.mountResults && mounts.mountResults.length" x-cloak>
                     <div class="mounts-results-head">Mount results</div>
                     <template x-for="res in mounts.mountResults" :key="res.file">
                         <div class="mounts-result" :class="res.ok ? 'ok' : 'bad'">

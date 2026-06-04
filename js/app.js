@@ -161,6 +161,10 @@ Alpine.data('explorer', () => ({
         loading: false, error: '', raw: '', rawMode: false, rawEdited: '',
         rows: [], trailer: [], findmnt: false, mountAfter: true,
         saving: false, mountResults: [],
+        // 'fstab' editor view vs 'live' currently-mounted view
+        view: 'fstab', busyTarget: '',
+        live: { loading: false, error: '', rows: [] },
+        adhoc: { open: false, device: '', mountpoint: '', fstype: '', options: '', busy: false },
         // Field suggestions (datalists). devices/mountpoints/fstypes are
         // populated from the live system on open; the rest are static.
         suggest: {
@@ -3062,11 +3066,158 @@ Alpine.data('explorer', () => ({
     async openMounts() {
         this.mounts.findmnt = await this._hasFindmnt();
         this.mounts.rawMode = false;
+        this.mounts.view = 'fstab';
         this.mounts.mountResults = [];
+        this.mounts.adhoc.open = false;
+        this.mounts.live.rows = [];
         await this.loadFstab();
         bootstrap.Modal.getOrCreateInstance(this.mountsModalEl).show();
         // Populate field suggestions in the background (non-blocking).
         this._loadMountSuggestions();
+    },
+
+    switchMountsView(v) {
+        this.mounts.view = v;
+        if (v === 'live' && !this.mounts.live.rows.length && !this.mounts.live.loading) this.loadLiveMounts();
+    },
+
+    async loadLiveMounts() {
+        this.mounts.live.loading = true;
+        this.mounts.live.error = '';
+        const unhex = s => (s || '').replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+        const unoct = s => (s || '').replace(/\\(\d{3})/g, (_, o) => String.fromCharCode(parseInt(o, 8)));
+        try {
+            const rows = [];
+            if (this.mounts.findmnt) {
+                // -r raw output hex-escapes unsafe chars, so fields are
+                // space-separated and the first three never contain spaces.
+                const out = await cockpit.spawn(['findmnt', '-rno', 'TARGET,SOURCE,FSTYPE,OPTIONS'], { err: 'message' });
+                out.split('\n').forEach(line => {
+                    if (!line.trim()) return;
+                    const p = line.split(' ');
+                    if (p.length < 3) return;
+                    rows.push({ target: unhex(p[0]), source: unhex(p[1]), fstype: p[2] || '', options: unhex(p.slice(3).join(' ')) });
+                });
+            } else {
+                const out = await cockpit.spawn(['sh', '-c', 'cat /proc/self/mounts'], { err: 'message' });
+                out.split('\n').forEach(line => {
+                    if (!line.trim()) return;
+                    const f = line.split(' ');
+                    if (f.length < 4) return;
+                    rows.push({ source: unoct(f[0]), target: unoct(f[1]), fstype: f[2] || '', options: unoct(f[3]) });
+                });
+            }
+            rows.sort((a, b) => (a.target || '').localeCompare(b.target || ''));
+            this.mounts.live.rows = rows;
+        } catch (e) {
+            this.mounts.live.error = e.message || String(e);
+            this.mounts.live.rows = [];
+        } finally {
+            this.mounts.live.loading = false;
+        }
+    },
+
+    // Pseudo / system mounts that must not be unmounted or remounted from here.
+    _isProtectedMount(row) {
+        const t = row.target || '';
+        const f = (row.fstype || '').toLowerCase();
+        const pseudo = ['proc', 'sysfs', 'devtmpfs', 'devpts', 'cgroup', 'cgroup2',
+            'securityfs', 'pstore', 'bpf', 'tracefs', 'debugfs', 'mqueue',
+            'hugetlbfs', 'configfs', 'fusectl', 'autofs', 'efivarfs',
+            'binfmt_misc', 'rpc_pipefs', 'nsfs', 'selinuxfs'];
+        if (t === '/') return true;
+        if (t === '/proc' || t.startsWith('/proc/')) return true;
+        if (t === '/sys' || t.startsWith('/sys/')) return true;
+        if (t === '/dev' || t.startsWith('/dev/')) return true;
+        if (t === '/run' || t.startsWith('/run/')) return true;
+        return pseudo.includes(f);
+    },
+
+    async remountTarget(row) {
+        if (this._isProtectedMount(row)) return;
+        this.mounts.busyTarget = row.target;
+        try {
+            await cockpit.spawn(['mount', '-o', 'remount', row.target], FS.spawnOpts({ admin: true }));
+            this.toast(`Remounted ${row.target}.`, 'success');
+        } catch (e) {
+            this.toast('Remount failed: ' + (e.message || e), 'danger');
+        } finally {
+            this.mounts.busyTarget = '';
+            await this.loadLiveMounts();
+        }
+    },
+
+    async unmountTarget(row) {
+        if (this._isProtectedMount(row)) return;
+        const ok = await this.askConfirm('Unmount', `Unmount ${row.target}?`, 'Unmount');
+        if (!ok) return;
+        this.mounts.busyTarget = row.target;
+        try {
+            await cockpit.spawn(['umount', row.target], FS.spawnOpts({ admin: true }));
+            this.toast(`Unmounted ${row.target}.`, 'success');
+        } catch (e) {
+            const msg = e.message || String(e);
+            if (/busy|in use|target is busy/i.test(msg)) {
+                const lazy = await this.askConfirm('Target busy',
+                    `${row.target} is busy. Lazy-unmount (detach now, clean up when free)?`, 'Lazy unmount');
+                if (lazy) {
+                    try {
+                        await cockpit.spawn(['umount', '-l', row.target], FS.spawnOpts({ admin: true }));
+                        this.toast(`Lazy-unmounted ${row.target}.`, 'success');
+                    } catch (e2) {
+                        this.toast('Unmount failed: ' + (e2.message || e2), 'danger');
+                    }
+                }
+            } else {
+                this.toast('Unmount failed: ' + msg, 'danger');
+            }
+        } finally {
+            this.mounts.busyTarget = '';
+            await this.loadLiveMounts();
+            if (!this.mounts.rawMode) await this._refreshMountedState();
+        }
+    },
+
+    async mountAdhoc() {
+        const dev = (this.mounts.adhoc.device || '').trim();
+        const mp = (this.mounts.adhoc.mountpoint || '').trim();
+        const fst = (this.mounts.adhoc.fstype || '').trim();
+        const opts = (this.mounts.adhoc.options || '').trim();
+        if (!dev || !mp) { this.toast('Device and mount point are required.', 'warning'); return; }
+        if (!mp.startsWith('/')) { this.toast('Mount point must be an absolute path.', 'warning'); return; }
+        this.mounts.adhoc.busy = true;
+        try {
+            const args = ['mount'];
+            if (fst) args.push('-t', fst);
+            if (opts) args.push('-o', opts);
+            args.push(dev, mp);
+            const cmd = `mkdir -p ${Util.shq(mp)} && ${args.map(a => Util.shq(a)).join(' ')}`;
+            await cockpit.spawn(['sh', '-c', cmd], FS.spawnOpts({ admin: true }));
+            this.toast(`Mounted ${dev} at ${mp}.`, 'success');
+            this.mounts.adhoc.device = ''; this.mounts.adhoc.mountpoint = '';
+            this.mounts.adhoc.fstype = ''; this.mounts.adhoc.options = '';
+            this.mounts.adhoc.open = false;
+            await this.loadLiveMounts();
+            if (!this.mounts.rawMode) await this._refreshMountedState();
+        } catch (e) {
+            this.toast('Mount failed: ' + (e.message || e), 'danger');
+        } finally {
+            this.mounts.adhoc.busy = false;
+        }
+    },
+
+    // Mount a declared-but-unmounted fstab entry now (the ○ indicator button).
+    async mountFstabRow(r) {
+        const file = (r.file || '').trim();
+        if (!file) return;
+        try {
+            await cockpit.spawn(['sh', '-c', `mkdir -p ${Util.shq(file)} && mount ${Util.shq(file)}`], FS.spawnOpts({ admin: true }));
+            this.toast(`Mounted ${file}.`, 'success');
+        } catch (e) {
+            this.toast('Mount failed: ' + (e.message || e), 'danger');
+        }
+        await this._refreshMountedState();
+        if (this.mounts.view === 'live') await this.loadLiveMounts();
     },
 
     // Scan the live system to populate the field datalists. Each scan is

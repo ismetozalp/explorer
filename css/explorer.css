@@ -1485,3 +1485,20 @@ body {
 .mounts-result.ok .mr-icon { color: #5cd66b; }
 .mounts-result.bad .mr-icon { color: #e06c75; }
 .mounts-result .mr-err { color: #e06c75; opacity: .85; }
+
+/* Mounts — view tabs, live table, ad-hoc mount, mount-now button */
+.mounts-tabs { display: flex; gap: .25rem; border-bottom: 1px solid var(--ex-border); }
+.mounts-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--ex-text-muted); padding: .3rem .65rem; cursor: pointer; font-size: .9rem; }
+.mounts-tab:hover { color: var(--ex-text); }
+.mounts-tab.active { color: var(--ex-accent); border-bottom-color: var(--ex-accent); }
+.mounts-tab-count { display: inline-block; min-width: 1.2em; padding: 0 .35em; margin-left: .35em; border-radius: 9px; background: var(--ex-bg-alt); color: var(--ex-text-muted); font-size: .72rem; }
+.mounts-adhoc { border: 1px solid var(--ex-border); border-radius: 6px; padding: .5rem; }
+.mounts-adhoc-grid { display: grid; grid-template-columns: 1.4fr 1.4fr .9fr 1.2fr auto; gap: .4rem; align-items: center; }
+.mounts-live .ml-target code { font-size: .82rem; }
+.mounts-live .ml-source, .mounts-live .ml-opts { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mounts-live .mt-act { width: auto; white-space: nowrap; text-align: right; }
+.ml-actions { display: inline-flex; gap: .3rem; }
+.ml-sys { font-size: .72rem; color: var(--ex-text-muted); border: 1px solid var(--ex-border); border-radius: 4px; padding: 0 .35rem; }
+.btn-xs { padding: .05rem .4rem; font-size: .75rem; line-height: 1.5; border-radius: 4px; }
+.mt-mountbtn { background: none; border: none; cursor: pointer; padding: 0; line-height: 1; }
+.mt-mountbtn:hover { color: var(--ex-accent); }

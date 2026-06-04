@@ -812,6 +812,21 @@ The **⛁ Mounts** button in the top toolbar opens an editor for
 Basic validation (required fields, absolute mount points, numeric
 dump/pass) runs before anything is written.
 
+A **Mounted** tab lists everything currently mounted (from `findmnt`,
+falling back to `/proc/self/mounts`):
+
+- Per non-system mount: **remount** (`mount -o remount`) and **unmount**
+  (`umount`, with a *lazy unmount* offer if the target is busy). System
+  and pseudo mounts (`/`, `/proc`, `/sys`, `/dev`, `/run`, and virtual
+  filesystems) are tagged *system* and can't be unmounted from here.
+- **Mount something…** does an ad-hoc `mount` (with optional type and
+  options) that isn't written to fstab, reusing the same field
+  suggestions.
+- In the fstab table, the ○ indicator on a declared-but-unmounted entry
+  is a button that mounts it immediately.
+
+All mount/unmount actions run through Cockpit's superuser bridge.
+
 ---
 
 ## Keyboard shortcuts
