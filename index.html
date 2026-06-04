@@ -627,8 +627,9 @@
                 <span x-show="activeWin() && activeWin().error" class="text-danger me-auto" x-text="activeWin() && activeWin().error"></span>
                 <span class="text-muted small me-auto" x-show="activeWin() && activeWin().mode === 'wysiwyg' && activeWin().isHtml">⚠ WYSIWYG may reformat complex HTML on save.</span>
                 <button class="btn btn-secondary" @click="closeActiveWindow()">Cancel</button>
-                <button class="btn btn-primary" @click="saveEditor()" :disabled="!(activeWin() && activeWin().dirty)">Save</button>
-                <button class="btn btn-warning" @click="saveEditor(true)" :disabled="!(activeWin() && activeWin().dirty)" x-show="activeWin() && activeWin().permissionDenied">Save as administrator</button>
+                <button class="btn" :class="(activeWin() && activeWin().needsAdmin) ? 'btn-warning' : 'btn-primary'"
+                        @click="saveEditor()" :disabled="!(activeWin() && activeWin().dirty)"
+                        x-text="(activeWin() && activeWin().needsAdmin) ? 'Save as administrator' : 'Save'"></button>
             </div>
         </div>
     </div>

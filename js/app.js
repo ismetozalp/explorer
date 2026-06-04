@@ -1567,7 +1567,7 @@ Alpine.data('explorer', () => ({
         this.windows.push({
             id, kind: 'editor', path: file.path, title: this._winTitle(file.path, 'editor'),
             lang, mode: 'code', dirty: false, isMarkdown: isMd, isHtml: isHtml,
-            canWysiwyg: isMd || isHtml, original: content || '', error: '', permissionDenied: openedAsAdmin,
+            canWysiwyg: isMd || isHtml, original: content || '', error: '', permissionDenied: openedAsAdmin, needsAdmin: openedAsAdmin,
             quillHtml: null, readOnly: false,
         });
         this.activateWindow(id, !opts.minimized);
@@ -1583,7 +1583,7 @@ Alpine.data('explorer', () => ({
         this.windows.push({
             id, kind: 'editor', path: null, title: title || 'View', lang: lang || '',
             mode: 'code', dirty: false, isMarkdown: false, isHtml: false, canWysiwyg: false,
-            original: content || '', error: '', permissionDenied: false, quillHtml: null, readOnly: true,
+            original: content || '', error: '', permissionDenied: false, needsAdmin: false, quillHtml: null, readOnly: true,
         });
         this.activateWindow(id, true);
     },
@@ -1652,16 +1652,21 @@ Alpine.data('explorer', () => ({
     async saveEditor(admin) {
         const w = this.activeWin();
         if (!w || w.kind !== 'editor' || w.readOnly || !w.path) return;
+        // Once a file is known to be root-owned (opened as admin, or a prior
+        // save hit permission-denied), keep writing through the bridge so the
+        // user isn't bounced back to a failing normal save.
+        const useAdmin = !!admin || !!w.needsAdmin;
         try {
             const content = await this._getEditorContent();
-            await FS.writeText(w.path, content, { admin: !!admin });
+            await FS.writeText(w.path, content, { admin: useAdmin });
             w.original = content; w.dirty = false; w.error = ''; w.permissionDenied = false;
+            if (useAdmin) w.needsAdmin = true;
             this.toast('Saved ' + w.path);
             const tab = this.activeTab();
             if (tab && tab.kind === 'dir' && Util.dirname(w.path) === tab.path) this.reload(tab);
         } catch (e) {
             w.error = e.message || String(e);
-            if (/permission|EACCES/i.test(w.error)) w.permissionDenied = true;
+            if (this._looksPermissionDenied(e)) { w.permissionDenied = true; w.needsAdmin = true; }
         }
     },
 
