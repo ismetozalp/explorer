@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.2
+
+- **Fix: "Set up GitHub…" reappearing on an already-configured host.**
+  The gh auth check relied on `gh auth status`, which makes a live network
+  call and exits non-zero when the GitHub API is briefly slow or
+  unreachable. It now checks `gh auth token` first (a purely local
+  credential read), so the button no longer flips on transient
+  connectivity.
+
 ## 1.1.1
 
 - **tmux: Edit `~/.tmux.conf`.** When the user has a `~/.tmux.conf`, the

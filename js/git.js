@@ -52,6 +52,17 @@ window.GIT = (function () {
 
     // ─── gh auth ────────────────────────────────────────────────────────────
     async function ghAuthStatus() {
+        // Prefer `gh auth token`: it only reads the stored credential and makes
+        // NO network call, so it can't flip to "not authed" when the GitHub API
+        // is briefly slow/unreachable/proxied/rate-limited — which `gh auth
+        // status` does, since it validates the token online and exits non-zero
+        // on any such failure. That was the cause of the "Set up GitHub…" button
+        // reappearing on an already-configured host.
+        try {
+            const tok = await cockpit.spawn(['gh', 'auth', 'token'], { err: 'message' });
+            if ((tok || '').trim()) return { authed: true, user: '' };
+        } catch (e) { /* no stored token, or a gh too old for `auth token` */ }
+        // Fall back to `gh auth status` (older gh, and to recover the username).
         try {
             const out = await cockpit.spawn(['gh', 'auth', 'status'], { err: 'message' });
             // Parse "Logged in to github.com account <name>" out of the status message.
