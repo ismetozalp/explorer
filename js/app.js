@@ -6206,7 +6206,7 @@ Alpine.data('explorer', () => ({
         let url = 'origin';
         if (token && ownerRepo) {
             url = 'https://github.com/' + ownerRepo + '.git';
-            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa(token + ':'));
+            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token));
         }
         args.push('fetch', '--prune', url);
         if (refspec) args.push(refspec);
@@ -6220,7 +6220,7 @@ Alpine.data('explorer', () => ({
         let url = 'origin';
         if (token && ownerRepo) {
             url = 'https://github.com/' + ownerRepo + '.git';
-            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa(token + ':'));
+            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token));
         }
         args.push('push', url, (branch || 'HEAD'));
         await cockpit.spawn(args, { err: 'message' });
@@ -6408,7 +6408,7 @@ Alpine.data('explorer', () => ({
             const ownerRepo = this.commitBrowser.repo;
             if (token && ownerRepo) {
                 const url = 'https://github.com/' + ownerRepo + '.git';
-                const hdr = 'http.extraheader=Authorization: Basic ' + btoa(token + ':');
+                const hdr = 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token);
                 for (const ref of [branch, sha]) {
                     try { await cockpit.spawn(['git', '-C', cache, '-c', hdr, 'fetch', '--no-tags', url, ref], { err: 'message' }); } catch (e) {}
                     if (await has()) return true;
