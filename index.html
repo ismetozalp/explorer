@@ -414,8 +414,8 @@
                 </div>
             </div>
             <div class="output-pane-body"
-                 x-init="$el.addEventListener('scroll', () => { tab.follow = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 40; })"
-                 x-effect="tab.outputLines.length; tab.follow; if (tab.follow) $nextTick(() => { $el.scrollTop = $el.scrollHeight; })"
+                 x-init="_initOutputPane($el, tab)"
+                 x-effect="tab.outputLines.length; tab.follow; if (tab.follow) _scheduleOutputScroll($el, tab)"
                  x-text="tab.outputLines.join('\n')"></div>
             <div class="output-pane-status">
                 <code x-text="tab.outputCommand"></code>
@@ -992,7 +992,7 @@
                             Share browsing needs <code>smbclient</code>, which isn't installed.
                             <span class="cifs-install-line">
                                 <code class="cifs-install-cmd" x-text="cifs.disco.smbInstall"></code>
-                                <button class="cifs-copy" @click="copyToClipboard(cifs.disco.smbInstall)" title="Copy command">⧉</button>
+                                <button class="cifs-copy" @click="copyTextToClipboard(cifs.disco.smbInstall)" title="Copy command">⧉</button>
                             </span>
                         </div>
                         <div class="cifs-chips" x-show="cifs.disco.shares.length" x-cloak>
@@ -1080,7 +1080,7 @@
                             <code>mount.nfs</code> (nfs-utils / nfs-common) not found — install it to mount NFS shares. You can still build the entry now.
                             <span class="cifs-install-line" x-show="nfs.install">
                                 <code class="cifs-install-cmd" x-text="nfs.install"></code>
-                                <button class="cifs-copy" @click="copyToClipboard(nfs.install)" title="Copy command">⧉</button>
+                                <button class="cifs-copy" @click="copyTextToClipboard(nfs.install)" title="Copy command">⧉</button>
                             </span>
                         </div>
                         <div class="alert alert-danger py-2 px-3" x-show="nfs.add.error" x-text="nfs.add.error" x-cloak></div>
@@ -1680,6 +1680,15 @@
                             <label class="form-label">Token</label>
                             <input type="password" class="form-control" x-model="gh.tokenInput" autocomplete="off" spellcheck="false">
                         </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="ghSaveToken" x-model="gh.saveToken">
+                            <label class="form-check-label small" for="ghSaveToken">
+                                Remember this token so Explorer can sign <code>gh</code> back in automatically if it ever gets logged out
+                            </label>
+                        </div>
+                        <div class="small text-muted mb-2" x-show="gh.saveToken">
+                            Saved to <code x-text="ghTokenPathDisplay()"></code> (in your home directory, permissions <code>0600</code>).
+                        </div>
                         <button class="btn btn-primary" @click="ghLogin()" :disabled="gh.loggingIn || !gh.tokenInput">
                             <span x-show="!gh.loggingIn">Sign in</span>
                             <span x-show="gh.loggingIn">Signing in…</span>
@@ -1687,6 +1696,8 @@
                         <div x-show="gh.authError" class="text-danger small mt-2" x-text="gh.authError"></div>
                         <div class="small text-muted mt-3">The token is piped to <code>gh auth login --with-token</code>
                             and stored by <code>gh</code> at <code>~/.config/gh/hosts.yml</code> with 0600 perms.
+                            <span x-show="gh.saveToken">Explorer also keeps its own copy at <code x-text="ghTokenPathDisplay()"></code>
+                            (0600) so it can re-authenticate <code>gh</code> without asking you again.</span>
                             Each Cockpit user has their own credentials.</div>
                         <div class="small text-muted mt-3 pt-2 border-top">
                             Already signed in via <code>gh auth login</code> in a terminal/browser? &nbsp;

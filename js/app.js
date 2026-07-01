@@ -374,7 +374,11 @@ Alpine.data('explorer', () => ({
         // the GitHub panel is opened. Persists in global git config.
         (async () => {
             try {
-                if (!this._ghGitConfigured && await GIT.ghAvailable() && (await GIT.ghAuthStatus()).authed) {
+                if (this._ghGitConfigured || !(await GIT.ghAvailable())) return;
+                let authed = (await GIT.ghAuthStatus()).authed;
+                // Re-auth from the saved token if gh logged itself out.
+                if (!authed) authed = await this._tryAutoGhLogin();
+                if (authed) {
                     this._ghGitConfigured = true;
                     await GIT.ghSetupGit();
                 }
@@ -413,6 +417,8 @@ Alpine.data('explorer', () => ({
             outputChannel: null,
             follow: true,        // stay pinned to the bottom of a streaming pane
             _outBuf: '',         // partial-line buffer for chunked streaming
+            _scrollRaf: 0,       // pending rAF id for coalesced auto-scroll
+            _autoScrollUntil: 0, // ignore 'scroll' events until this timestamp (our own auto-scrolls)
             // ── Terminals (v1.2) ───────────────────────────────────────
             // Reactive collection only; the actual xterm Terminal /
             // cockpit channel instances live in module-scope _termInstances
@@ -2993,6 +2999,36 @@ Alpine.data('explorer', () => ({
         this._capOutput(rtab);
     },
 
+    // ── Streaming-pane auto-scroll ("Follow") ────────────────────────────────
+    // Wire a streaming output pane's scroll handling. The listener only reacts to
+    // REAL user scrolls: while output streams we auto-scroll to the bottom, and
+    // neither those programmatic scrolls nor the transient geometry mid-append
+    // (content already grew, scrollTop hasn't caught up) must be mistaken for the
+    // user scrolling away — that false toggle is what broke Follow on fast tails
+    // (e.g. `podman-compose logs`). We ignore 'scroll' events inside a short guard
+    // window that each auto-scroll refreshes, so a flood keeps Follow pinned; once
+    // output settles the window lapses and manual scroll-up disengages it again.
+    _initOutputPane(el, rtab) {
+        el.addEventListener('scroll', () => {
+            if (rtab._autoScrollUntil && Date.now() < rtab._autoScrollUntil) return;
+            rtab.follow = (el.scrollHeight - el.scrollTop - el.clientHeight) < 40;
+        }, { passive: true });
+        if (rtab.follow) this._scheduleOutputScroll(el, rtab);
+    },
+
+    // Coalesce scroll-to-bottom to at most once per animation frame (so a burst
+    // of lines doesn't thrash layout and fall behind), and open the guard window
+    // right before scrolling so the resulting event isn't read back as a gesture.
+    _scheduleOutputScroll(el, rtab) {
+        if (rtab._scrollRaf) return;
+        rtab._scrollRaf = requestAnimationFrame(() => {
+            rtab._scrollRaf = 0;
+            if (!rtab.follow) return;
+            rtab._autoScrollUntil = Date.now() + 250;
+            el.scrollTop = el.scrollHeight;
+        });
+    },
+
     async _runActionCmd(action, cmd, files) {
         const adminFlag = action.privilege === 'require' ? { admin: true }
                        : action.privilege === 'try' ? { adminTry: true }
@@ -3293,7 +3329,7 @@ Alpine.data('explorer', () => ({
         }
     },
 
-    async copyToClipboard(text) {
+    async copyTextToClipboard(text) {
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(text);
@@ -4806,6 +4842,7 @@ Alpine.data('explorer', () => ({
         installFamily: '',
         installing: false,
         tokenInput: '',
+        saveToken: true,        // persist the token so gh can be re-authed automatically
         loggingIn: false,
         authError: '',
         repos: [],
@@ -5440,6 +5477,34 @@ Alpine.data('explorer', () => ({
         xterm.open(container);
         try { fitAddon.fit(); } catch (e) {}
 
+        // Clipboard: xterm does NOT copy the selection on its own. Wire the
+        // standard terminal copy gestures — select-to-copy, plus Ctrl/Cmd+Shift+C
+        // and Ctrl+Insert — to the OS clipboard. Ctrl+C is left as SIGINT.
+        // (Paste with Ctrl+Shift+V is handled natively by xterm's textarea, so
+        // it is deliberately left untouched here to avoid a double paste.)
+        xterm.attachCustomKeyEventHandler((e) => {
+            if (e.type !== 'keydown') return true;
+            const mod = e.ctrlKey || e.metaKey;
+            const isCopy = (mod && e.shiftKey && e.code === 'KeyC') || (e.ctrlKey && e.code === 'Insert');
+            if (isCopy) {
+                const sel = xterm.getSelection();
+                if (sel) this.copyTextToClipboard(sel);
+                return false; // swallow the chord so it never reaches the shell
+            }
+            return true;
+        });
+        // Copy-on-select (silent) — selecting text with the mouse also copies it,
+        // matching common terminal UX. Best-effort; the Ctrl+Shift+C path above is
+        // the reliable fallback if the browser blocks the background write.
+        try {
+            xterm.onSelectionChange(() => {
+                const sel = xterm.getSelection();
+                if (sel && navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(sel).catch(() => {});
+                }
+            });
+        } catch (e) {}
+
         // OSC 7 (file://host/path) lets the shell report its working directory
         // on each prompt; many distros configure bash/zsh to emit it. When
         // present, keep the sub-tab path label in sync with the live pwd.
@@ -5453,6 +5518,29 @@ Alpine.data('explorer', () => ({
                 }
                 try { p = decodeURIComponent(p); } catch (e) {}
                 if (p && p.startsWith('/')) this._updateTerminalDir(termId, p);
+                return true; // fully handled
+            });
+        } catch (e) {}
+
+        // OSC 52 (ESC ] 52 ; <targets> ; <base64|?> BEL) — "set clipboard".
+        // This is how programs that own the mouse (tmux with `mouse on`, vim,
+        // etc.) push a copy out to the OUTER terminal's clipboard. Our
+        // select-to-copy / Ctrl+Shift+C read xterm's own selection, which tmux
+        // never populates (it grabs the drag for its copy-mode), so without this
+        // handler copying from inside tmux is lost. We honour writes only; a "?"
+        // read/query is ignored (never expose the clipboard to the shell).
+        try {
+            xterm.parser.registerOscHandler(52, (data) => {
+                const i = (data || '').indexOf(';');
+                if (i < 0) return true;
+                const payload = data.slice(i + 1);
+                if (!payload || payload === '?') return true; // ignore queries
+                let text = '';
+                try { text = decodeURIComponent(escape(atob(payload))); }   // UTF-8 aware
+                catch (e) { try { text = atob(payload); } catch (e2) { return true; } }
+                if (text && navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).catch(() => {});
+                }
                 return true; // fully handled
             });
         } catch (e) {}
@@ -5807,7 +5895,13 @@ Alpine.data('explorer', () => ({
                 this.gh.state = 'notinstalled';
                 return;
             }
-            const status = await GIT.ghAuthStatus();
+            let status = await GIT.ghAuthStatus();
+            if (!status.authed) {
+                // gh has no stored credential (session cleared / hosts.yml lost).
+                // If the user saved their token, re-authenticate automatically
+                // instead of prompting again.
+                if (await this._tryAutoGhLogin()) status = await GIT.ghAuthStatus();
+            }
             if (!status.authed) { this.gh.state = 'notauthed'; return; }
             // Fetch user info
             try {
@@ -5997,7 +6091,21 @@ Alpine.data('explorer', () => ({
         this.gh.loggingIn = true;
         this.gh.authError = '';
         try {
-            await GIT.ghAuthLogin(this.gh.tokenInput);
+            const token = this.gh.tokenInput;
+            await GIT.ghAuthLogin(token);
+            // Persist (or forget) the token per the checkbox, so a future gh
+            // logout doesn't force the user to paste it again — see
+            // _tryAutoGhLogin(), called from _refreshGhState()/init.
+            if (this.gh.saveToken) {
+                try {
+                    await this._saveGhToken(token);
+                    this.toast('Signed in — token saved to ' + this._ghTokenPath(), 'success');
+                } catch (e) {
+                    this.toast('Signed in, but saving the token failed: ' + (e.message || e), 'warning');
+                }
+            } else {
+                await this._clearGhToken();   // opted out → drop any earlier copy
+            }
             this.gh.tokenInput = '';
             await this._refreshGhState();
         } catch (e) {
@@ -6007,10 +6115,87 @@ Alpine.data('explorer', () => ({
         }
     },
 
+    // Where Explorer keeps the user's saved gh token (their own home dir, 0600).
+    _ghTokenPath() { return this.homePath + '/.config/cockpit/explorer/gh-token'; },
+    // Shown in the sign-in dialog so the user knows exactly where it lands.
+    ghTokenPathDisplay() { return this.homePath ? this._ghTokenPath() : '~/.config/cockpit/explorer/gh-token'; },
+
+    async _saveGhToken(token) {
+        const path = this._ghTokenPath();
+        await FS.mkdir(Util.dirname(path));
+        // Create the secret with a tight umask so it is 0600 from the first
+        // byte (never momentarily world-readable). Token goes in on stdin, not
+        // argv; the path is a positional arg, so no shell-quoting needed.
+        const proc = cockpit.spawn(['sh', '-c', 'umask 077; cat > "$1"', 'sh', path], { err: 'message' });
+        proc.input(token);
+        await proc;
+        try { await FS.chmod(path, '600'); } catch (e) {}   // belt-and-suspenders if it pre-existed
+    },
+
+    async _readGhToken() {
+        try { return (await FS.readText(this._ghTokenPath()) || '').trim(); }
+        catch (e) { return ''; }
+    },
+
+    async _clearGhToken() {
+        try { await cockpit.spawn(['rm', '-f', this._ghTokenPath()], { err: 'message' }); }
+        catch (e) {}
+    },
+
+    // If gh has no stored credential but the user saved a token, silently
+    // re-authenticate gh with it. Returns true iff gh ends up authed.
+    async _tryAutoGhLogin() {
+        const token = await this._readGhToken();
+        if (!token) return false;
+        try {
+            await GIT.ghAuthLogin(token);
+            return (await GIT.ghAuthStatus()).authed;
+        } catch (e) { return false; }
+    },
+
+    // Does this error look like GitHub rejecting our credentials (vs. a network
+    // or not-found error)? Used to decide whether to attempt a re-login.
+    _isGhAuthError(e) {
+        const m = ((e && (e.message || e.toString())) || '').toLowerCase();
+        return /http 401|bad credentials|requires authentication|authentication failed|\b401\b/.test(m);
+    },
+
+    // Run a gh API operation with automatic recovery from an expired/revoked
+    // token: on an auth failure, silently re-login from the saved token and
+    // retry once; if that fails too, surface the sign-in form for a new token.
+    async _withGhAuth(fn) {
+        try {
+            return await fn();
+        } catch (e) {
+            if (!this._isGhAuthError(e)) throw e;
+            // gh's stored token was rejected by the API. Re-auth from the saved
+            // copy and retry once.
+            if (await this._tryAutoGhLogin()) return await fn();
+            // No saved token, or the saved one is also rejected → ask the user
+            // for a fresh token.
+            await this._promptGhReauth();
+            throw new Error('GitHub token expired or invalid — please sign in again.');
+        }
+    },
+
+    // Flip the GitHub panel back to the sign-in form so the user can enter a
+    // new token (the saved one is no longer accepted).
+    async _promptGhReauth() {
+        this.gh.state = 'notauthed';
+        this.gh.authError = 'Your saved GitHub token was rejected (expired or revoked). Enter a new token to continue.';
+        this._ghGitConfigured = false;   // re-run gh auth setup-git after the next successful sign-in
+        try {
+            if (this.ghModalEl && !this.ghModalEl.classList.contains('show')) {
+                bootstrap.Modal.getOrCreateInstance(this.ghModalEl).show();
+            }
+        } catch (e) {}
+        this.toast('GitHub token expired — please sign in again.', 'warning');
+    },
+
     async ghReloadRepos() {
         this.gh.loadingRepos = true;
         try {
-            this.gh.repos = await GIT.ghRepoList(200);
+            this.gh.repos = await this._withGhAuth(() => GIT.ghRepoList(200));
         } catch (e) {
             this.toast('Could not list repos: ' + e.message, 'danger');
         } finally { this.gh.loadingRepos = false; }
@@ -6040,7 +6225,7 @@ Alpine.data('explorer', () => ({
         this.gh.loadingBranches = true;
         this._loadRepoLocalCopies(repo.nameWithOwner);
         try {
-            this.gh.branches = await GIT.ghBranches(repo.nameWithOwner);
+            this.gh.branches = await this._withGhAuth(() => GIT.ghBranches(repo.nameWithOwner));
         } catch (e) {
             this.toast('Branches failed: ' + e.message, 'danger');
         } finally { this.gh.loadingBranches = false; }
@@ -6072,7 +6257,7 @@ Alpine.data('explorer', () => ({
         this.gh.tab = 'prs';
         if (this.gh.prs.length) return;
         this.gh.loadingPrs = true;
-        try { this.gh.prs = await GIT.ghPullRequests(this.gh.selectedRepo); }
+        try { this.gh.prs = await this._withGhAuth(() => GIT.ghPullRequests(this.gh.selectedRepo)); }
         catch (e) { this.toast('PRs failed: ' + e.message, 'danger'); }
         finally { this.gh.loadingPrs = false; }
     },

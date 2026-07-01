@@ -514,6 +514,9 @@ body {
     padding: 8px 12px;
     white-space: pre-wrap;
     word-break: break-all;
+    /* Don't let the browser re-anchor scroll position when old lines are trimmed
+       off the top (outputMaxLines cap) — auto-scroll owns the position. */
+    overflow-anchor: none;
 }
 
 .output-pane-status {
