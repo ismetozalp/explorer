@@ -11,6 +11,40 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   credential read), so the button no longer flips on transient
   connectivity.
 
+- **Fix: file Cut / Copy / Paste did nothing.** A second method also named
+  `copyToClipboard` (for copying text to the OS clipboard) shadowed the
+  file-clipboard one, so the context-menu Copy/Cut and Ctrl+C / Ctrl+X /
+  Ctrl+V wrote the literal word "copy"/"cut" to the clipboard and never
+  staged the files — leaving Paste a no-op. The text copier is now
+  `copyTextToClipboard`, and file clipboard actions work again.
+
+- **Terminal: copy the selection.** xterm never copied on its own.
+  Select-to-copy now works, as do **Ctrl/⌘+Shift+C** and **Ctrl+Insert**
+  (plain Ctrl+C still sends SIGINT). Paste remains **Ctrl+Shift+V**.
+
+- **Terminal: copy from tmux / vim (OSC 52).** Programs that take over the
+  mouse (tmux with `mouse on`, vim, …) push copies via the OSC 52 escape
+  sequence, which the terminal now honours by writing to the system
+  clipboard; clipboard *reads* (`OSC 52 ?`) are ignored. tmux must emit it
+  with `set -g set-clipboard on` (plus an `Ms` terminal-override). Holding
+  **Shift** while dragging is an alternative that uses xterm's own
+  selection.
+
+- **Fix: "Follow" breaking on fast log tails.** On a busy stream (e.g.
+  `podman-compose logs`) the auto-scroll listener mistook its own scrolling
+  for the user scrolling away, so Follow kept switching off then on. It now
+  ignores its own scrolls, coalesces them to one per animation frame, and
+  stays pinned; trimming to `outputMaxLines` no longer jumps the view.
+
+- **GitHub: remember the token and re-login automatically.** The sign-in
+  dialog has an opt-in **Remember this token** checkbox that saves the PAT
+  under `~/.config/cockpit/explorer/gh-token` (0600, and the dialog shows
+  the path). When gh loses its stored login, Explorer re-authenticates from
+  that token automatically — at startup and when the GitHub panel
+  refreshes. If a GitHub API call is rejected for auth, it re-logins once
+  and retries; if the saved token is also rejected, it prompts for a new
+  one.
+
 ## 1.1.1
 
 - **tmux: Edit `~/.tmux.conf`.** When the user has a `~/.tmux.conf`, the
