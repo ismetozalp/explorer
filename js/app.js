@@ -646,10 +646,11 @@ Alpine.data('explorer', () => ({
                 const idx = Math.max(0, dirTabs.findIndex(t => t.id === this.activeTabId));
                 // tmux terminal tabs (by session name) so they can be re-attached
                 // and restored next launch, in tab order.
-                const tmuxTabs = this.tabs
-                    .filter(t => t.kind === 'terminal')
-                    .map(t => t.tmux || ((t.terminals || []).find(x => x.tmux) || {}).tmux)
-                    .filter(Boolean);
+                // All tmux session names across the tmux container tab, in
+                // sub-tab order, so the whole group is restored next launch.
+                const tmuxTabs = Array.from(new Set(this.tabs
+                    .filter(t => t.kind === 'terminal' && this.termKindOf(t) === 'tmux')
+                    .flatMap(t => (t.terminals || []).filter(x => x.tmux).map(x => x.tmux))));
                 const data = {
                     tabs: dirTabs.map(t => ({ path: t.path, kind: t.kind })),
                     activeIdx: idx,
@@ -5457,6 +5458,16 @@ Alpine.data('explorer', () => ({
     // that are still alive on the tmux server. Any saved session that no
     // longer exists is pruned from the persisted tab list (so it isn't kept
     // around or retried on later loads) and is never opened.
+    // Create an empty tmux container tab (no sessions yet), in the background.
+    // Restore adds sessions synchronously in saved order via this; interactive
+    // session creation still goes through newTmuxTerminalTab.
+    _newTmuxContainerTab() {
+        const raw = this._buildTab(this.homePath || '/', 'terminal');
+        raw.termKind = 'tmux';
+        this.tabs.push(raw);
+        return this.tabs.find(t => t.id === raw.id);
+    },
+
     async _restoreTmuxTabs() {
         const names = this._savedTmuxTabs || [];
         this._savedTmuxTabs = null;
@@ -5467,16 +5478,14 @@ Alpine.data('explorer', () => ({
         try { live = await this._listTmuxSessions(); } catch (e) { return; }
         const liveNames = new Set(live.map(s => s.name));
         let pruned = false;
+        let container = this._tmuxTab();
         for (const name of names) {
-            if (liveNames.has(name)) {
-                if (!this._findTmuxSubtab(name)) this.newTmuxTerminalTab(name, { activate: false });
-            } else {
-                pruned = true;   // saved session is gone — drop it, don't reopen
-            }
+            if (!liveNames.has(name)) { pruned = true; continue; }  // gone → drop
+            if (this._findTmuxSubtab(name)) continue;               // already open
+            if (!container) container = this._newTmuxContainerTab(); // empty tmux tab
+            this.addTmuxSessionToTab(container, name, { mount: false });
         }
-        // Rewrite tabs.yml so dead sessions are removed from the saved list.
-        // _persistTabs rebuilds tmuxTabs from the currently-open tabs, so the
-        // ones we skipped above simply fall out.
+        // Rewrite tabs.yml so dead sessions fall out (rebuilt from open tabs).
         if (pruned) this._persistTabs();
     },
 
