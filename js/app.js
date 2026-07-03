@@ -3,79 +3,6 @@
 
 document.addEventListener('alpine:init', () => {
 
-const DEFAULT_SETTINGS = {
-    showHidden: true,
-    followSymlinks: true,
-    persistTabs: true,
-    columns: { size: true, modified: true, perms: true, owner: true, type: false },
-    previewLimitMB: 10,
-    uploadChunkMB: 4,
-    outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)
-    theme: 'system',           // 'system' | 'light' | 'dark'
-    updateRepo: 'ismetozalp/explorer',  // GitHub owner/repo (or releases URL) to check for updates
-    updateCheckOnStart: true,           // auto-check for a newer release at startup
-    clipboardUploadDir: '/tmp/explorer-clip', // remote dir for pasted terminal images
-    clipboardKeepHours: 24,             // prune clip-* older than this many hours on paste (0 = never)
-};
-
-const USER_ACTIONS_PATH_SUFFIX = '/.config/cockpit/explorer/actions.json';
-const SYSTEM_ACTIONS_PATH = '/etc/cockpit/explorer/actions.json';
-const USER_SCRIPTS_DIR_SUFFIX = '/.config/cockpit/explorer/scripts';
-const SYSTEM_SCRIPTS_DIR = '/etc/cockpit/explorer/scripts';
-// Explorer Script Prompt Protocol: a script asks for input by printing a YAML
-// block between these two sentinel lines, then reading one line from stdin.
-// A block whose `type` is a display type (message/info/progress/…) is shown
-// without asking for input; ===EXPLORER-MESSAGE=== is an alias start marker.
-const PROMPT_START = '===EXPLORER-PROMPT===';
-const MSG_START = '===EXPLORER-MESSAGE===';
-const PROMPT_END = '===EXPLORER-END===';
-const DISPLAY_TYPES = ['message', 'info', 'note', 'notify', 'progress', 'status', 'log'];
-const LS_KEY_TABS = 'explorer:tabs';
-const LS_KEY_SETTINGS = 'explorer:settings';
-
-// Op callbacks (cancel fn, retry-as-admin fn) live OUTSIDE the reactive
-// state. Putting a function on a reactive op object causes Alpine to
-// evaluate it as part of dependency tracking — assigning `op.cancel = fn`
-// was triggering `op.cancel()` to fire immediately, which closed the
-// cockpit channel with problem:'cancelled' before the operation could
-// even run. Storing here, keyed by op.id, sidesteps the reactivity path.
-const _opCallbacks = new Map();
-function _setOpCallback(opId, key, fn) {
-    let entry = _opCallbacks.get(opId);
-    if (!entry) { entry = {}; _opCallbacks.set(opId, entry); }
-    entry[key] = fn;
-}
-function _getOpCallback(opId, key) {
-    const entry = _opCallbacks.get(opId);
-    return entry ? entry[key] : null;
-}
-function _clearOpCallbacks(opId) { _opCallbacks.delete(opId); }
-
-// Integrated terminal instances (v1.1). Same reasoning as _opCallbacks:
-// xterm Terminal / cockpit channel instances must NOT live on Alpine
-// reactive state — Alpine would try to deep-walk them, observe getter
-// side effects, and otherwise break xterm's internals. Keep them
-// purely module-scoped, keyed by tab.id; the reactive `tab.term` carries
-// only plain primitives (open, width, dir).
-const _termInstances = new Map();
-function _setTermInstance(tabId, val) { _termInstances.set(tabId, val); }
-function _getTermInstance(tabId)      { return _termInstances.get(tabId); }
-function _deleteTermInstance(tabId) {
-    const inst = _termInstances.get(tabId);
-    if (!inst) return;
-    try { inst.channel && inst.channel.close('terminated'); } catch (e) {}
-    try { inst.term && inst.term.dispose(); } catch (e) {}
-    _termInstances.delete(tabId);
-}
-
-// Monaco editor + model instances are kept in module scope, NOT in Alpine's
-// reactive state. Monaco objects are enormous and self-referential; letting
-// Vue's reactivity proxy them deep-walks that graph and freezes the page
-// (same reasoning as _termInstances above).
-let _fileEditor = null;                                 // single Monaco instance (reused across editor windows)
-const _winModels = new Map();                           // windowId -> Monaco ITextModel
-let _actionsEditor = null, _actionsEditorModel = null;  // custom-actions JSON/YAML editor
-let _quillEditor = null;                                // WYSIWYG editor (md/html)
 
 Alpine.data('explorer', () => ({
 
@@ -84,7 +11,7 @@ Alpine.data('explorer', () => ({
     activeTabId: null,
     homePath: '/root',
 
-    settings: structuredClone(DEFAULT_SETTINGS),
+    settings: structuredClone(ExRT.const.DEFAULT_SETTINGS),
 
     // Self-update / release-check state
     updateState: { checking: false, available: null, deleteSettings: false },
@@ -277,10 +204,10 @@ Alpine.data('explorer', () => ({
             // Migrate from localStorage if needed
             if (!data) {
                 try {
-                    const raw = localStorage.getItem(LS_KEY_TABS);
+                    const raw = localStorage.getItem(ExRT.const.LS_KEY_TABS);
                     if (raw) {
                         data = JSON.parse(raw);
-                        try { localStorage.removeItem(LS_KEY_TABS); } catch (e) {}
+                        try { localStorage.removeItem(ExRT.const.LS_KEY_TABS); } catch (e) {}
                     }
                 } catch (e) {}
             }
@@ -423,7 +350,7 @@ Alpine.data('explorer', () => ({
             _autoScrollUntil: 0, // ignore 'scroll' events until this timestamp (our own auto-scrolls)
             // ── Terminals (v1.2) ───────────────────────────────────────
             // Reactive collection only; the actual xterm Terminal /
-            // cockpit channel instances live in module-scope _termInstances
+            // cockpit channel instances live in module-scope ExRT.term.map
             // keyed by terminal.id. Used by both kind='dir' (split pane)
             // and kind='terminal' (full-tab terminal stack).
             terminals: [],          // [{ id, dir, label }]
@@ -532,7 +459,7 @@ Alpine.data('explorer', () => ({
         // Clean up streaming output channel
         if (tab.outputChannel) try { tab.outputChannel.close(); } catch(e){}
         // Clean up all terminals owned by this tab (v1.2)
-        try { (tab.terminals || []).forEach(t => _deleteTermInstance(t.id)); } catch(e){}
+        try { (tab.terminals || []).forEach(t => ExRT.term.del(t.id)); } catch(e){}
         this.tabs.splice(idx, 1);
         if (this.activeTabId === id) {
             this.activeTabId = this.tabs[Math.max(0, idx - 1)]?.id || null;
@@ -974,7 +901,7 @@ Alpine.data('explorer', () => ({
             };
             if (admin) chanOpts.superuser = 'require';
             const channel = cockpit.channel(chanOpts);
-            _setOpCallback(op.id, 'cancel', () => { try { channel.close('cancelled'); } catch (e) {} });
+            ExRT.ops.set(op.id, 'cancel', () => { try { channel.close('cancelled'); } catch (e) {} });
             op.canCancel = true;
 
             let fileCount = 0;
@@ -1197,7 +1124,7 @@ Alpine.data('explorer', () => ({
             const chanOpts = { payload: 'stream', spawn: args, err: 'out' };
             if (opts.admin) chanOpts.superuser = 'require';
             const channel = cockpit.channel(chanOpts);
-            _setOpCallback(op.id, 'cancel', () => { try { channel.close('cancelled'); } catch(e){} });
+            ExRT.ops.set(op.id, 'cancel', () => { try { channel.close('cancelled'); } catch(e){} });
             op.canCancel = true;
             let buf = '';
             channel.addEventListener('message', (ev, data) => {
@@ -1509,8 +1436,8 @@ Alpine.data('explorer', () => ({
     activateWindow(id, show) {
         // Snapshot the WYSIWYG buffer of the window we're leaving.
         const prev = this.activeWin();
-        if (prev && prev.id !== id && prev.kind === 'editor' && prev.mode === 'wysiwyg' && _quillEditor) {
-            prev.quillHtml = _quillEditor.root.innerHTML;
+        if (prev && prev.id !== id && prev.kind === 'editor' && prev.mode === 'wysiwyg' && ExRT.quill.editor) {
+            prev.quillHtml = ExRT.quill.editor.root.innerHTML;
         }
         const w = this._win(id);
         if (!w) return;
@@ -1538,11 +1465,11 @@ Alpine.data('explorer', () => ({
     },
 
     _ensureFileEditor() {
-        if (_fileEditor) return;
+        if (ExRT.editor.file) return;
         const container = document.getElementById('monacoContainer');
         if (!container || !window.monaco) return;
         const dark = (document.documentElement.getAttribute('data-bs-theme') === 'dark');
-        _fileEditor = window.monaco.editor.create(container, {
+        ExRT.editor.file = window.monaco.editor.create(container, {
             automaticLayout: true,
             theme: dark ? 'vs-dark' : 'vs',
             fontSize: 13,
@@ -1559,15 +1486,15 @@ Alpine.data('explorer', () => ({
         const w = this.activeWin();
         if (!w || w.kind !== 'editor') return;
         this._ensureFileEditor();
-        const model = _winModels.get(w.id);
-        if (_fileEditor && model && _fileEditor.getModel() !== model) {
-            _fileEditor.setModel(model);
-            _fileEditor.updateOptions({ readOnly: !!w.readOnly });
+        const model = ExRT.editor.models.get(w.id);
+        if (ExRT.editor.file && model && ExRT.editor.file.getModel() !== model) {
+            ExRT.editor.file.setModel(model);
+            ExRT.editor.file.updateOptions({ readOnly: !!w.readOnly });
         }
         if (w.mode === 'wysiwyg') {
             this._mountQuill(w.quillHtml != null ? w.quillHtml : '');
         }
-        if (_fileEditor) { try { _fileEditor.layout(); if (w.mode === 'code') _fileEditor.focus(); } catch (e) {} }
+        if (ExRT.editor.file) { try { ExRT.editor.file.layout(); if (w.mode === 'code') ExRT.editor.file.focus(); } catch (e) {} }
     },
 
     // ───── Editor (Monaco + Quill WYSIWYG) ──────────────────────────────────
@@ -1616,7 +1543,7 @@ Alpine.data('explorer', () => ({
         const id = this._newWinId();
         const model = window.monaco.editor.createModel(content || '', lang);
         model.onDidChangeContent(() => { const ww = this._win(id); if (ww && !ww.readOnly) ww.dirty = true; });
-        _winModels.set(id, model);
+        ExRT.editor.models.set(id, model);
 
         this.windows.push({
             id, kind: 'editor', path: file.path, title: this._winTitle(file.path, 'editor'),
@@ -1633,7 +1560,7 @@ Alpine.data('explorer', () => ({
         catch (e) { this.toast('Failed to load editor: ' + (e.message || e), 'danger'); return; }
         const id = this._newWinId();
         const model = window.monaco.editor.createModel(content || '', lang || 'plaintext');
-        _winModels.set(id, model);
+        ExRT.editor.models.set(id, model);
         this.windows.push({
             id, kind: 'editor', path: null, title: title || 'View', lang: lang || '',
             mode: 'code', dirty: false, isMarkdown: false, isHtml: false, canWysiwyg: false,
@@ -1649,7 +1576,7 @@ Alpine.data('explorer', () => ({
         container.innerHTML = '';
         const editorDiv = document.createElement('div');
         container.appendChild(editorDiv);
-        _quillEditor = new window.Quill(editorDiv, {
+        ExRT.quill.editor = new window.Quill(editorDiv, {
             theme: 'snow',
             modules: { toolbar: [
                 [{ header: [1, 2, 3, false] }],
@@ -1662,8 +1589,8 @@ Alpine.data('explorer', () => ({
                 ['clean'],
             ] },
         });
-        _quillEditor.root.innerHTML = htmlContent || '';
-        _quillEditor.on('text-change', () => { const w = this.activeWin(); if (w && w.kind === 'editor') w.dirty = true; });
+        ExRT.quill.editor.root.innerHTML = htmlContent || '';
+        ExRT.quill.editor.on('text-change', () => { const w = this.activeWin(); if (w && w.kind === 'editor') w.dirty = true; });
     },
 
     async setEditorMode(mode) {
@@ -1671,34 +1598,34 @@ Alpine.data('explorer', () => ({
         if (!w || w.kind !== 'editor') return;
         if (mode === w.mode) return;
         if (!w.canWysiwyg && mode === 'wysiwyg') return;
-        if (w.mode === 'code' && _fileEditor) {
-            const code = _fileEditor.getValue();
+        if (w.mode === 'code' && ExRT.editor.file) {
+            const code = ExRT.editor.file.getValue();
             let html;
             if (w.isMarkdown) { await this._ensureMarked(); html = window.marked.parse(code); }
             else html = code;
             w.mode = 'wysiwyg';
             w.quillHtml = html;
             this.$nextTick(() => this._mountQuill(html));
-        } else if (w.mode === 'wysiwyg' && _quillEditor) {
-            const html = _quillEditor.root.innerHTML;
+        } else if (w.mode === 'wysiwyg' && ExRT.quill.editor) {
+            const html = ExRT.quill.editor.root.innerHTML;
             let code;
             if (w.isMarkdown) { await this._ensureTurndown(); const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }); code = td.turndown(html); }
             else code = html;
             w.mode = 'code';
             w.quillHtml = null;
-            const m = _winModels.get(w.id); if (m) m.setValue(code);
-            this.$nextTick(() => { if (_fileEditor) _fileEditor.focus(); });
+            const m = ExRT.editor.models.get(w.id); if (m) m.setValue(code);
+            this.$nextTick(() => { if (ExRT.editor.file) ExRT.editor.file.focus(); });
         }
     },
 
     async _getEditorContent() {
         const w = this.activeWin();
-        if (w && w.kind === 'editor' && w.mode === 'wysiwyg' && _quillEditor) {
-            const html = _quillEditor.root.innerHTML;
+        if (w && w.kind === 'editor' && w.mode === 'wysiwyg' && ExRT.quill.editor) {
+            const html = ExRT.quill.editor.root.innerHTML;
             if (w.isMarkdown) { await this._ensureTurndown(); const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }); return td.turndown(html); }
             return html;
         }
-        const m = w ? _winModels.get(w.id) : null;
+        const m = w ? ExRT.editor.models.get(w.id) : null;
         if (m) return m.getValue();
         return w ? w.original : '';
     },
@@ -1757,11 +1684,11 @@ Alpine.data('explorer', () => ({
             // Point Monaco at the new active window first, then free resources.
             if (this.activeWinId) this._syncActiveEditor();
             if (w.kind === 'editor') {
-                const m = _winModels.get(id);
+                const m = ExRT.editor.models.get(id);
                 if (m) {
-                    if (_fileEditor && _fileEditor.getModel() === m) _fileEditor.setModel(null);
+                    if (ExRT.editor.file && ExRT.editor.file.getModel() === m) ExRT.editor.file.setModel(null);
                     try { m.dispose(); } catch (e) {}
-                    _winModels.delete(id);
+                    ExRT.editor.models.delete(id);
                 }
             } else if (w.pv && w.pv.url) {
                 try { URL.revokeObjectURL(w.pv.url); } catch (e) {}
@@ -2063,7 +1990,7 @@ Alpine.data('explorer', () => ({
                 };
                 if (opts.admin) chanOpts.superuser = 'require';
                 const channel = cockpit.channel(chanOpts);
-                _setOpCallback(op.id, 'cancel', () => { op._cancelled = true; try { channel.close('cancelled'); } catch (e) {} });
+                ExRT.ops.set(op.id, 'cancel', () => { op._cancelled = true; try { channel.close('cancelled'); } catch (e) {} });
                 op.canCancel = true;
                 channel.addEventListener('close', (ev, info) => {
                     const problem = info && info.problem;
@@ -2105,7 +2032,7 @@ Alpine.data('explorer', () => ({
     // context is required here. Best-effort prune of old clip-* files first.
     async _uploadClipboardImageBlob(blob, termId) {
         if (!blob) return;
-        const inst = _getTermInstance(termId);
+        const inst = ExRT.term.get(termId);
         if (!inst || !inst.channel) { this.toast('Terminal not ready for paste', 'warning'); return; }
 
         const dir = (this.settings.clipboardUploadDir || '/tmp/explorer-clip').replace(/\/+$/, '') || '/';
@@ -2145,7 +2072,7 @@ Alpine.data('explorer', () => ({
     // which exposes image data even on http.
     async pasteClipboardImageToTerminal(tab) {
         const termId = tab && tab.activeTermId;
-        if (!termId || !_getTermInstance(termId)) { this.toast('No active terminal', 'warning'); return; }
+        if (!termId || !ExRT.term.get(termId)) { this.toast('No active terminal', 'warning'); return; }
 
         if (navigator.clipboard && navigator.clipboard.read) {
             try {
@@ -2236,7 +2163,7 @@ Alpine.data('explorer', () => ({
         op.indeterminate = true;
         op.statusText = 'Scanning…';
         op.canCancel = true;
-        _setOpCallback(op.id, 'cancel', () => { op._cancelled = true; });
+        ExRT.ops.set(op.id, 'cancel', () => { op._cancelled = true; });
         const acc = { dirs: [], files: [] };
         try {
             for (const en of entries) {
@@ -2536,8 +2463,8 @@ Alpine.data('explorer', () => ({
 
     async _loadCustomActions(scope) {
         const path = scope === 'user'
-            ? this.homePath + USER_ACTIONS_PATH_SUFFIX
-            : SYSTEM_ACTIONS_PATH;
+            ? this.homePath + ExRT.const.USER_ACTIONS_PATH_SUFFIX
+            : ExRT.const.SYSTEM_ACTIONS_PATH;
         try {
             const txt = await FS.readText(path);
             if (txt) {
@@ -2643,8 +2570,8 @@ Alpine.data('explorer', () => ({
         if (!this._commitActionCode()) return; // codeError already set & shown
         const scope = this.actionsMgr.scope;
         const path = scope === 'user'
-            ? this.homePath + USER_ACTIONS_PATH_SUFFIX
-            : SYSTEM_ACTIONS_PATH;
+            ? this.homePath + ExRT.const.USER_ACTIONS_PATH_SUFFIX
+            : ExRT.const.SYSTEM_ACTIONS_PATH;
         const dir = Util.dirname(path);
         const data = JSON.stringify({ actions: this.customActions[scope] }, null, 2);
         this.actionsMgr.error = '';
@@ -2790,8 +2717,8 @@ Alpine.data('explorer', () => ({
         if (!this._commitActionCode()) return; // parse error in current format
         this.actionsMgr.codeFormat = format;
         this._loadActionIntoCode();
-        if (_actionsEditorModel && window.monaco) {
-            try { window.monaco.editor.setModelLanguage(_actionsEditorModel, format === 'yaml' ? 'yaml' : 'json'); } catch (e) {}
+        if (ExRT.actionsEditor.model && window.monaco) {
+            try { window.monaco.editor.setModelLanguage(ExRT.actionsEditor.model, format === 'yaml' ? 'yaml' : 'json'); } catch (e) {}
         }
     },
 
@@ -2808,9 +2735,9 @@ Alpine.data('explorer', () => ({
     // ── Monaco-backed code editor for the actions JSON/YAML ──────────────
     _setActionsCode(text) {
         this.actionsMgr.codeText = text;
-        if (_actionsEditorModel) {
+        if (ExRT.actionsEditor.model) {
             this._actionsCodeSyncing = true;
-            try { _actionsEditorModel.setValue(text); } catch (e) {}
+            try { ExRT.actionsEditor.model.setValue(text); } catch (e) {}
             this._actionsCodeSyncing = false;
         }
     },
@@ -2824,9 +2751,9 @@ Alpine.data('explorer', () => ({
         this._disposeActionsMonaco();
         const lang = this.actionsMgr.codeFormat === 'yaml' ? 'yaml' : 'json';
         const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        _actionsEditorModel = window.monaco.editor.createModel(this.actionsMgr.codeText || '', lang);
-        _actionsEditor = window.monaco.editor.create(el, {
-            model: _actionsEditorModel,
+        ExRT.actionsEditor.model = window.monaco.editor.createModel(this.actionsMgr.codeText || '', lang);
+        ExRT.actionsEditor.editor = window.monaco.editor.create(el, {
+            model: ExRT.actionsEditor.model,
             automaticLayout: true,
             minimap: { enabled: false },
             fontSize: 13,
@@ -2834,16 +2761,16 @@ Alpine.data('explorer', () => ({
             scrollBeyondLastLine: false,
             theme: dark ? 'vs-dark' : 'vs',
         });
-        _actionsEditorModel.onDidChangeContent(() => {
+        ExRT.actionsEditor.model.onDidChangeContent(() => {
             if (this._actionsCodeSyncing) return;
-            this.actionsMgr.codeText = _actionsEditor.getValue();
+            this.actionsMgr.codeText = ExRT.actionsEditor.editor.getValue();
         });
         this.actionsMgr.monacoFailed = false;
     },
 
     _disposeActionsMonaco() {
-        if (_actionsEditor) { try { _actionsEditor.dispose(); } catch (e) {} _actionsEditor = null; }
-        if (_actionsEditorModel) { try { _actionsEditorModel.dispose(); } catch (e) {} _actionsEditorModel = null; }
+        if (ExRT.actionsEditor.editor) { try { ExRT.actionsEditor.editor.dispose(); } catch (e) {} ExRT.actionsEditor.editor = null; }
+        if (ExRT.actionsEditor.model) { try { ExRT.actionsEditor.model.dispose(); } catch (e) {} ExRT.actionsEditor.model = null; }
     },
 
     // A brand-new action starts with all fields empty, so its JSON/YAML view
@@ -3113,7 +3040,7 @@ Alpine.data('explorer', () => ({
         op.outputBuffer = '';
         try {
             const proc = cockpit.spawn(['sh', '-c', cmd], { ...FS.spawnOpts(adminFlag), err: 'out' });
-            _setOpCallback(op.id, 'cancel', () => { try { proc.close('cancelled'); } catch (e) {} });
+            ExRT.ops.set(op.id, 'cancel', () => { try { proc.close('cancelled'); } catch (e) {} });
             op.canCancel = true;
             proc.stream(d => { if (op.outputBuffer != null) op.outputBuffer += d; });
             await proc;
@@ -3224,7 +3151,7 @@ Alpine.data('explorer', () => ({
         }
         try {
             const proc = cockpit.spawn(['sh', '-c', cmd], { ...FS.spawnOpts(adminFlag), err: 'out' });
-            _setOpCallback(op.id, 'cancel', () => { try { proc.close('cancelled'); } catch(e){} });
+            ExRT.ops.set(op.id, 'cancel', () => { try { proc.close('cancelled'); } catch(e){} });
             op.canCancel = true;
             proc.stream(data => { if (op.outputBuffer != null) op.outputBuffer += data; });
             const result = await proc;
@@ -4352,13 +4279,13 @@ Alpine.data('explorer', () => ({
         this.operations.push(op);
         // Return the reactive proxy (see comment) so plain-property mutations
         // (statusText, progress, status, …) trigger UI updates. Callbacks
-        // (cancel, retryAsAdmin) are stored separately in _opCallbacks and
+        // (cancel, retryAsAdmin) are stored separately in ExRT.ops.cbs and
         // never touch the proxy.
         return this.operations[this.operations.length - 1];
     },
 
     cancelOp(op) {
-        const fn = _getOpCallback(op.id, 'cancel');
+        const fn = ExRT.ops.get(op.id, 'cancel');
         if (fn) try { fn(); } catch (e) { console.error('cancel failed:', e); }
     },
 
@@ -4370,7 +4297,7 @@ Alpine.data('explorer', () => ({
         setTimeout(() => {
             const idx = this.operations.findIndex(o => o.id === op.id);
             if (idx >= 0 && this.operations[idx].status === 'done') {
-                _clearOpCallbacks(op.id);
+                ExRT.ops.clear(op.id);
                 this.operations.splice(idx, 1);
             }
         }, 4000);
@@ -4382,12 +4309,12 @@ Alpine.data('explorer', () => ({
         op.canCancel = false;
         if (retryAsAdminFn && (err.permissionDenied || /permission|EACCES/i.test(err.message || ''))) {
             op.canRetryAsAdmin = true;
-            _setOpCallback(op.id, 'retryAsAdmin', retryAsAdminFn);
+            ExRT.ops.set(op.id, 'retryAsAdmin', retryAsAdminFn);
         }
     },
 
     async retryAsAdmin(op) {
-        const fn = _getOpCallback(op.id, 'retryAsAdmin');
+        const fn = ExRT.ops.get(op.id, 'retryAsAdmin');
         if (!fn) return;
         op.status = 'running';
         op.statusText = '';
@@ -4406,7 +4333,7 @@ Alpine.data('explorer', () => ({
         const keep = [];
         for (const o of this.operations) {
             if (o.status === 'running') keep.push(o);
-            else _clearOpCallbacks(o.id);
+            else ExRT.ops.clear(o.id);
         }
         this.operations = keep;
     },
@@ -4514,8 +4441,8 @@ Alpine.data('explorer', () => ({
     // Where a scope's uploaded scripts live (sibling of its actions.json).
     _scriptsDir(scope) {
         return (scope === 'system' || scope === 'builtin')
-            ? SYSTEM_SCRIPTS_DIR
-            : (this.homePath || '') + USER_SCRIPTS_DIR_SUFFIX;
+            ? ExRT.const.SYSTEM_SCRIPTS_DIR
+            : (this.homePath || '') + ExRT.const.USER_SCRIPTS_DIR_SUFFIX;
     },
     _actionScope(action) {
         if (action && action._source) return action._source;   // menu passes a copy tagged with its source
@@ -4545,7 +4472,7 @@ Alpine.data('explorer', () => ({
     },
 
     // Run a command in a streaming output tab that understands the prompt
-    // protocol: stdout is scanned for PROMPT_START..PROMPT_END blocks; each is
+    // protocol: stdout is scanned for ExRT.const.PROMPT_START..ExRT.const.PROMPT_END blocks; each is
     // parsed as YAML and turned into a dialog whose answer is written back to
     // the script's stdin (kept open), so the script's `read` continues.
     async _runInteractivePane(action, cmd, files) {
@@ -4576,8 +4503,8 @@ Alpine.data('explorer', () => ({
 
         const handleLine = async (line) => {
             const t = line.trim();
-            if (!inPrompt && (t === PROMPT_START || t === MSG_START)) { inPrompt = true; promptLines = []; return; }
-            if (inPrompt && t === PROMPT_END) {
+            if (!inPrompt && (t === ExRT.const.PROMPT_START || t === ExRT.const.MSG_START)) { inPrompt = true; promptLines = []; return; }
+            if (inPrompt && t === ExRT.const.PROMPT_END) {
                 inPrompt = false;
                 await this._handleScriptPrompt(rtab, channel, promptLines.join('\n'));
                 return;
@@ -4633,7 +4560,7 @@ Alpine.data('explorer', () => ({
         const message = spec.message || spec.prompt || '';
 
         // Display-only block: show it and let the script continue (no stdin write).
-        if (DISPLAY_TYPES.includes(type)) {
+        if (ExRT.const.DISPLAY_TYPES.includes(type)) {
             const text = spec.text != null ? String(spec.text)
                        : spec.message != null ? String(spec.message)
                        : (spec.title || '');
@@ -4675,8 +4602,8 @@ Alpine.data('explorer', () => ({
     // Where a scope's uploaded scripts live (sibling of its actions.json).
     _scriptsDir(scope) {
         return (scope === 'system' || scope === 'builtin')
-            ? SYSTEM_SCRIPTS_DIR
-            : (this.homePath || '') + USER_SCRIPTS_DIR_SUFFIX;
+            ? ExRT.const.SYSTEM_SCRIPTS_DIR
+            : (this.homePath || '') + ExRT.const.USER_SCRIPTS_DIR_SUFFIX;
     },
     _actionScope(action) {
         if (action && action._source) return action._source;   // menu passes a copy tagged with its source
@@ -4686,7 +4613,7 @@ Alpine.data('explorer', () => ({
     },
 
     // Run a command in a streaming output tab that understands the prompt
-    // protocol: stdout is scanned for PROMPT_START..PROMPT_END blocks; each is
+    // protocol: stdout is scanned for ExRT.const.PROMPT_START..ExRT.const.PROMPT_END blocks; each is
     // parsed as YAML and turned into a dialog whose answer is written back to
     // the script's stdin (kept open), so the script's `read` continues.
     async _runInteractivePane(action, cmd, files) {
@@ -4717,8 +4644,8 @@ Alpine.data('explorer', () => ({
 
         const handleLine = async (line) => {
             const t = line.trim();
-            if (!inPrompt && (t === PROMPT_START || t === MSG_START)) { inPrompt = true; promptLines = []; return; }
-            if (inPrompt && t === PROMPT_END) {
+            if (!inPrompt && (t === ExRT.const.PROMPT_START || t === ExRT.const.MSG_START)) { inPrompt = true; promptLines = []; return; }
+            if (inPrompt && t === ExRT.const.PROMPT_END) {
                 inPrompt = false;
                 await this._handleScriptPrompt(rtab, channel, promptLines.join('\n'));
                 return;
@@ -4774,7 +4701,7 @@ Alpine.data('explorer', () => ({
         const message = spec.message || spec.prompt || '';
 
         // Display-only block: show it and let the script continue (no stdin write).
-        if (DISPLAY_TYPES.includes(type)) {
+        if (ExRT.const.DISPLAY_TYPES.includes(type)) {
             const text = spec.text != null ? String(spec.text)
                        : spec.message != null ? String(spec.message)
                        : (spec.title || '');
@@ -4857,12 +4784,12 @@ Alpine.data('explorer', () => ({
         // Fallback migration from old localStorage settings (if any)
         if (!loaded) {
             try {
-                const raw = localStorage.getItem(LS_KEY_SETTINGS);
+                const raw = localStorage.getItem(ExRT.const.LS_KEY_SETTINGS);
                 if (raw) {
                     loaded = JSON.parse(raw);
                     // Best-effort migrate to YAML on disk
                     await this._writeSettingsYaml(loaded);
-                    try { localStorage.removeItem(LS_KEY_SETTINGS); } catch (e) {}
+                    try { localStorage.removeItem(ExRT.const.LS_KEY_SETTINGS); } catch (e) {}
                 }
             } catch (e) {}
         }
@@ -4871,9 +4798,9 @@ Alpine.data('explorer', () => ({
             // Deep-merge over defaults so new fields don't disappear
             Object.assign(this.settings, loaded);
             // columns is a nested object — merge defaults under it
-            this.settings.columns = Object.assign({}, DEFAULT_SETTINGS.columns, loaded.columns || {});
+            this.settings.columns = Object.assign({}, ExRT.const.DEFAULT_SETTINGS.columns, loaded.columns || {});
         }
-        if (!this.settings.columns) this.settings.columns = structuredClone(DEFAULT_SETTINGS.columns);
+        if (!this.settings.columns) this.settings.columns = structuredClone(ExRT.const.DEFAULT_SETTINGS.columns);
 
         // Apply theme & track system-preference changes if 'system' mode
         this.applyTheme();
@@ -5195,9 +5122,9 @@ Alpine.data('explorer', () => ({
     //   tab.kind='terminal' — full-tab terminal stack, no file list
     //
     // The xterm Terminal + cockpit channel for each terminal live in the
-    // module-scope _termInstances Map keyed by *terminal* id (not tab id).
+    // module-scope ExRT.term.map Map keyed by *terminal* id (not tab id).
     // Keeping them out of Alpine's reactive walk is essential — same lesson
-    // as _opCallbacks (operations cancel-fn bug, v1.0.4).
+    // as ExRT.ops.cbs (operations cancel-fn bug, v1.0.4).
 
     _defaultTermLabel(dir, existing) {
         let base = Util.basename(dir) || '/';
@@ -5484,7 +5411,7 @@ Alpine.data('explorer', () => ({
     _ensureTerminalsMounted(tab) {
         if (!tab || tab.kind !== 'terminal' || !tab.terminals) return;
         for (const t of tab.terminals) {
-            if (!_getTermInstance(t.id)) {
+            if (!ExRT.term.get(t.id)) {
                 this.$nextTick(() => this._mountTerminal(t.id, t.dir));
             }
         }
@@ -5612,7 +5539,7 @@ Alpine.data('explorer', () => ({
         // Newly-visible xterm has stale dimensions if it was display:none;
         // refit and refocus on next tick.
         this.$nextTick(() => {
-            const inst = _getTermInstance(termId);
+            const inst = ExRT.term.get(termId);
             if (inst) {
                 try { inst.fitAddon.fit(); } catch (e) {}
                 try { inst.term.focus(); } catch (e) {}
@@ -5625,11 +5552,11 @@ Alpine.data('explorer', () => ({
         const idx = tab.terminals.findIndex(t => t.id === termId);
         if (idx < 0) return;
 
-        const inst = _getTermInstance(termId);
+        const inst = ExRT.term.get(termId);
         if (inst && inst.onWinResize) {
             try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {}
         }
-        _deleteTermInstance(termId);
+        ExRT.term.del(termId);
 
         tab.terminals.splice(idx, 1);
 
@@ -5655,11 +5582,11 @@ Alpine.data('explorer', () => ({
         if (!tab || !tab.terminals) return;
         const ids = tab.terminals.map(t => t.id);
         for (const id of ids) {
-            const inst = _getTermInstance(id);
+            const inst = ExRT.term.get(id);
             if (inst && inst.onWinResize) {
                 try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {}
             }
-            _deleteTermInstance(id);
+            ExRT.term.del(id);
         }
         tab.terminals = [];
         tab.activeTermId = null;
@@ -5866,13 +5793,13 @@ Alpine.data('explorer', () => ({
         });
 
         const onWinResize = () => {
-            const inst = _getTermInstance(termId);
+            const inst = ExRT.term.get(termId);
             if (!inst) return;
             try { inst.fitAddon.fit(); } catch (e) {}
         };
         window.addEventListener('resize', onWinResize);
 
-        _setTermInstance(termId, { term: xterm, channel, fitAddon, container, onWinResize });
+        ExRT.term.set(termId, { term: xterm, channel, fitAddon, container, onWinResize });
 
         // Final fit + force initial PTY resize. Without an initial control
         // message, some shells start with 80x24 default and don't redraw.
@@ -5910,7 +5837,7 @@ Alpine.data('explorer', () => ({
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
             if (tab.activeTermId) {
-                const inst = _getTermInstance(tab.activeTermId);
+                const inst = ExRT.term.get(tab.activeTermId);
                 if (inst) { try { inst.fitAddon.fit(); } catch (e) {} }
             }
         };
@@ -6179,7 +6106,7 @@ Alpine.data('explorer', () => ({
     // ───── Update check / self-update from GitHub releases ─────────────────
     // Normalise the configured update source to "owner/repo".
     _updateRepo() {
-        let r = String(this.settings.updateRepo || DEFAULT_SETTINGS.updateRepo).trim();
+        let r = String(this.settings.updateRepo || ExRT.const.DEFAULT_SETTINGS.updateRepo).trim();
         const m = r.match(/github\.com[\/:]([^\/]+\/[^\/#?]+)/i);
         if (m) r = m[1];
         return r.replace(/\.git$/i, '').replace(/\/+$/, '');
