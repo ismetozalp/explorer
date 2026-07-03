@@ -428,6 +428,7 @@ Alpine.data('explorer', () => ({
             // and kind='terminal' (full-tab terminal stack).
             terminals: [],          // [{ id, dir, label }]
             activeTermId: null,
+            termKind: 'plain',      // terminal tabs: 'plain' | 'tmux' (source of truth)
             splitOpen: false,       // dir tabs: is the terminal pane visible?
             splitWidth: 480,        // single-pane: terminal pane width (vertical split)
             splitHeight: 260,       // dual-pane: terminal pane height (horizontal split)
@@ -559,9 +560,24 @@ Alpine.data('explorer', () => ({
     activeTab() { return this.tabs.find(t => t.id === this.activeTabId); },
     currentTab() { return this.activeTab(); },
 
+    // Terminal tabs are either a stack of plain shells ('plain') or a group of
+    // tmux sessions ('tmux'). termKind is the source of truth; fall back to
+    // inferring it for tabs persisted before the field existed.
+    termKindOf(tab) {
+        if (!tab || tab.kind !== 'terminal') return '';
+        if (tab.termKind) return tab.termKind;
+        return (tab.tmux || (tab.terminals || []).some(t => t.tmux)) ? 'tmux' : 'plain';
+    },
+
     tabLabel(tab) {
         if (tab.kind === 'output') return '▶ ' + (tab.outputActionLabel || 'output');
-        if (tab.kind === 'terminal') return tab.tmux ? ('▤ ' + tab.tmux) : '▤ Terminal';
+        if (tab.kind === 'terminal') {
+            if (this.termKindOf(tab) === 'tmux') {
+                const act = (tab.terminals || []).find(t => t.id === tab.activeTermId);
+                return '⧉ ' + ((act && act.tmux) || 'tmux');
+            }
+            return '❯ Terminal';
+        }
         if (tab.path === '/') return '/';
         return Util.basename(tab.path) || tab.path;
     },
@@ -569,7 +585,7 @@ Alpine.data('explorer', () => ({
     // Sub-tab label: tmux session name for tmux terminals, else the live cwd.
     termLabel(t) {
         if (!t) return '';
-        return t.tmux ? ('⧉ ' + t.tmux) : this.shortenTermPath(t.dir);
+        return t.tmux ? ('⧉ ' + t.tmux) : ('❯ ' + this.shortenTermPath(t.dir));
     },
 
     // Front-truncate a path to fit a sub-tab, keeping whole trailing segments:
@@ -5371,7 +5387,8 @@ Alpine.data('explorer', () => ({
         const activate = opts.activate !== false;
         const dir = this.activeTab()?.path || this.homePath || '/';
         const raw = this._buildTab(dir, 'terminal');
-        raw.tmux = name;                               // tab-level marker (label, persistence)
+        raw.termKind = 'tmux';                          // kind marker (label, routing, "+")
+        raw.tmux = name;                               // tab-level marker (persistence, until Task 4)
         this.tabs.push(raw);
         const reactive = this.tabs.find(t => t.id === raw.id);
         if (activate) this.activeTabId = raw.id;
