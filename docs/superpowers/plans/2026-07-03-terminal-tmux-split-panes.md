@@ -288,20 +288,17 @@ Replace the whole `openTmuxSession(name) { … }` method (lines 5327–5338) wit
     },
 ```
 
-- [ ] **Step 3: Mark the container tab as `termKind: 'tmux'`**
+- [ ] **Step 3: Confirm the container tab is marked `termKind: 'tmux'`**
 
-In `newTmuxTerminalTab` (lines 5373–5374), replace:
-
-```js
-        const raw = this._buildTab(dir, 'terminal');
-        raw.tmux = name;                               // tab-level marker (label, persistence)
-```
-
-with:
+This was already applied in Task 1 (to keep every intermediate commit
+correct): `newTmuxTerminalTab` now sets `raw.termKind = 'tmux';` alongside
+`raw.tmux = name;`. No edit needed here — just confirm both lines are present
+in `newTmuxTerminalTab` (~line 5390):
 
 ```js
         const raw = this._buildTab(dir, 'terminal');
-        raw.termKind = 'tmux';                          // kind marker (label, persistence, "+")
+        raw.termKind = 'tmux';                          // kind marker (label, routing, "+")
+        raw.tmux = name;                               // tab-level marker (persistence, until Task 4)
 ```
 
 - [ ] **Step 4: Update `killTmuxSession`'s tab lookup**
