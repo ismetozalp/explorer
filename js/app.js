@@ -14,6 +14,8 @@ const DEFAULT_SETTINGS = {
     theme: 'system',           // 'system' | 'light' | 'dark'
     updateRepo: 'ismetozalp/explorer',  // GitHub owner/repo (or releases URL) to check for updates
     updateCheckOnStart: true,           // auto-check for a newer release at startup
+    clipboardUploadDir: '/tmp/explorer-clip', // remote dir for pasted terminal images
+    clipboardKeepHours: 24,             // prune clip-* older than this many hours on paste (0 = never)
 };
 
 const USER_ACTIONS_PATH_SUFFIX = '/.config/cockpit/explorer/actions.json';
@@ -2064,6 +2066,60 @@ Alpine.data('explorer', () => ({
             };
             r.readAsDataURL(file);
         });
+    },
+
+    // Map an image MIME type to a filename extension for pasted clipboard images.
+    _clipImageExt(mime) {
+        switch ((mime || '').toLowerCase()) {
+            case 'image/png':     return 'png';
+            case 'image/jpeg':    return 'jpg';
+            case 'image/gif':     return 'gif';
+            case 'image/webp':    return 'webp';
+            case 'image/bmp':     return 'bmp';
+            case 'image/svg+xml': return 'svg';
+            default:              return 'png';
+        }
+    },
+
+    // Upload a clipboard image Blob (already extracted in the browser) to the
+    // remote clipboardUploadDir, then type its path + Enter into the given
+    // terminal (→ tmux active pane → Claude). Cross-protocol: the Blob was
+    // obtained by the caller from a paste event or clipboard read, so no secure
+    // context is required here. Best-effort prune of old clip-* files first.
+    async _uploadClipboardImageBlob(blob, termId) {
+        if (!blob) return;
+        const inst = _getTermInstance(termId);
+        if (!inst || !inst.channel) { this.toast('Terminal not ready for paste', 'warning'); return; }
+
+        const dir = (this.settings.clipboardUploadDir || '/tmp/explorer-clip').replace(/\/+$/, '') || '/';
+        const ext = this._clipImageExt(blob.type);
+        const rand = Math.random().toString(36).slice(2, 8);
+        const dest = Util.joinPath(dir, `clip-${Date.now()}-${rand}.${ext}`);
+
+        const op = this._beginOp('Paste image');
+        try {
+            await FS.mkdir(dir);
+            const hours = Number(this.settings.clipboardKeepHours);
+            if (Number.isFinite(hours) && hours > 0) {
+                const mins = Math.round(hours * 60);
+                try {
+                    await cockpit.spawn(
+                        ['find', dir, '-maxdepth', '1', '-name', 'clip-*', '-type', 'f', '-mmin', '+' + mins, '-delete'],
+                        { err: 'ignore' });
+                } catch (e) { /* prune is best-effort */ }
+            }
+            await this._doUpload(op, dest, blob, {});
+            this._endOp(op, 'done');
+        } catch (e) {
+            console.error('Clipboard image upload failed:', e, 'dest:', dest);
+            this._failOp(op, e);
+            this.toast('Could not save pasted image: ' + (e.message || e), 'danger');
+            return;
+        }
+
+        try { inst.channel.send(dest + '\r'); } catch (e) {}
+        try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(dest).catch(() => {}); } catch (e) {}
+        this.toast('Pasted image → ' + dest, 'success');
     },
 
     // Recursively flatten a dropped FileSystemEntry tree into
