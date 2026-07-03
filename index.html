@@ -426,7 +426,7 @@
       <!-- ===== TERMINAL TAB (full-pane multi-terminal) (v1.2) ===== -->
       <template x-if="tab.kind === 'terminal'">
         <div class="terminal-tab-body">
-            <div class="term-stack">
+            <div class="term-stack" :class="'term-stack--' + termKindOf(tab)">
                 <div class="term-tabbar">
                     <template x-for="t in (tab.terminals || [])" :key="t.id">
                         <div class="term-subtab"
