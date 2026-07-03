@@ -7,10 +7,9 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const files = ['js/app.js'];
+for (const sub of ['js/features', 'js/core']) { const d = path.join(root, sub); if (fs.existsSync(d)) for (const f of fs.readdirSync(d).sort()) if (f.endsWith('.js')) files.push(sub + '/' + f); }
 const featDir = path.join(root, 'js/features');
-if (fs.existsSync(featDir)) {
-    for (const f of fs.readdirSync(featDir).sort()) if (f.endsWith('.js')) files.push('js/features/' + f);
-}
+// (features + core loaded above)
 
 // Collect member keys at 4-space indent (`name(...) {` or `name: value`), the
 // one level of indentation the component's own members sit at inside both
