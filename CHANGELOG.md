@@ -2,6 +2,22 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.5
+
+- **Fix: copying selected text from a file Preview did nothing.** The global
+  Ctrl/⌘+C shortcut (which stages files for paste) was hijacking the keypress
+  even when you had text selected in a read-only preview, so the browser's own
+  copy never ran. Copy/Cut now only stage files when no text is selected;
+  otherwise the keypress falls through to the native copy. Also fixes Ctrl/⌘+X.
+
+- **Copy on non-secure (http) origins.** `navigator.clipboard` only exists on a
+  secure origin, so on a plain-`http://` Cockpit the clipboard writes that used
+  it silently failed. The tmux/vim **OSC 52** copy and the *Open in terminal*
+  `cd`-command copy now fall back to `execCommand`, so they work (best-effort)
+  on http too. **For reliable terminal/tmux copy, use `https://`** — Cockpit
+  serves it by default on port 9090; the browser blocks async clipboard writes
+  from a terminal on http regardless.
+
 ## 1.1.4
 
 - **Terminal & tmux panes are now fully separated.** A terminal tab is a

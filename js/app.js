@@ -4943,8 +4943,15 @@ Alpine.data('explorer', () => ({
             if (sel.length === 1) { ev.preventDefault(); this.openFile(pane, sel[0]); }
             return;
         }
-        if (ctrl && ev.key.toLowerCase() === 'c' && tab) { ev.preventDefault(); this.copyToClipboard('copy'); return; }
-        if (ctrl && ev.key.toLowerCase() === 'x' && tab) { ev.preventDefault(); this.copyToClipboard('cut'); return; }
+        // Only stage files for Copy/Cut when the user isn't selecting text. A
+        // live text selection (e.g. in a file Preview's <pre>, which is not a
+        // form field so `inField` above is false) must fall through to the
+        // browser's native copy — otherwise Ctrl/⌘+C is hijacked into file-copy
+        // and selected text can never be copied. Normal file browsing keeps
+        // file names unselectable (user-select:none), so this stays empty then.
+        const hasTextSelection = !!(window.getSelection && String(window.getSelection()).trim());
+        if (ctrl && ev.key.toLowerCase() === 'c' && tab && !hasTextSelection) { ev.preventDefault(); this.copyToClipboard('copy'); return; }
+        if (ctrl && ev.key.toLowerCase() === 'x' && tab && !hasTextSelection) { ev.preventDefault(); this.copyToClipboard('cut'); return; }
         if (ctrl && ev.key.toLowerCase() === 'v' && tab) { ev.preventDefault(); this.paste(); return; }
         if (ctrl && ev.key.toLowerCase() === 'a' && pane) {
             ev.preventDefault();
@@ -5139,10 +5146,11 @@ Alpine.data('explorer', () => ({
     async openInTerminal(path) {
         if (!path) path = this.activeTab()?.path || this.homePath;
         const cmd = `cd ${Util.shq(path)}`;
-        try {
-            await navigator.clipboard.writeText(cmd);
+        // navigator.clipboard is undefined on a non-secure (http) origin, so go
+        // through the execCommand fallback helper instead of a bare write.
+        if (this._copyToClipboard(cmd)) {
             this.toast('Terminal opened — cd command copied to clipboard. Paste with Ctrl-Shift-V.');
-        } catch (e) {
+        } else {
             this.toast(`Terminal opened. Run: ${cmd}`, 'info');
         }
         if (window.cockpit && cockpit.jump) {
@@ -5749,9 +5757,11 @@ Alpine.data('explorer', () => ({
                 let text = '';
                 try { text = decodeURIComponent(escape(atob(payload))); }   // UTF-8 aware
                 catch (e) { try { text = atob(payload); } catch (e2) { return true; } }
-                if (text && navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).catch(() => {});
-                }
+                // Robust write: on a non-secure (http) origin navigator.clipboard
+                // is undefined, so _copyToClipboard falls back to execCommand.
+                // (On https this stays a plain navigator.clipboard write.) Without
+                // the fallback, copying out of tmux/vim silently fails on http.
+                if (text) this._copyToClipboard(text);
                 return true; // fully handled
             });
         } catch (e) {}
