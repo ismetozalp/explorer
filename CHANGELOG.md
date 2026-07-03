@@ -4,16 +4,18 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
 
 ## 2.0.0
 
-- **Internal: `app.js` split into per-feature modules.** The 7,188-line Alpine
-  component is now composed from focused files instead of one monolith — no
-  behavior change, no build step. Shared non-reactive registries + constants
-  moved to `js/runtime.js` (`window.ExRT`); each feature's methods moved verbatim
-  into a `window.ExplorerX` global-mixin file under `js/features/` (`grub`,
-  `mounts`, `github`, `actions`, `terminal`, `upload`, `editor`), spread into
-  `Alpine.data`. `app.js` shrank from 7,188 to ~2,270 lines (core shell +
-  composition). A `tools/check-mixins.js` guard fails on duplicate method keys
-  across the mixins (there is no test runner). Reactive state stays centralized
-  in `app.js`; public method names are unchanged.
+- **Internal: `app.js` split into per-feature + per-core modules.** The
+  7,188-line Alpine component is now composed from focused files instead of one
+  monolith — no behavior change, no build step. Shared non-reactive registries +
+  constants moved to `js/runtime.js` (`window.ExRT`); each feature's methods moved
+  verbatim into a `window.ExplorerX` global-mixin file under `js/features/`
+  (`grub`, `mounts`, `github`, `actions`, `terminal`, `upload`, `editor`) and the
+  core shell into `js/core/` (`tabs`, `filelist`, `fileops`, `output`, `dialogs`,
+  `settings`), all spread into `Alpine.data`. `app.js` shrank from **7,188 to
+  ~575 lines** — just reactive state, `init`, and the composer. A
+  `tools/check-mixins.js` guard fails on duplicate method keys across the mixins
+  (there is no test runner). Reactive state stays centralized in `app.js`; public
+  method names are unchanged.
 
 ## 1.1.6
 
