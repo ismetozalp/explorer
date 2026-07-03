@@ -5533,6 +5533,28 @@ Alpine.data('explorer', () => ({
         xterm.open(container);
         try { fitAddon.fit(); } catch (e) {}
 
+        // Image paste: intercept a clipboard image (capture phase, so we run
+        // before xterm's own paste handler) and upload it instead of letting it
+        // hit the shell. Text / non-image pastes are untouched — we neither
+        // preventDefault nor stopPropagation, so xterm's native paste proceeds.
+        // Uses the DOM paste event (clipboardData), which exposes image data on
+        // both http and https with no permission prompt.
+        if (xterm.textarea) {
+            xterm.textarea.addEventListener('paste', (e) => {
+                const items = (e.clipboardData && e.clipboardData.items) || [];
+                for (const it of items) {
+                    if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        const blob = it.getAsFile();
+                        if (blob) this._uploadClipboardImageBlob(blob, termId);
+                        return;
+                    }
+                }
+                // no image → fall through: xterm handles the text paste as usual
+            }, true);
+        }
+
         // Clipboard: xterm does NOT copy the selection on its own. Wire the
         // standard terminal copy gestures — select-to-copy, plus Ctrl/Cmd+Shift+C
         // and Ctrl+Insert — to the OS clipboard. Ctrl+C is left as SIGINT.
