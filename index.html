@@ -94,7 +94,7 @@
        <div class="tab-pane-inner d-flex flex-column flex-grow-1" style="min-height:0">
         <!-- Toolbar -->
         <div class="toolbar">
-            <div class="btn-group btn-group-sm me-2">
+            <div class="btn-group btn-group-sm me-2 toolbar-nav">
                 <button class="btn btn-outline-secondary" @click="goBack(activePane(tab))" :disabled="activePane(tab).historyIdx <= 0" title="Back (Alt+Left)">←</button>
                 <button class="btn btn-outline-secondary" @click="goForward(activePane(tab))" :disabled="activePane(tab).historyIdx >= activePane(tab).history.length - 1" title="Forward (Alt+Right)">→</button>
                 <button class="btn btn-outline-secondary" @click="goUp(activePane(tab))" title="Up">↑</button>
