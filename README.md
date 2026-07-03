@@ -4,7 +4,8 @@ A multi-tab file browser for [Cockpit](https://cockpit-project.org/) with
 an optional two-pane (Midnight Commander style) layout, multi-select,
 drag-and-drop with rename-on-drop, archive support, regex search, an
 inline preview & editor, **integrated terminals** (split-pane or
-full-tab), GitHub integration via the `gh` CLI, and **user-defined
+full-tab, with clipboard-image paste), GitHub integration via the `gh`
+CLI, and **user-defined
 custom actions** that can run shell commands on selected files —
 including streaming command output into a new tab.
 
@@ -495,6 +496,43 @@ Each shell starts in the relevant folder (`directory:` on the channel),
 runs interactively (`bash -i`), and is resized to fit automatically.
 Terminals are torn down (shell killed, channel closed) when their
 sub-tab or tab is closed.
+
+#### Paste a clipboard image into the terminal
+
+Press **Ctrl+V** in a terminal while an **image** is on your clipboard
+(e.g. a screenshot) and the plugin uploads it to a folder on the host,
+then types the saved file's path — followed by Enter — into the shell.
+This lets you hand a screenshot to whatever is running in the terminal —
+for example an AI CLI inside a `tmux` session — even though your browser
+runs on your local machine and the shell runs on the remote host: the
+image is read locally in the browser and streamed to the host over the
+same upload channel as regular file uploads, so the *remote* clipboard is
+never involved and no `xclip`/`wl-clipboard` is needed on the server.
+
+- **Text paste is unchanged** — only clipboards holding an image are
+  intercepted; pasting text still goes straight to the shell (Ctrl+V and
+  Ctrl+Shift+V both behave as before).
+- **Works over both HTTP and HTTPS.** The paste path needs no secure
+  context and prompts for no permission.
+- **🖼 button.** The terminal sub-tab bar also has a **🖼** button that does
+  the same thing on demand. On HTTPS it reads the clipboard directly in one
+  click; on HTTP (where direct clipboard reads are blocked by the browser)
+  it opens a small *“press Ctrl+V here”* panel that captures the image.
+- Files are saved as `clip-<timestamp>-<random>.<ext>` in a world-readable
+  folder, so any program on the host — not just the one in your terminal —
+  can open them.
+
+Two **Settings** control this:
+
+- **Terminal clipboard-image folder** — where images are written on the
+  host (default `/tmp/explorer-clip`).
+- **Keep pasted images for (hours)** — retention window; older `clip-*`
+  files in that folder are pruned on each paste (default `24`; `0` = keep
+  forever).
+
+> The path is typed into whatever currently has focus in the terminal, and
+> Enter is pressed. If you are at a bare shell prompt rather than inside a
+> program, that means the shell will try to *run* the path as a command.
 
 ### tmux session manager
 
