@@ -2,6 +2,28 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.3
+
+- **Terminal: paste a clipboard image straight into the shell.** Pressing
+  **Ctrl+V** in a terminal that holds an image on the clipboard (e.g. a
+  screenshot) now uploads it to a temp folder on this host and types the
+  saved file's path — followed by Enter — into the terminal. This makes
+  pasting images into a program running in the terminal (such as an AI CLI
+  inside tmux) work even though the browser and the shell are on different
+  machines: the image is read locally in the browser and streamed to the
+  host, so the remote clipboard is never involved. Pasting **text** is
+  unchanged. Works over both HTTP and HTTPS.
+
+- **Terminal: 🖼 button on the sub-tab bar.** An explicit button to do the
+  same thing. On HTTPS it reads the clipboard directly in one click; on
+  HTTP (where direct clipboard reads are blocked) it opens a small
+  "press Ctrl+V here" panel that captures the image.
+
+- **Settings: clipboard-image folder and retention.** New settings for the
+  destination folder (default `/tmp/explorer-clip`) and how long to keep
+  pasted images (default 24 h; `0` = keep forever). On each paste, older
+  `clip-*` files in that folder are pruned.
+
 ## 1.1.2
 
 - **Fix: "Set up GitHub…" reappearing on an already-configured host.**

@@ -2122,6 +2122,74 @@ Alpine.data('explorer', () => ({
         this.toast('Pasted image → ' + dest, 'success');
     },
 
+    // Toolbar entry point: read a clipboard image and hand it to the uploader.
+    // HTTPS + permission → navigator.clipboard.read() (one click). Otherwise
+    // (http, or a blocked read) → a small overlay that captures a Ctrl+V paste,
+    // which exposes image data even on http.
+    async pasteClipboardImageToTerminal(tab) {
+        const termId = tab && tab.activeTermId;
+        if (!termId || !_getTermInstance(termId)) { this.toast('No active terminal', 'warning'); return; }
+
+        if (navigator.clipboard && navigator.clipboard.read) {
+            try {
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                    const type = (item.types || []).find(t => t.startsWith('image/'));
+                    if (type) {
+                        const blob = await item.getType(type);
+                        await this._uploadClipboardImageBlob(blob, termId);
+                        return;
+                    }
+                }
+                this.toast('No image found in clipboard', 'info');
+                return;
+            } catch (e) {
+                // NotAllowedError / SecurityError (http or blocked) → modal fallback
+            }
+        }
+        this._openPasteImageModal(termId);
+    },
+
+    // HTTP-safe fallback: a focused overlay that captures one paste event and
+    // extracts an image from it. Built in plain DOM so it needs no Alpine state.
+    _openPasteImageModal(termId) {
+        const overlay = document.createElement('div');
+        overlay.className = 'paste-img-overlay';
+        overlay.innerHTML =
+            '<div class="paste-img-box">' +
+            '  <div class="paste-img-msg">Press Ctrl+V (⌘V) to paste your image here</div>' +
+            '  <textarea class="paste-img-target" aria-label="Paste image here"></textarea>' +
+            '  <div class="paste-img-hint">Esc to cancel</div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        const target = overlay.querySelector('.paste-img-target');
+
+        const close = () => {
+            document.removeEventListener('keydown', onKey, true);
+            try { overlay.remove(); } catch (e) {}
+        };
+        const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+        document.addEventListener('keydown', onKey, true);
+        overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+
+        target.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const items = (e.clipboardData && e.clipboardData.items) || [];
+            for (const it of items) {
+                if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+                    const blob = it.getAsFile();
+                    close();
+                    if (blob) this._uploadClipboardImageBlob(blob, termId);
+                    return;
+                }
+            }
+            this.toast('No image in the paste — nothing uploaded', 'info');
+            close();
+        });
+
+        setTimeout(() => { try { target.focus(); } catch (e) {} }, 0);
+    },
+
     // Recursively flatten a dropped FileSystemEntry tree into
     // { dirs:[path,…] (pre-order), files:[{file, dest},…] }.
     async _gatherEntry(entry, destDir, acc) {
