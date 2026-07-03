@@ -5428,7 +5428,7 @@ Alpine.data('explorer', () => ({
         const dir = this.activeTab()?.path || this.homePath || '/';
         const raw = this._buildTab(dir, 'terminal');
         raw.termKind = 'tmux';                          // kind marker (label, routing, "+")
-        raw.tmux = name;                               // tab-level marker (persistence, until Task 4)
+        raw.tmux = name;                               // tab-level marker (legacy fallback for termKindOf only)
         this.tabs.push(raw);
         const reactive = this.tabs.find(t => t.id === raw.id);
         if (activate) this.activeTabId = raw.id;
