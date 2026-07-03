@@ -5351,22 +5351,37 @@ Alpine.data('explorer', () => ({
         }
     },
 
-    _findTmuxTab(name) {
-        return this.tabs.find(t => t.kind === 'terminal' && (t.terminals || []).some(x => x.tmux === name));
+    // The single tmux container tab — every tmux session lives here as a sub-tab.
+    _tmuxTab() {
+        return this.tabs.find(t => t.kind === 'terminal' && this.termKindOf(t) === 'tmux');
     },
-    isTmuxSessionOpen(name) { return !!this._findTmuxTab(name); },
+    // Locate an open session's tab + sub-terminal by session name.
+    _findTmuxSubtab(name) {
+        for (const tab of this.tabs) {
+            if (tab.kind !== 'terminal') continue;
+            const term = (tab.terminals || []).find(t => t.tmux === name);
+            if (term) return { tab, term };
+        }
+        return null;
+    },
+    isTmuxSessionOpen(name) { return !!this._findTmuxSubtab(name); },
 
-    // Open a tmux session: focus its existing terminal tab if one is already
-    // attached, otherwise open a fresh terminal tab attached to it (creating
-    // the session if it doesn't exist yet).
+    // Open a tmux session as a sub-tab of the single tmux container tab:
+    // focus it if already open, else add it to the existing tmux tab, else
+    // create the tmux tab with it as the first session.
     openTmuxSession(name) {
         this.tmux.open = false;
         if (!name) return;
-        const existing = this._findTmuxTab(name);
-        if (existing) {
-            this.activateTab(existing.id);
-            const term = (existing.terminals || []).find(x => x.tmux === name);
-            if (term) this.selectTerminal(existing, term.id);
+        const hit = this._findTmuxSubtab(name);
+        if (hit) {
+            this.activateTab(hit.tab.id);
+            this.selectTerminal(hit.tab, hit.term.id);
+            return;
+        }
+        const container = this._tmuxTab();
+        if (container) {
+            this.activateTab(container.id);
+            this.addTmuxSessionToTab(container, name);
             return;
         }
         this.newTmuxTerminalTab(name);
@@ -5400,11 +5415,8 @@ Alpine.data('explorer', () => ({
         try { await cockpit.spawn([bin, 'kill-session', '-t', name], { err: 'message' }); }
         catch (e) { this.toast('Could not kill session: ' + (e.message || e), 'danger'); }
         // Close any open terminal/tab bound to it.
-        const tab = this._findTmuxTab(name);
-        if (tab) {
-            const term = (tab.terminals || []).find(x => x.tmux === name);
-            if (term) this.closeTerminal(tab, term.id);
-        }
+        const hit = this._findTmuxSubtab(name);
+        if (hit) this.closeTerminal(hit.tab, hit.term.id);
         this.refreshTmuxSessions();
     },
 
@@ -5457,7 +5469,7 @@ Alpine.data('explorer', () => ({
         let pruned = false;
         for (const name of names) {
             if (liveNames.has(name)) {
-                if (!this._findTmuxTab(name)) this.newTmuxTerminalTab(name, { activate: false });
+                if (!this._findTmuxSubtab(name)) this.newTmuxTerminalTab(name, { activate: false });
             } else {
                 pruned = true;   // saved session is gone — drop it, don't reopen
             }
