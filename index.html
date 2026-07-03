@@ -528,6 +528,8 @@
                 x-text="(ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? 'Open folder in new terminal tab' : 'Open in new terminal tab'"></li>
             <li @click="openInTerminal((ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)">Open in Cockpit terminal</li>
             <li x-show="ctxMenu.kind === 'file' && selectedFiles().length === 1" @click="propertiesSelected()">Permissions…</li>
+            <li class="ctx-sep"></li>
+            <li @click="reloadActions()" title="Re-read custom actions from disk (after editing actions.json)">↻ Reload actions</li>
         </ul>
     </template>
     <template x-if="ctxMenu.kind === 'tab'">
@@ -1462,7 +1464,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <span x-show="actionsMgr.error" class="text-danger me-auto" x-text="actionsMgr.error"></span>
+                <button class="btn btn-outline-secondary me-auto" @click="reloadActions()" title="Re-read the user, system and built-in actions.json files from disk">↻ Reload from disk</button>
+                <span x-show="actionsMgr.error" class="text-danger" x-text="actionsMgr.error"></span>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button class="btn btn-primary" @click="saveCustomActions()">Save</button>
             </div>

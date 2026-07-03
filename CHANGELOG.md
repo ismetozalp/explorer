@@ -2,6 +2,24 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.6
+
+- **Esc closes the open popup.** Pressing **Escape** now closes the top-most
+  popup — the editor / preview window included. Those two used to ignore Esc on
+  purpose (so a stray keypress couldn't discard edits); Esc now goes through the
+  normal close path, which still prompts before discarding unsaved changes. The
+  folder picker closes on Esc too. Backdrop clicks are unchanged.
+
+- **Reload actions without a page reload.** The Custom-actions manager has a
+  **↻ Reload from disk** button, and every file/folder right-click menu has a
+  **↻ Reload actions** entry, that re-read the user, system and built-in
+  `actions.json` files — handy after editing them by hand.
+
+- **Docs.** README updated for the terminal/tmux pane split, copying text out of
+  the terminal (and the HTTPS-for-clipboard note), Esc-to-close and Reload
+  actions, plus new screenshots for the terminal/tmux panes and the right-click
+  menu.
+
 ## 1.1.5
 
 - **Fix: copying selected text from a file Preview did nothing.** The global

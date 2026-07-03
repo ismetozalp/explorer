@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="560" fill="#1b1d21"/>
+
+  <!-- faint file listing behind -->
+  <g opacity="0.5" font-size="13">
+    <rect x="0" y="0" width="900" height="30" fill="#23262b"/>
+    <text x="20" y="20" fill="#8b93a0">Name</text><text x="520" y="20" fill="#8b93a0">Size</text><text x="640" y="20" fill="#8b93a0">Modified</text>
+    <text x="20" y="58" fill="#cfd3d8">📁 build</text>
+    <text x="20" y="90" fill="#cfd3d8">📁 scripts</text>
+    <rect x="0" y="104" width="900" height="26" fill="#2b3138"/>
+    <text x="20" y="122" fill="#e8e8e8">📄 release.tar.gz</text><text x="520" y="122" fill="#9aa0a8">14 MB</text><text x="640" y="122" fill="#9aa0a8">today 12:04</text>
+    <text x="20" y="154" fill="#cfd3d8">📄 docker-compose.yml</text>
+    <text x="20" y="186" fill="#cfd3d8">📄 README.md</text>
+  </g>
+
+  <!-- context menu -->
+  <rect x="150" y="116" width="272" height="404" rx="8" fill="#292d31" stroke="#4a4e53"/>
+  <g font-size="13">
+    <!-- custom actions (top), with badges -->
+    <rect x="150" y="124" width="272" height="28" fill="#31363c"/>
+    <text x="168" y="143" fill="#e8e8e8">MD5 checksum</text>
+    <rect x="356" y="130" width="44" height="16" rx="8" fill="#0d6efd"/><text x="363" y="142" fill="#fff" font-size="10">user</text>
+    <text x="168" y="171" fill="#e8e8e8">SHA-256 checksum</text>
+    <rect x="356" y="158" width="44" height="16" rx="8" fill="#0d6efd"/><text x="363" y="170" fill="#fff" font-size="10">user</text>
+    <text x="168" y="199" fill="#e8e8e8">Identify file type</text>
+    <rect x="356" y="186" width="44" height="16" rx="8" fill="#0d6efd"/><text x="363" y="198" fill="#fff" font-size="10">user</text>
+    <line x1="150" y1="214" x2="422" y2="214" stroke="#3d4147"/>
+
+    <text x="168" y="236" fill="#cfd3d8">Open</text>
+    <text x="168" y="262" fill="#cfd3d8">Edit</text>
+    <text x="168" y="288" fill="#cfd3d8">Preview (Space)</text>
+    <line x1="150" y1="300" x2="422" y2="300" stroke="#3d4147"/>
+    <text x="168" y="322" fill="#cfd3d8">Copy</text>
+    <text x="168" y="348" fill="#cfd3d8">Cut</text>
+    <line x1="150" y1="360" x2="422" y2="360" stroke="#3d4147"/>
+    <text x="168" y="382" fill="#cfd3d8">Rename…</text>
+    <text x="168" y="408" fill="#cfd3d8">Delete…</text>
+    <line x1="150" y1="420" x2="422" y2="420" stroke="#3d4147"/>
+    <text x="168" y="442" fill="#cfd3d8">Open terminal here (split)</text>
+    <text x="168" y="468" fill="#cfd3d8">Permissions…</text>
+    <line x1="150" y1="480" x2="422" y2="480" stroke="#3d4147"/>
+    <!-- reload actions (highlighted) -->
+    <rect x="150" y="484" width="272" height="30" fill="#2b3138"/>
+    <text x="168" y="504" fill="#7fd18a">↻ Reload actions</text>
+  </g>
+
+  <!-- callout -->
+  <rect x="470" y="240" width="360" height="150" rx="8" fill="#292d31" stroke="#3d4147"/>
+  <text x="490" y="270" fill="#f0f0f0" font-size="14" font-weight="bold">Custom actions on top</text>
+  <text x="490" y="298" fill="#c7ccd2" font-size="12">Only actions matching the selection show,</text>
+  <text x="490" y="316" fill="#c7ccd2" font-size="12">each with a user / system badge.</text>
+  <text x="490" y="348" fill="#f0f0f0" font-size="14" font-weight="bold">↻ Reload actions</text>
+  <text x="490" y="374" fill="#c7ccd2" font-size="12">Re-reads actions.json from disk — no page reload.</text>
+
+  <!-- pointer -->
+  <path d="M470 500 L446 492 L452 508 Z" fill="#7fd18a" opacity="0.0"/>
+</svg>

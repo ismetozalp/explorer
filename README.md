@@ -141,6 +141,23 @@ with an optional `grubby` pass for existing kernels.
 When you have a `~/.tmux.conf`, the **▤ tmux** panel shows an **⚙ Edit
 .tmux.conf** button that opens it straight in the editor.
 
+**New in 1.1.4 — terminal vs tmux panes**
+
+![Terminal and tmux panes](screenshots/terminal-tmux-panes.svg)
+
+Plain terminals (**❯**, blue accent) and tmux tabs (**⧉**, green accent) are
+clearly distinct. In a plain terminal the **+** opens another shell; in a tmux
+tab it opens a new tmux **session**, and all sessions live as sub-tabs of one
+grouped tmux tab.
+
+**Right-click context menu (with ↻ Reload actions)**
+
+![Context menu](screenshots/context-menu.svg)
+
+Matching custom actions sit at the top of every file/folder menu (each with a
+user / system badge). **↻ Reload actions** re-reads your `actions.json` files
+from disk without a page reload.
+
 See [`CHANGELOG.md`](CHANGELOG.md) for the full release notes.
 
 ---
@@ -386,6 +403,7 @@ selection, sort order, search, and git strip.
 > *Compress · Extract here · Extract to…*
 > *Open in new tab · Properties*
 > *Open terminal here (split) · Open in new terminal tab · Open in Cockpit terminal* — always available; on a folder they open that folder, on a file or empty space they open the current pane's folder
+> *↻ Reload actions* — re-reads your custom-action files from disk, so edits to `actions.json` show up without reloading the page
 
 Custom actions sit at the top of the menu. With **3 or fewer** applicable
 actions they're listed flat; with **more than 3** they're grouped into
@@ -413,6 +431,10 @@ handles:
   configurable in Settings).
 - Images, PDF (browser iframe), video, audio.
 - Binary fallback explains why the file can't be previewed.
+
+Close the preview with **Esc** or the **×**. Text in a text/code preview is
+selectable, and **Ctrl/⌘+C** copies the selection (the browser's native copy
+is no longer intercepted by the file-copy shortcut).
 
 *Edit* and *Preview* are offered for any text file — not just ones with a
 known extension. Dotfiles (`.bashrc`, `.gitignore`, `.env`), extensionless
@@ -535,6 +557,26 @@ Two **Settings** control this:
 > The path is typed into whatever currently has focus in the terminal, and
 > Enter is pressed. If you are at a bare shell prompt rather than inside a
 > program, that means the shell will try to *run* the path as a command.
+
+#### Copying text out of the terminal
+
+xterm does not copy on its own, so the plugin wires the usual gestures:
+
+- **Select with the mouse** copies the selection (best-effort).
+- **Ctrl/⌘+Shift+C** and **Ctrl+Insert** copy the current selection
+  explicitly. Plain **Ctrl+C** is left alone — it still sends SIGINT.
+- **tmux / vim** (programs that grab the mouse for their own copy-mode) push
+  the copy out via the **OSC 52** escape sequence, which the terminal honours
+  by writing to your system clipboard. For tmux this needs
+  `set -g set-clipboard on` in `~/.tmux.conf`.
+- Paste stays **Ctrl+Shift+V**.
+
+> **Clipboard writes need a secure origin.** Browsers only expose the
+> clipboard API on **`https://`**. Over plain **`http://`** the copy paths
+> fall back to a legacy method where they can, but terminal/tmux copy is only
+> fully reliable over HTTPS — Cockpit serves it by default on port **9090**.
+> If terminal copy suddenly stops working, check whether the address bar says
+> `http://`.
 
 ### tmux session manager
 
@@ -1008,7 +1050,7 @@ Editing only `/etc/default/grub` (not `/etc/grub.d/`).
 | Delete             | Delete selected (with confirmation)     |
 | Alt-Left / Right   | Back / forward in history               |
 | Alt-Up             | Up one directory                        |
-| Escape             | Close context menu / dialogs            |
+| Escape             | Close the top-most popup — editor / preview window, any dialog, or the context menu |
 
 ---
 
@@ -1053,6 +1095,13 @@ The JSON / YAML toggle is disabled until an action is selected.
 The action list on the left is available in **both** modes — use **+ New
 action** to add one and the **✕** on a row to delete it (in JSON/YAML
 mode these edit the document text for you).
+
+**↻ Reload from disk.** Because the `actions.json` files can also be edited
+by hand (or by another tool), the manager has a **↻ Reload from disk** button
+that re-reads the User, System and built-in action files without a page
+reload. The same **↻ Reload actions** entry is in every file/folder
+right-click menu, so after editing `actions.json` you can refresh the menu in
+place.
 
 ### Schema
 

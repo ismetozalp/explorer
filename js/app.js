@@ -2575,6 +2575,19 @@ Alpine.data('explorer', () => ({
         }
     },
 
+    // Re-read every custom-action source (user + system + built-in) from disk,
+    // so edits made to the actions.json files show up without a page reload.
+    async reloadActions() {
+        await Promise.all([
+            this._loadCustomActions('user'),
+            this._loadCustomActions('system'),
+            this._loadBuiltinActions(),
+        ]);
+        // The selected index may now point past the end of a shrunk list.
+        this.actionsMgr.editingIdx = null;
+        this.toast('Custom actions reloaded from disk', 'success');
+    },
+
     // Upload a local shell script into the current scope's scripts/ folder and
     // wire the action to run it interactively (bash {script}).
     async uploadActionScript(ev) {
@@ -4917,6 +4930,21 @@ Alpine.data('explorer', () => ({
 
         if (ctrl && ev.key.toLowerCase() === 't') { ev.preventDefault(); this.newTab(pane ? pane.path : this.homePath); return; }
         if (ctrl && ev.key.toLowerCase() === 'w') { ev.preventDefault(); if (tab) this.closeTab(tab.id); return; }
+
+        // Escape closes the top-most open popup. The editor/preview window and
+        // the folder picker set Bootstrap's keyboard:false (so a native Esc
+        // can't bypass the unsaved-changes prompt / forced choice), so we close
+        // them here through the same paths that guard unsaved edits. This runs
+        // BEFORE the inField guard below so it still fires while the Monaco
+        // editor (a focused textarea) has focus. Every other modal keeps
+        // Bootstrap's own Esc-to-close, so we only special-case these two.
+        if (ev.key === 'Escape') {
+            const shown = [...document.querySelectorAll('.modal.show')];
+            const top = shown.length ? shown.reduce((a, b) =>
+                (parseInt(getComputedStyle(b).zIndex) || 0) >= (parseInt(getComputedStyle(a).zIndex) || 0) ? b : a) : null;
+            if (top === this.windowHostEl && this.activeWinId) { ev.preventDefault(); this.closeActiveWindow(); return; }
+            if (top === this.dirPickerEl && this.dirPicker.open) { ev.preventDefault(); this._dpCancel(); return; }
+        }
 
         if (inField) return;
 
