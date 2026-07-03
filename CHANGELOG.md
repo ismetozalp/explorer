@@ -2,6 +2,29 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 1.1.4
+
+- **Terminal & tmux panes are now fully separated.** A terminal tab is a
+  container of plain shells; a tmux tab is a container of tmux sessions. The
+  `+` button does the right thing for its tab: in a plain terminal it opens
+  another shell, and in a tmux tab it opens a **new tmux session** (asking for
+  the session name with the same prompt as the header **New tmux session**
+  button).
+
+- **All tmux sessions are grouped under one tab.** Opening a session from the
+  tmux manager now adds it as a sub-tab of the single tmux tab (or focuses it
+  if already open) instead of scattering sessions across separate main tabs.
+  The whole group is remembered and restored together on reload; sessions that
+  died meanwhile are dropped.
+
+- **Clear icons and colours per kind.** Plain terminals are marked `❯` with a
+  **blue** pane-header accent; tmux panes are marked `⧉` with a **green**
+  accent, on both the main-tab title and each sub-tab — so the two are obvious
+  at a glance (light and dark themes).
+
+- **Bigger directory toolbar buttons.** The Back / Forward / Up / Home / Reload
+  glyphs are larger and bolder so they're easy to read.
+
 ## 1.1.3
 
 - **Terminal: paste a clipboard image straight into the shell.** Pressing

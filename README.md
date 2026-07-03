@@ -469,8 +469,10 @@ Terminal page. Two ways to open one:
 
 Both kinds support **multiple terminals as sub-tabs**:
 
-- The `+` in the terminal's own tab bar spawns another shell in the
-  current folder.
+- The `+` in the terminal's own tab bar is kind-aware: in a plain terminal
+  tab it spawns another shell in the current folder; in a **tmux** tab it
+  opens a **new tmux session** (asking for the name, just like the header
+  **New tmux session** button) and adds it as a sub-tab.
 - Each sub-tab is labelled with the terminal's working directory. Long
   paths are shortened from the front (e.g. `/a/very/long/path/here` →
   `.../path/here`); hover a sub-tab to see the full path in a popover
@@ -487,10 +489,10 @@ Both kinds support **multiple terminals as sub-tabs**:
 - Closing the last terminal in a split collapses the split; closing the
   last terminal in a terminal *tab* closes the tab.
 
-A full-tab terminal shows up in the main tab bar simply as **▤ Terminal**
-(it doesn't borrow a directory name), so it's easy to tell apart from
-your directory tabs. A terminal tab bound to a tmux session instead shows
-**▤ &lt;session&gt;**, and its sub-tab is labelled **⧉ &lt;session&gt;**.
+A full-tab terminal shows up in the main tab bar as **❯ Terminal** with a
+**blue** pane-header accent, so it's easy to tell apart from your directory
+tabs. A tmux tab instead shows **⧉ &lt;active session&gt;** with a **green**
+accent, and each session it holds is a sub-tab labelled **⧉ &lt;session&gt;**.
 
 Each shell starts in the relevant folder (`directory:` on the channel),
 runs interactively (`bash -i`), and is resized to fit automatically.
