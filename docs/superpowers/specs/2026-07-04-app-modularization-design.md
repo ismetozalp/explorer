@@ -3,7 +3,7 @@
 **Date:** 2026-07-04
 **Status:** Approved design, pending implementation
 **Component:** Explorer Cockpit plugin — the Alpine component (`js/app.js`), `index.html`
-**Target:** 1.2
+**Target:** 2.0.0
 
 ## Problem
 
@@ -152,7 +152,7 @@ Stop whenever satisfied — every landed step leaves a working, smaller `app.js`
 - **State is not fragmented.** All reactive fields remain in `app.js`.
 - **No renaming** of public methods (templates in `index.html` call them by
   name; renames would be a separate change).
-- **VERSION** is bumped to `1.2` only when the chosen set of modules has landed
+- **VERSION** is bumped to `2.0.0` only when the chosen set of modules has landed
   and been smoke-tested (never mid-extraction).
 
 ## Files touched
