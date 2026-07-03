@@ -5232,6 +5232,25 @@ Alpine.data('explorer', () => ({
         }
     },
 
+    // Sub-tab-bar "+" dispatcher: plain tabs get a new shell; tmux tabs get a
+    // new tmux session (same prompt as the header manager).
+    addPaneToTab(tab) {
+        if (this.termKindOf(tab) === 'tmux') return this.newTmuxSessionInTab(tab);
+        return this.addTerminalToTab(tab, tab.path);
+    },
+
+    async newTmuxSessionInTab(tab) {
+        const name = await this._promptTmuxName();
+        if (name) this.addTmuxSessionToTab(tab, name);
+    },
+
+    // Add (or focus) a tmux session as a sub-tab inside an existing tmux tab.
+    addTmuxSessionToTab(tab, name, opts) {
+        const existing = (tab.terminals || []).find(t => t.tmux === name);
+        if (existing) { this.selectTerminal(tab, existing.id); return existing; }
+        return this.addTerminalToTab(tab, tab.path, Object.assign({ tmux: name }, opts || {}));
+    },
+
     // Create a new MAIN tab whose only content is a terminal stack.
     newTerminalTab(dir) {
         dir = dir || this.activeTab()?.path || this.homePath || '/';
@@ -5353,16 +5372,24 @@ Alpine.data('explorer', () => ({
         this.newTmuxTerminalTab(name);
     },
 
-    async newTmuxSession() {
-        this.tmux.open = false;
+    // Shared "New tmux session" prompt + validation, used by both the header
+    // manager and the sub-tab-bar "+". Returns a clean name, or null if
+    // cancelled/invalid (an invalid name toasts before returning null).
+    async _promptTmuxName() {
         const name = await this.askPrompt('New tmux session', 'Session name (letters, digits, - or _)', '');
         const clean = (name || '').trim();
-        if (!clean) return;                            // cancelled / empty
+        if (!clean) return null;
         if (/[\s.:]/.test(clean)) {
             this.toast('Session name can\'t contain spaces, "." or ":"', 'warning');
-            return;
+            return null;
         }
-        this.openTmuxSession(clean);
+        return clean;
+    },
+
+    async newTmuxSession() {
+        this.tmux.open = false;
+        const name = await this._promptTmuxName();
+        if (name) this.openTmuxSession(name);
     },
 
     async killTmuxSession(name) {

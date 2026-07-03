@@ -438,7 +438,8 @@
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal">×</button>
                         </div>
                     </template>
-                    <button class="term-subtab-add" @click="addTerminalToTab(tab, tab.path)" title="New terminal here">+</button>
+                    <button class="term-subtab-add" @click="addPaneToTab(tab)"
+                            :title="termKindOf(tab) === 'tmux' ? 'New tmux session' : 'New terminal here'">+</button>
                     <span class="term-tabbar-spacer"></span>
                     <button class="term-paste-img" @click="pasteClipboardImageToTerminal(tab)"
                             title="Paste clipboard image → upload to temp folder and send its path">🖼</button>
