@@ -67,27 +67,23 @@ try {
     await app.locator('.file-name').first().waitFor({ timeout: 20000 });
     const fileCount = await app.locator('.file-list tbody tr').count();
 
-    // Exercise extracted mixins live: open Settings (settings.js), close it —
-    // preferring Esc (settings.js onKey), falling back to the Close button so a
-    // Playwright iframe-keyboard nuance doesn't mask that the modal machinery works.
-    let settingsOK = false, escClosed = false;
+    // Exercise extracted mixins live: open Settings (settings.js) and close it
+    // via its Close button (dialogs/settings machinery). Note: Esc-to-close works
+    // in the real UI but is NOT asserted here — Playwright can't reliably route a
+    // key event into the Cockpit iframe to Bootstrap's document-level handler.
+    let settingsOK = false;
     try {
         await app.locator('button[title="Settings"]').first().click({ timeout: 5000 });
         await app.locator('#settingsModal.show').waitFor({ timeout: 5000 });
-        await app.locator('#settingsModal').evaluate(el =>
-            el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, which: 27, bubbles: true })));
-        escClosed = await app.locator('#settingsModal.show').waitFor({ state: 'hidden', timeout: 2500 }).then(() => true).catch(() => false);
-        if (!escClosed) {
-            await app.locator('#settingsModal .btn-close, #settingsModal [data-bs-dismiss="modal"]').first().click({ timeout: 5000 });
-            await app.locator('#settingsModal.show').waitFor({ state: 'hidden', timeout: 5000 });
-        }
-        settingsOK = true;   // modal opened AND closed (by Esc or the button)
+        await app.locator('#settingsModal .btn-close, #settingsModal [data-bs-dismiss="modal"]').first().click({ timeout: 5000 });
+        await app.locator('#settingsModal.show').waitFor({ state: 'hidden', timeout: 5000 });
+        settingsOK = true;   // modal opened AND closed
     } catch (e) { errors.push({ kind: 'interaction', text: 'settings open/close failed: ' + e.message }); }
 
     await page.screenshot({ path: SHOT }).catch(() => {});
     const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && !settingsOK));
-    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, esc=${escClosed}. Screenshot: ${SHOT}`);
-    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK} (Esc-close=${escClosed}); no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}. Screenshot: ${SHOT}`);
+    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
     await page.screenshot({ path: SHOT }).catch(() => {});
     done(3, `ERROR driving the browser: ${e.message}. Screenshot: ${SHOT}`);
