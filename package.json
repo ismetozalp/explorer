@@ -1,0 +1,12 @@
+{
+  "name": "explorer-tests",
+  "private": true,
+  "description": "Dev-only test harness for the Explorer Cockpit plugin (not shipped).",
+  "scripts": {
+    "test:compose": "node tools/compose-test.js",
+    "test:smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
