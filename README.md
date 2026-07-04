@@ -1393,10 +1393,20 @@ explorer/
 │   ├── fs.js                      Cockpit-backed filesystem ops
 │   ├── git.js                     gh CLI + local git wrappers
 │   ├── js-yaml.min.js             YAML parser/serializer (for settings.yml)
-│   └── app.js                     main Alpine component
+│   ├── runtime.js                 window.ExRT — shared non-reactive registries + constants
+│   ├── features/                  per-feature method mixins (window.Explorer…)
+│   │   ├── github.js  mounts.js  actions.js  terminal.js
+│   │   └── upload.js  editor.js  grub.js
+│   ├── core/                      core-shell method mixins (window.Explorer…)
+│   │   ├── tabs.js  filelist.js  fileops.js
+│   │   └── output.js  dialogs.js  settings.js
+│   └── app.js                     reactive state, init, and the Alpine.data composer
 ├── actions/
 │   ├── example-actions.json  drop-in example custom actions
 │   └── system-actions.json   default system actions (incl. self-update), seeded by make install
+├── tools/               dev-only checks (check-mixins.js, compose-test.js)
+├── tests/               Playwright browser smoke test (smoke.mjs)
+├── package.json         dev-only test deps (Playwright); NOT shipped to the plugin
 ├── Makefile              install / uninstall / zip
 └── README.md
 ```
@@ -1404,6 +1414,20 @@ explorer/
 Monaco, Quill, marked and Turndown are all loaded lazily — they don't
 weigh on the initial page load, only kicking in when you open the
 editor for the first time.
+
+**Architecture (2.0.0).** The Alpine component is composed from focused files
+rather than one monolith, and still with **no build step**. `js/runtime.js`
+exposes `window.ExRT` (the non-reactive registries — xterm/Monaco/Quill/op-callback
+instances — plus config constants). Each feature (`js/features/*.js`) and each core
+area (`js/core/*.js`) defines a `window.Explorer…` object of *methods only*, which
+`app.js` spreads into `Alpine.data('explorer', … )`; all reactive **state** stays
+centralized in `app.js`. Load order is `runtime → features/* → core/* → app.js`.
+Public method names are unchanged, so `index.html` bindings are untouched. Two
+Node guards keep the split honest — `tools/check-mixins.js` (fails on a method key
+defined in two files) and `tools/compose-test.js` (loads everything and asserts the
+component assembles) — alongside `tests/smoke.mjs`, a Playwright check through
+Cockpit. This was purely an internal reorganization: **no behavior changed** from
+1.1.6.
 
 ---
 
