@@ -48,22 +48,46 @@ try {
         await page.waitForSelector('#content, .system-information, iframe', { timeout: 20000 });
     }
 
-    // Open the plugin frame directly (authenticated session cookie is set).
-    await page.goto(`${URL}/cockpit/@localhost/explorer/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    // Load the plugin THROUGH the Cockpit shell so cockpit.js transport is live
+    // (channels/superuser work). A directly-loaded frame 401s and can't list
+    // files. Try shell URLs, then fall back to the direct frame (degraded).
+    let app = null;
+    for (const u of [`${URL}/explorer`, `${URL}/explorer/index`, `${URL}/cockpit/@localhost/explorer/index.html`]) {
+        await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+        const frameEl = await page.waitForSelector('iframe[src*="explorer"], iframe[name*="explorer"]', { timeout: 8000 }).catch(() => null);
+        if (frameEl) { app = await frameEl.contentFrame(); if (app) break; }
+        if (u.includes('index.html') && await page.$('.toolbar')) { app = page; break; }  // direct fallback
+    }
+    if (!app) done(3, `could not locate the plugin (no iframe/toolbar). Screenshot: ${SHOT}`);
 
-    // Alpine mounts on <body x-data="explorer">; the directory toolbar is the
-    // first thing rendered. Its presence = the component assembled + ran.
-    await page.waitForSelector('.toolbar', { timeout: 20000 });
-    // Give init() a beat to run (it may log expected cockpit warnings).
-    await page.waitForTimeout(2500);
+    // Component assembled + rendered (visible toolbar; inactive tabs are hidden).
+    await app.locator('.toolbar').filter({ visible: true }).first().waitFor({ timeout: 20000 });
+    // Real transport working: the directory listing actually populated — a
+    // cockpit.spawn/file round-trip, i.e. the app FUNCTIONS post-refactor.
+    await app.locator('.file-name').first().waitFor({ timeout: 20000 });
+    const fileCount = await app.locator('.file-list tbody tr').count();
 
-    const hasTabs   = await page.$('.tab-bar, [class*="tab"]') != null;
-    const bodyAlpine = await page.$('body[x-data="explorer"]') != null;
-    await page.screenshot({ path: SHOT, fullPage: false }).catch(() => {});
+    // Exercise extracted mixins live: open Settings (settings.js), close it —
+    // preferring Esc (settings.js onKey), falling back to the Close button so a
+    // Playwright iframe-keyboard nuance doesn't mask that the modal machinery works.
+    let settingsOK = false, escClosed = false;
+    try {
+        await app.locator('button[title="Settings"]').first().click({ timeout: 5000 });
+        await app.locator('#settingsModal.show').waitFor({ timeout: 5000 });
+        await app.locator('#settingsModal').evaluate(el =>
+            el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, which: 27, bubbles: true })));
+        escClosed = await app.locator('#settingsModal.show').waitFor({ state: 'hidden', timeout: 2500 }).then(() => true).catch(() => false);
+        if (!escClosed) {
+            await app.locator('#settingsModal .btn-close, #settingsModal [data-bs-dismiss="modal"]').first().click({ timeout: 5000 });
+            await app.locator('#settingsModal.show').waitFor({ state: 'hidden', timeout: 5000 });
+        }
+        settingsOK = true;   // modal opened AND closed (by Esc or the button)
+    } catch (e) { errors.push({ kind: 'interaction', text: 'settings open/close failed: ' + e.message }); }
 
-    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text));
-    if (risky.length) done(1, `FAIL — ${risky.length} risky JS error(s) after plugin load (see below). Screenshot: ${SHOT}`);
-    else done(0, `OK — plugin rendered (toolbar present, x-data=${bodyAlpine}, tabs=${hasTabs}); no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    await page.screenshot({ path: SHOT }).catch(() => {});
+    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && !settingsOK));
+    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, esc=${escClosed}. Screenshot: ${SHOT}`);
+    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK} (Esc-close=${escClosed}); no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
     await page.screenshot({ path: SHOT }).catch(() => {});
     done(3, `ERROR driving the browser: ${e.message}. Screenshot: ${SHOT}`);
