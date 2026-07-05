@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="420" fill="#1b1d21"/>
+  <!-- toolbar with search box + cog -->
+  <rect x="0" y="0" width="900" height="40" fill="#23262b"/>
+  <rect x="14" y="9" width="150" height="22" rx="4" fill="#2b2f34"/>
+  <text x="26" y="24" fill="#cfd3d8" font-size="12">←  →  ↑  ⌂  ⟳</text>
+  <rect x="470" y="9" width="330" height="22" rx="4" fill="#1b1d21" stroke="#3d4147"/>
+  <text x="482" y="24" fill="#e8e8e8" font-size="12">TODO|FIXME</text>
+  <rect x="808" y="9" width="26" height="22" rx="4" fill="#2b2f34"/>
+  <text x="816" y="24" fill="#9aa0a8" font-size="13">⚙</text>
+
+  <!-- options popover (from the cog) -->
+  <rect x="640" y="40" width="248" height="118" rx="6" fill="#292d31" stroke="#444649"/>
+  <text x="656" y="62" fill="#cfd3d8" font-size="12">◉ Content (grep)   ○ Filename</text>
+  <text x="656" y="86" fill="#cfd3d8" font-size="12">☑ Search subfolders</text>
+  <text x="656" y="110" fill="#cfd3d8" font-size="12">☑ Regular expression</text>
+  <text x="656" y="134" fill="#cfd3d8" font-size="12">☐ Case-insensitive</text>
+
+  <!-- results banner -->
+  <rect x="0" y="40" width="900" height="30" fill="#243447"/>
+  <text x="16" y="60" fill="#9cc4ff" font-size="12">🔎 Content · regex · subfolders — 7 matches for “TODO|FIXME”</text>
+  <text x="864" y="60" fill="#9cc4ff" font-size="13">×</text>
+
+  <!-- results list -->
+  <g font-size="12.5">
+    <rect x="0" y="74" width="900" height="26" fill="#2b3138"/>
+    <text x="16" y="92" fill="#e8e8e8">📄 src/app.js</text><text x="520" y="92" fill="#8b93a0">3 hits</text>
+    <text x="16" y="120" fill="#cfd3d8">📄 src/core/tabs.js</text><text x="520" y="120" fill="#8b93a0">1 hit</text>
+    <text x="16" y="148" fill="#cfd3d8">📄 infra/deploy.sh</text><text x="520" y="148" fill="#8b93a0">2 hits</text>
+    <text x="16" y="176" fill="#cfd3d8">📄 docs/notes.md</text><text x="520" y="176" fill="#8b93a0">1 hit</text>
+  </g>
+
+  <!-- callout -->
+  <rect x="560" y="210" width="320" height="150" rx="8" fill="#292d31" stroke="#3d4147"/>
+  <text x="580" y="238" fill="#f0f0f0" font-size="13" font-weight="bold">Filename or content, your rules</text>
+  <text x="580" y="264" fill="#c7ccd2" font-size="12">• literal, or `grep -E` / JS RegExp</text>
+  <text x="580" y="286" fill="#c7ccd2" font-size="12">• current folder or recurse subfolders</text>
+  <text x="580" y="308" fill="#c7ccd2" font-size="12">• case-insensitive = /pattern/i or grep -i</text>
+  <text x="580" y="336" fill="#9aa0a8" font-size="11">Invalid patterns are reported before running.</text>
+</svg>

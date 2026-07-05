@@ -1,18 +1,31 @@
 # Explorer — a Cockpit file browser plugin
 
-A multi-tab file browser for [Cockpit](https://cockpit-project.org/) with
-an optional two-pane (Midnight Commander style) layout, multi-select,
-drag-and-drop with rename-on-drop, archive support, regex search, an
-inline preview & editor, **integrated terminals** (split-pane or
-full-tab, with clipboard-image paste), GitHub integration via the `gh`
-CLI, and **user-defined
-custom actions** that can run shell commands on selected files —
-including streaming command output into a new tab.
+Explorer turns [Cockpit](https://cockpit-project.org/)'s web console into a
+full file manager for your server — browse, edit, transfer, search, and run
+things on your files without leaving the browser or dropping to SSH. It's a
+single browser-side plugin (pure HTML/CSS/JS, **no build step**, no server
+daemon) that runs every privileged action through Cockpit's own superuser
+bridge.
 
-The installed plugin version is shown as a badge in the top-right of the
-tab bar (e.g. **Explorer v1.0.0**).
+**Highlights**
 
-Targets `/usr/share/cockpit/explorer/`.
+- 🗂️ **Multi-tab browser** with an optional **two-pane** (Midnight Commander)
+  layout, multi-select, and drag-and-drop with rename-on-drop.
+- 🔍 **Search** by filename or content — literal or regex, current folder or
+  recursive.
+- 👁️ **Preview** (text with line numbers, images, PDF, video, audio) and a
+  **Monaco / Quill editor**, each file in its own draggable window.
+- 🖥️ **Integrated terminals** (split-pane or full-tab) plus a **tmux** session
+  manager, with clipboard-image paste.
+- 🐙 **GitHub** via the `gh` CLI — PRs, branches, a commit browser, and
+  one-click publish.
+- ⚙️ **Custom actions** — run your own shell commands on selected files, with
+  streaming output, interactive prompts, and admin elevation.
+- 🧰 **System tools** — an `/etc/fstab` mounts editor (with SMB/NFS discovery),
+  a GRUB editor, archive create/extract, and admin-aware uploads.
+
+The installed plugin version shows as a badge in the top-right of the tab
+bar (e.g. **Explorer v2.0.1**). It targets `/usr/share/cockpit/explorer/`.
 
 ---
 
@@ -368,9 +381,14 @@ diffView: side
 
 ### Two-pane view (Midnight Commander style)
 
-The **⊞** button in the toolbar toggles a side-by-side two-pane layout.
-Each pane is an independent directory view with its own path, history,
-selection, sort order, search, and git strip.
+![Two-pane view](screenshots/dual-pane.svg)
+
+If you grew up on Midnight Commander, Norton Commander, or Total
+Commander, this will feel like home: two directory listings side by side,
+and copying or moving is just "source on the left, destination on the
+right." The **⊞** button in the toolbar toggles the layout on and off.
+Each pane is a fully independent directory view with its own path,
+history, selection, sort order, search, and git strip.
 
 - One pane is **active** at a time. Click anywhere in a pane to activate
   it, or press **Tab** to switch. The active pane has a blue top edge.
@@ -813,8 +831,13 @@ flips to showing the git badge and current-repo toolbar.
 
 ### Editor
 
-Two-mode editor. Each file opens in its own window (see *Preview* above
-for how multiple windows and the taskbar work):
+![Editor (Monaco)](screenshots/editor.svg)
+
+A real editor, not a textarea. You get the same engine that powers VS
+Code, opened right over your file list — no round-trip to a terminal, no
+leaving Cockpit. Two-mode editor; each file opens in its own draggable
+window (see *Preview* above for how multiple windows and the taskbar
+work):
 
 - **Source mode** — Microsoft's [Monaco](https://microsoft.github.io/monaco-editor/)
   (the editor inside VS Code), with syntax highlighting for ~70 languages,
@@ -835,8 +858,12 @@ changes trigger a confirm dialog on close.
 
 ### Search
 
-Search box in the toolbar — **Enter** to run, **Esc** to clear.
-Click the cog next to it to choose:
+![Search](screenshots/search.svg)
+
+Find files by **name** or by their **contents**, in the current folder or
+all the way down the tree, as a plain substring or a full regular
+expression. The search box lives in the toolbar — **Enter** to run,
+**Esc** to clear. Click the cog next to it to choose:
 
 - *Filename match* (default) or *Content (grep)*
 - *Search subfolders* — descend recursively into subdirectories. Off =

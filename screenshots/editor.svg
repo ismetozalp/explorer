@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="500" fill="#1b1d21"/>
+  <rect width="900" height="500" fill="#000" opacity="0.45"/>
+
+  <!-- editor window -->
+  <rect x="70" y="30" width="760" height="440" rx="8" fill="#1e1e1e" stroke="#444649"/>
+  <!-- header -->
+  <rect x="70" y="30" width="760" height="42" rx="8" fill="#23262b"/>
+  <rect x="70" y="62" width="760" height="10" fill="#23262b"/>
+  <circle cx="92" cy="52" r="4" fill="#e2b341"/>
+  <text x="104" y="56" fill="#f0f0f0" font-size="13" font-weight="bold">README.md</text>
+  <text x="196" y="56" fill="#e2b341" font-size="11">● unsaved</text>
+  <!-- Source / WYSIWYG toggle -->
+  <rect x="560" y="41" width="150" height="22" rx="4" fill="#2b2f34" stroke="#3d4147"/>
+  <rect x="560" y="41" width="75" height="22" rx="4" fill="#0d6efd"/>
+  <text x="574" y="56" fill="#fff" font-size="11">Source</text>
+  <text x="646" y="56" fill="#9aa0a8" font-size="11">WYSIWYG</text>
+  <text x="800" y="55" fill="#a6a6a6" font-size="15">×</text>
+  <line x1="70" y1="72" x2="830" y2="72" stroke="#3a3a3a"/>
+
+  <!-- monaco body: gutter + code + minimap -->
+  <rect x="70" y="72" width="760" height="352" fill="#1e1e1e"/>
+  <rect x="70" y="72" width="44" height="352" fill="#1e1e1e"/>
+  <g font-family="Consolas,Monaco,monospace" font-size="12.5" fill="#858585" text-anchor="end">
+    <text x="102" y="98">1</text><text x="102" y="118">2</text><text x="102" y="138">3</text>
+    <text x="102" y="158">4</text><text x="102" y="178">5</text><text x="102" y="198">6</text>
+    <text x="102" y="218">7</text><text x="102" y="238">8</text><text x="102" y="258">9</text>
+    <text x="102" y="278">10</text><text x="102" y="298">11</text><text x="102" y="318">12</text>
+  </g>
+  <g font-family="Consolas,Monaco,monospace" font-size="12.5">
+    <text x="122" y="98" fill="#569cd6"># Explorer</text>
+    <text x="122" y="138" fill="#d4d4d4">A multi-tab file browser for </text><text x="330" y="138" fill="#ce9178">Cockpit</text><text x="378" y="138" fill="#d4d4d4">.</text>
+    <text x="122" y="178" fill="#6a9955">## Features</text>
+    <text x="122" y="218" fill="#d4d4d4">- Two-pane layout, multi-select, search</text>
+    <text x="122" y="238" fill="#d4d4d4">- Preview + Monaco/Quill editor</text>
+    <text x="122" y="258" fill="#d4d4d4">- Integrated terminals + tmux</text>
+    <text x="122" y="278" fill="#d4d4d4">- GitHub via </text><text x="220" y="278" fill="#ce9178">gh</text><text x="236" y="278" fill="#d4d4d4"> + custom actions</text>
+  </g>
+  <!-- caret -->
+  <rect x="122" y="286" width="1.5" height="15" fill="#aeafad"/>
+  <!-- minimap -->
+  <rect x="792" y="72" width="38" height="352" fill="#232323"/>
+  <g fill="#3a3a3a"><rect x="798" y="86" width="20" height="4"/><rect x="798" y="120" width="26" height="4"/><rect x="798" y="150" width="16" height="4"/><rect x="798" y="188" width="28" height="4"/><rect x="798" y="204" width="24" height="4"/><rect x="798" y="220" width="22" height="4"/></g>
+
+  <!-- footer with Save -->
+  <rect x="70" y="424" width="760" height="46" rx="8" fill="#23262b"/>
+  <rect x="70" y="424" width="760" height="10" fill="#23262b"/>
+  <line x1="70" y1="424" x2="830" y2="424" stroke="#3a3a3a"/>
+  <text x="92" y="452" fill="#8b93a0" font-size="11">markdown · UTF-8 · LF · Ln 11, Col 30</text>
+  <rect x="726" y="435" width="86" height="24" rx="4" fill="#198754"/>
+  <text x="742" y="451" fill="#fff" font-size="12">Save</text>
+</svg>

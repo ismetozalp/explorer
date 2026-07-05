@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="460" viewBox="0 0 900 460" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="460" fill="#1b1d21"/>
+  <!-- shared toolbar -->
+  <rect x="0" y="0" width="900" height="40" fill="#23262b"/>
+  <g fill="#2b2f34" stroke="#3d4147"><rect x="14" y="9" width="150" height="22" rx="4"/></g>
+  <text x="26" y="24" fill="#cfd3d8" font-size="12">←  →  ↑  ⌂  ⟳</text>
+  <rect x="176" y="9" width="70" height="22" rx="4" fill="#0d6efd"/>
+  <text x="190" y="24" fill="#fff" font-size="12">⊞ Single</text>
+  <rect x="258" y="9" width="360" height="22" rx="4" fill="#2b2f34"/>
+  <text x="270" y="24" fill="#8b93a0" font-size="12">/ home / ismet / projects</text>
+  <rect x="630" y="9" width="150" height="22" rx="4" fill="#2b2f34"/>
+  <text x="642" y="24" fill="#8b93a0" font-size="12">Search…</text>
+
+  <!-- LEFT pane (active: blue top edge) -->
+  <rect x="8" y="52" width="432" height="396" fill="#202327" stroke="#2b2f34"/>
+  <rect x="8" y="52" width="432" height="3" fill="#3b82f6"/>
+  <rect x="8" y="55" width="432" height="24" fill="#23262b"/>
+  <text x="20" y="72" fill="#9aa0a8" font-size="11">↑  ⟳   / home / ismet / projects</text>
+  <g font-size="12.5">
+    <rect x="8" y="86" width="432" height="24" fill="#2b3138"/>
+    <text x="22" y="103" fill="#e8e8e8">📁 app</text><text x="360" y="103" fill="#8b93a0">dir</text>
+    <text x="22" y="131" fill="#cfd3d8">📁 infra</text>
+    <text x="22" y="159" fill="#cfd3d8">📄 docker-compose.yml</text>
+    <text x="22" y="187" fill="#cfd3d8">📄 Makefile</text>
+    <text x="22" y="215" fill="#cfd3d8">📄 README.md</text>
+    <rect x="8" y="230" width="432" height="24" fill="#2b3138"/>
+    <text x="22" y="247" fill="#e8e8e8">📄 release-2.0.1.zip</text><text x="360" y="247" fill="#8b93a0">14 MB</text>
+  </g>
+  <text x="20" y="436" fill="#7f8792" font-size="11">2 selected · 14 MB   ● active pane</text>
+
+  <!-- drag arrow between panes -->
+  <path d="M446 250 h14 m-14 0 l6 -5 m-6 5 l6 5" stroke="#7ec699" fill="none" stroke-width="1.5"/>
+  <text x="452" y="238" fill="#7ec699" font-size="10">drag →</text>
+
+  <!-- RIGHT pane -->
+  <rect x="460" y="52" width="432" height="396" fill="#1e2125" stroke="#2b2f34"/>
+  <rect x="460" y="55" width="432" height="24" fill="#23262b"/>
+  <text x="472" y="72" fill="#9aa0a8" font-size="11">↑  ⟳   / srv / backups</text>
+  <g font-size="12.5">
+    <text x="474" y="103" fill="#cfd3d8">📁 daily</text>
+    <text x="474" y="131" fill="#cfd3d8">📁 weekly</text>
+    <text x="474" y="159" fill="#cfd3d8">📄 backup.sh</text>
+    <text x="474" y="187" fill="#8b93a0">— empty selection —</text>
+  </g>
+  <text x="472" y="436" fill="#7f8792" font-size="11">destination pane</text>
+</svg>
