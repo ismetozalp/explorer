@@ -507,7 +507,11 @@ path. **Ctrl-Enter** in the textarea runs the command.
 
 ### Integrated terminals
 
-Real shells, embedded in the page via [xterm.js](https://xtermjs.org/)
+![Split view — file panes with a terminal docked at the bottom](screenshots/split-terminal.svg)
+
+Keep your files and a shell on screen at once — browse up top, run commands
+below, no window-switching. Real shells, embedded in the page via
+[xterm.js](https://xtermjs.org/)
 over Cockpit's PTY stream channel — the same approach as Cockpit's own
 Terminal page. Two ways to open one:
 
