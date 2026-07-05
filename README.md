@@ -489,7 +489,10 @@ contents while parked in the taskbar.
 
 ### Run command
 
-Each tab has a **⌨ Run…** button in the toolbar. Type any shell command,
+![Run command](screenshots/run-command.svg)
+
+Sometimes you just want to run *one* thing and watch it — without opening a
+full terminal. Each tab has a **⌨ Run…** button in the toolbar. Type any shell command,
 pick the shell (populated from `/etc/shells`, default chosen in Settings),
 optionally tick *Run as administrator*, and the command streams its
 output into a new tab — same kind of streaming pane that the
@@ -633,13 +636,21 @@ user, so these are that user's own per-user tmux sessions.
 
 ### Open in Cockpit terminal
 
-The **▭ Cockpit term** toolbar button (and a matching context-menu item)
-jumps to Cockpit's built-in full-screen Terminal page at the current
-directory, if you'd rather use that than the embedded one.
+Prefer Cockpit's own full-screen terminal to the embedded one? The **▭
+Cockpit term** toolbar button (and a matching context-menu item) jumps
+straight to Cockpit's built-in Terminal page — and, where the browser
+allows a clipboard write, drops a `cd <current directory>` onto your
+clipboard so you land in the right folder with a single paste. On a
+non-secure (http) origin the browser blocks that write, so the command is
+shown in a toast to copy manually instead.
 
 ### Cached repositories
 
-When you've checked out one or more GitHub repos (or registered existing
+![Cached repositories](screenshots/cached-repos.svg)
+
+A quick-jump list of the git checkouts you care about, so you're never
+hunting for that clone three folders deep. When you've checked out one or
+more GitHub repos (or registered existing
 clones), a **⌂ Repos** dropdown appears in the toolbar listing each local
 copy by its **title**, `owner/repo`, and directory path. Pick one to jump
 the current tab straight to that checkout; each row also has a **✎**
@@ -894,6 +905,11 @@ directory view.
 
 ### Drag-and-drop
 
+![Drag-and-drop with rename-on-drop](screenshots/drag-drop.svg)
+
+Drag to move or copy — between panes, between tabs, or straight from your
+desktop to upload — and rename in the same motion:
+
 - Drag files between tabs or panes → a modal asks **Move** or **Copy**.
 - **Drop onto a folder row** to drop *into* that subfolder; dropping on
   empty space or a non-folder row lands in the pane's current folder.
@@ -934,10 +950,14 @@ silently dropping the folder.)
 
 ### Operations tray
 
+![Operations tray](screenshots/operations-tray.svg)
+
+Nothing blocks the UI — kick off a big copy or upload and keep browsing.
 Long-running ops (copy, move, delete, archive, upload, download,
 custom actions in tray mode) show up in a fixed tray at the
-bottom-right with progress bars, cancel buttons, and — when something
-fails with *Permission denied* — a **Retry as administrator** button.
+bottom-right with live progress bars (percentage, bytes/s and ETA for
+rsync transfers), cancel buttons, and — when something fails with
+*Permission denied* — a **Retry as administrator** button.
 
 ### "Retry as administrator"
 

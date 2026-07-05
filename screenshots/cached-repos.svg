@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="330" viewBox="0 0 900 330" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="330" fill="#1b1d21"/>
+  <!-- toolbar with the Repos button -->
+  <rect x="0" y="0" width="900" height="40" fill="#23262b"/>
+  <rect x="14" y="9" width="150" height="22" rx="4" fill="#2b2f34"/>
+  <text x="26" y="24" fill="#cfd3d8" font-size="12">←  →  ↑  ⌂  ⟳</text>
+  <rect x="700" y="9" width="90" height="22" rx="4" fill="#0d6efd"/>
+  <text x="714" y="24" fill="#fff" font-size="12">⌂ Repos ▾</text>
+
+  <!-- dropdown -->
+  <rect x="560" y="40" width="330" height="250" rx="6" fill="#292d31" stroke="#444649"/>
+  <text x="578" y="64" fill="#9aa0a8" font-size="11">LOCAL CHECKOUTS</text>
+
+  <g font-size="12.5">
+    <!-- row 1 -->
+    <rect x="560" y="74" width="330" height="52" fill="#2b3138"/>
+    <text x="578" y="94" fill="#e8e8e8" font-weight="bold">Explorer</text>
+    <text x="578" y="110" fill="#9cc4ff">ismetozalp/explorer</text>
+    <text x="578" y="124" fill="#7f8792" font-size="10">/home/ismet/explorer</text>
+    <text x="840" y="98" fill="#9aa0a8">✎</text><text x="864" y="98" fill="#9aa0a8">✕</text>
+
+    <!-- row 2 -->
+    <text x="578" y="152" fill="#cfd3d8" font-weight="bold">infra</text>
+    <text x="578" y="168" fill="#9cc4ff">acme/infra</text>
+    <text x="578" y="182" fill="#7f8792" font-size="10">/srv/infra</text>
+    <text x="840" y="160" fill="#9aa0a8">✎</text><text x="864" y="160" fill="#9aa0a8">✕</text>
+
+    <!-- row 3 -->
+    <text x="578" y="212" fill="#cfd3d8" font-weight="bold">dotfiles</text>
+    <text x="578" y="228" fill="#9cc4ff">ismetozalp/dotfiles</text>
+    <text x="578" y="242" fill="#7f8792" font-size="10">/home/ismet/.dotfiles</text>
+    <text x="840" y="220" fill="#9aa0a8">✎</text><text x="864" y="220" fill="#9aa0a8">✕</text>
+  </g>
+  <line x1="560" y1="258" x2="890" y2="258" stroke="#3d4147"/>
+  <text x="578" y="278" fill="#7f8792" font-size="11">Pick one to jump the tab to that checkout</text>
+</svg>
