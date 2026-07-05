@@ -1,0 +1,172 @@
+<!-- Permissions, Compress, Download-archive, Drop-choice — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
+<div class="modal fade" id="propsModal" tabindex="-1" x-data x-init="propsModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" x-show="props.file">
+            <div class="modal-header">
+                <h5 class="modal-title"><span x-text="props.file?.name"></span> permissions</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-muted small mb-3" x-text="typeLabel(props.file)"></div>
+
+                <h6 class="mb-3">Ownership</h6>
+                <div class="row mb-2">
+                    <label class="col-4 col-form-label">Owner</label>
+                    <div class="col-8">
+                        <select class="form-select" x-model="props.owner">
+                            <template x-for="u in props.userList" :key="u">
+                                <option :value="u" x-text="u"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-4 col-form-label">Group</label>
+                    <div class="col-8">
+                        <select class="form-select" x-model="props.group">
+                            <template x-for="g in props.groupList" :key="g">
+                                <option :value="g" x-text="g"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <h6 class="mb-3">Access</h6>
+                <div class="row mb-2">
+                    <label class="col-4 col-form-label">Owner access</label>
+                    <div class="col-8">
+                        <select class="form-select" x-model="props.access.owner">
+                            <option value="none">None</option>
+                            <option value="r">Read-only</option>
+                            <option value="rw">Read and write</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <label class="col-4 col-form-label">Group access</label>
+                    <div class="col-8">
+                        <select class="form-select" x-model="props.access.group">
+                            <option value="none">None</option>
+                            <option value="r">Read-only</option>
+                            <option value="rw">Read and write</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <label class="col-4 col-form-label">Others access</label>
+                    <div class="col-8">
+                        <select class="form-select" x-model="props.access.others">
+                            <option value="none">None</option>
+                            <option value="r">Read-only</option>
+                            <option value="rw">Read and write</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-2 mt-3" x-show="props.selinux">
+                    <label class="col-4 col-form-label">Security context</label>
+                    <div class="col-8 d-flex align-items-center"><code class="small" x-text="props.selinux"></code></div>
+                </div>
+
+                <div class="form-check mt-3" x-show="props.file && props.file.type !== 'd'">
+                    <input type="checkbox" class="form-check-input" id="prop-exec" x-model="props.executable">
+                    <label class="form-check-label" for="prop-exec">Set executable as program</label>
+                </div>
+                <div class="text-muted small mt-2" x-show="props.file && props.file.type === 'd'">
+                    Directory traversal (execute) bit is set automatically wherever read access is granted.
+                </div>
+
+                <div class="text-muted small mt-3">
+                    Resulting mode: <code x-text="propsOctal()"></code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @click="applyProperties()">Change</button>
+                <button class="btn btn-link" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Compress modal -->
+<div class="modal fade" id="compressModal" tabindex="-1" x-data x-init="compressModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Compress</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Archive name</label>
+                    <input type="text" class="form-control" x-model="compress.name">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Format</label>
+                    <select class="form-select" x-model="compress.format" @change="onCompressFormatChanged()">
+                        <option value="zip">zip</option>
+                        <option value="tar">tar</option>
+                        <option value="tar.gz">tar.gz</option>
+                        <option value="tar.bz2">tar.bz2</option>
+                        <option value="tar.xz">tar.xz</option>
+                    </select>
+                </div>
+                <div class="form-text">Files to compress: <span x-text="compress.paths.length"></span></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="doCompress()">Compress</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="downloadArcModal" tabindex="-1" x-data x-init="downloadArcModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Download as archive</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Archive format</label>
+                    <select class="form-select" x-model="downloadArc.format">
+                        <option value="tar.gz">tar.gz (recommended)</option>
+                        <option value="zip">zip (needs the zip package)</option>
+                        <option value="tar">tar</option>
+                        <option value="tar.bz2">tar.bz2</option>
+                        <option value="tar.xz">tar.xz</option>
+                    </select>
+                </div>
+                <div class="form-text"><span x-text="downloadArc.count"></span> item(s) will be compressed and downloaded.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="doDownloadArchive()">Download</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Move vs Copy choice -->
+<div class="modal fade" id="dropChoiceModal" tabindex="-1" x-data x-init="dropChoiceModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Drop action</h5></div>
+            <div class="modal-body">
+                <p x-show="!dropChoice.single">Move or copy <strong x-text="dropChoice.paths.length"></strong> item(s) to <code x-text="dropChoice.target"></code>?</p>
+                <p x-show="dropChoice.single">Drop <strong x-text="dropChoice.single?.name"></strong> into <code x-text="dropChoice.target"></code>:</p>
+                <div x-show="dropChoice.single" class="mb-1">
+                    <label class="form-label small mb-1">Name at destination</label>
+                    <input type="text" class="form-control form-control-sm" x-model="dropChoice.name"
+                           @keydown.enter="resolveDropChoice(dropChoice.forceCopy ? 'copy' : 'move')"
+                           spellcheck="false" autocomplete="off">
+                    <div class="form-text small">Leave unchanged to keep the same name.</div>
+                </div>
+                <p x-show="dropChoice.forceCopy" class="text-muted small mb-0">Source is in a repo cache — it will be <strong>copied</strong> to keep the cache intact.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="resolveDropChoice(null)">Cancel</button>
+                <button class="btn btn-outline-primary" @click="resolveDropChoice('copy')">Copy</button>
+                <button class="btn btn-primary" x-show="!dropChoice.forceCopy" @click="resolveDropChoice('move')">Move</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mounts / fstab editor -->

@@ -2,6 +2,17 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.1.0
+
+- **Internal: `index.html` split into HTML partials.** The ~21 modal dialogs
+  moved out of the 2,142-line `index.html` into focused `html/modals/*.html`
+  files (windows, files, dialogs, mounts, grub, actions, toolbar, github);
+  `index.html` is now ~660 lines — just the app shell (tab bar, tabs, context
+  menus, toasts). Still **no build step**: a small `js/boot.js` fetches the
+  partials in the browser, injects them into the component's scope, and only
+  then loads Alpine, so Alpine initializes the completed DOM (each modal's
+  `x-init` runs normally). No behavior change; verified in-browser.
+
 ## 2.0.1
 
 - **Line numbers in the code preview.** The text/code Preview now shows a

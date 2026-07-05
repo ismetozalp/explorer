@@ -1,0 +1,420 @@
+<!-- GitHub panel, Commit browser, Type-confirm, Push-conflict, Commit-msg, Publish — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
+<!-- ============== GITHUB PANEL ============== -->
+<div class="modal fade" id="ghModal" tabindex="-1" x-data x-init="ghModalEl = $el">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content gh-panel">
+            <div class="modal-header">
+                <h5 class="modal-title">GitHub
+                    <span class="badge bg-secondary ms-2 small" x-show="gh.user" x-text="'@' + gh.user"></span>
+                </h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- STATE: checking (don't leave the panel blank) -->
+                <template x-if="gh.state === 'init'">
+                    <div class="text-center p-5 text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Checking GitHub CLI status…
+                    </div>
+                </template>
+                <!-- STATE: gh not installed -->
+                <template x-if="gh.state === 'notinstalled'">
+                    <div class="text-center p-4">
+                        <h6>GitHub CLI not installed</h6>
+                        <p class="text-muted">The plugin uses the <code>gh</code> command-line tool.<br>
+                            Detected distro: <strong x-text="gh.installFamily || 'unknown'"></strong>.</p>
+                        <button class="btn btn-primary" @click="installGh()" :disabled="gh.installing">
+                            <span x-show="!gh.installing">Install GitHub CLI</span>
+                            <span x-show="gh.installing">Installing…</span>
+                        </button>
+                        <div class="small text-muted mt-3">
+                            Already installed gh yourself? &nbsp;
+                            <button class="btn btn-sm btn-outline-secondary" @click="_refreshGhState()">Re-check</button>
+                        </div>
+                    </div>
+                </template>
+                <!-- STATE: not authenticated -->
+                <template x-if="gh.state === 'notauthed'">
+                    <div class="p-3" style="max-width:520px;margin:0 auto">
+                        <h6>Sign in to GitHub</h6>
+                        <p class="text-muted small">GitHub doesn't accept passwords for the API since 2021 — you'll
+                            need a <a href="https://github.com/settings/tokens" target="_blank">Personal Access Token</a>
+                            (classic or fine-grained). Required scopes: <code>repo</code>.</p>
+                        <div class="mb-2">
+                            <label class="form-label">Token</label>
+                            <input type="password" class="form-control" x-model="gh.tokenInput" autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="ghSaveToken" x-model="gh.saveToken">
+                            <label class="form-check-label small" for="ghSaveToken">
+                                Remember this token so Explorer can sign <code>gh</code> back in automatically if it ever gets logged out
+                            </label>
+                        </div>
+                        <div class="small text-muted mb-2" x-show="gh.saveToken">
+                            Saved to <code x-text="ghTokenPathDisplay()"></code> (in your home directory, permissions <code>0600</code>).
+                        </div>
+                        <button class="btn btn-primary" @click="ghLogin()" :disabled="gh.loggingIn || !gh.tokenInput">
+                            <span x-show="!gh.loggingIn">Sign in</span>
+                            <span x-show="gh.loggingIn">Signing in…</span>
+                        </button>
+                        <div x-show="gh.authError" class="text-danger small mt-2" x-text="gh.authError"></div>
+                        <div class="small text-muted mt-3">The token is piped to <code>gh auth login --with-token</code>
+                            and stored by <code>gh</code> at <code>~/.config/gh/hosts.yml</code> with 0600 perms.
+                            <span x-show="gh.saveToken">Explorer also keeps its own copy at <code x-text="ghTokenPathDisplay()"></code>
+                            (0600) so it can re-authenticate <code>gh</code> without asking you again.</span>
+                            Each Cockpit user has their own credentials.</div>
+                        <div class="small text-muted mt-3 pt-2 border-top">
+                            Already signed in via <code>gh auth login</code> in a terminal/browser? &nbsp;
+                            <button class="btn btn-sm btn-outline-secondary" @click="_refreshGhState()">Re-check</button>
+                        </div>
+                    </div>
+                </template>
+                <!-- STATE: authenticated -->
+                <template x-if="gh.state === 'authed'">
+                    <div>
+                        <div x-show="gh.scopeWarning" class="alert alert-warning small mb-2">
+                            ⚠ This token has broad scopes (<span x-text="gh.scopes.join(', ')"></span>).
+                            Consider using a fine-grained PAT limited to specific repos.
+                        </div>
+                        <div class="row g-2">
+                            <!-- Left: repo list -->
+                            <div class="col-4 gh-repo-list-wrap">
+                                <input type="search" class="form-control form-control-sm mb-2" placeholder="Search repos…" x-model="gh.search">
+                                <div class="gh-repo-list">
+                                    <button class="btn btn-sm btn-outline-secondary w-100 mb-2" @click="ghReloadRepos()">↻ Refresh</button>
+                                    <template x-for="r in filteredRepos()" :key="r.nameWithOwner">
+                                        <div class="gh-repo-item" :class="{ active: gh.selectedRepo === r.nameWithOwner }" @click="selectRepo(r)">
+                                            <div class="gh-repo-name" x-text="r.nameWithOwner"></div>
+                                            <div class="gh-repo-meta">
+                                                <span x-text="r.visibility"></span>
+                                                <span x-show="r.primaryLanguage" x-text="r.primaryLanguage?.name"></span>
+                                                <span x-show="r.isFork">fork</span>
+                                                <span class="ms-auto" x-text="formatRel(r.updatedAt)"></span>
+                                            </div>
+                                            <div class="gh-repo-meta text-muted" x-show="r.description" x-text="r.description"></div>
+                                            <div class="gh-repo-meta" x-show="repoCheckouts(r.nameWithOwner).length">
+                                                ✓ <span x-text="repoCheckouts(r.nameWithOwner).length"></span> local cop<span x-text="repoCheckouts(r.nameWithOwner).length === 1 ? 'y' : 'ies'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="!gh.repos.length && !gh.loadingRepos" class="text-muted text-center p-4">No repos.</div>
+                                    <div x-show="gh.loadingRepos" class="text-center p-4">Loading…</div>
+                                </div>
+                            </div>
+                            <!-- Right: repo details -->
+                            <div class="col-8 gh-repo-detail">
+                                <template x-if="gh.selectedRepo">
+                                    <div>
+                                        <h6 x-text="gh.selectedRepo"></h6>
+                                        <ul class="nav nav-tabs">
+                                            <li class="nav-item"><a class="nav-link" :class="{ active: gh.tab === 'branches' }" @click.prevent="gh.tab='branches'" href="#">Branches</a></li>
+                                            <li class="nav-item"><a class="nav-link" :class="{ active: gh.tab === 'prs' }" @click.prevent="ghLoadPrs()" href="#">Pull requests</a></li>
+                                            <li class="nav-item"><a class="nav-link" :class="{ active: gh.tab === 'cache' }" @click.prevent="gh.tab='cache'" href="#">Local checkout</a></li>
+                                        </ul>
+                                        <!-- Branches tab -->
+                                        <div x-show="gh.tab === 'branches'" class="gh-branches-wrap p-2">
+                                            <div x-show="gh.loadingBranches" class="text-muted">Loading branches…</div>
+                                            <div x-show="!gh.loadingBranches" class="d-flex align-items-center gap-2 mb-2">
+                                                <input type="search" class="form-control form-control-sm" placeholder="Filter branches…" x-model="gh.branchSearch" style="max-width:320px">
+                                                <span class="text-muted small" x-show="gh.branches.length" x-text="filteredBranches().length + ' / ' + gh.branches.length"></span>
+                                                <button class="btn btn-sm btn-outline-primary ms-auto" @click="checkoutNewCopy(gh.selectedRepo)" title="Clone an additional working copy into a new directory">+ Check out a new copy…</button>
+                                            </div>
+                                            <table class="table table-sm gh-branch-table" x-show="!gh.loadingBranches">
+                                                <thead><tr><th>Branch</th><th>SHA</th><th>Actions</th></tr></thead>
+                                                <tbody>
+                                                    <template x-for="b in filteredBranches()" :key="b.name">
+                                                        <tr>
+                                                            <td>
+                                                                <strong x-text="b.name"></strong>
+                                                                <span class="badge bg-info text-dark ms-1" x-show="b.protected">protected</span>
+                                                                <template x-if="copiesForBranch(b.name).length">
+                                                                    <div class="gh-branch-copies">
+                                                                        <template x-for="c in copiesForBranch(b.name)" :key="c.path">
+                                                                            <a class="gh-branch-copy" href="#" @click.prevent="openCheckoutInTab(gh.selectedRepo, c.path)" :title="c.path">
+                                                                                <span class="gh-branch-copy-ico">⌂</span>
+                                                                                <span x-text="c.title"></span>
+                                                                                <span class="gh-branch-copy-path" x-text="c.path"></span>
+                                                                            </a>
+                                                                        </template>
+                                                                    </div>
+                                                                </template>
+                                                            </td>
+                                                            <td><code x-text="(b.commit?.sha || '').slice(0,7)"></code></td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-link" @click="checkoutBranch(b)">Checkout</button>
+                                                                <button class="btn btn-sm btn-link" @click="updateBranch(b)" :title="repoCheckout(gh.selectedRepo) ? 'Fetch+ff this branch in local clone' : 'Requires local checkout'">Update</button>
+                                                                <button class="btn btn-sm btn-link" @click="browseCommits(b.name)">Commits</button>
+                                                                <button class="btn btn-sm btn-link" @click="createBranchFrom(b.name)">Branch from this</button>
+                                                                <button class="btn btn-sm btn-link text-danger" @click="askDeleteRemoteBranch(b.name)">Delete</button>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                    <tr x-show="!gh.loadingBranches && gh.branches.length && !filteredBranches().length">
+                                                        <td colspan="3" class="text-muted text-center">No branches match “<span x-text="gh.branchSearch"></span>”.</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <!-- PRs tab -->
+                                        <div x-show="gh.tab === 'prs'" class="p-2">
+                                            <div x-show="gh.loadingPrs" class="text-muted">Loading…</div>
+                                            <table class="table table-sm" x-show="!gh.loadingPrs">
+                                                <thead><tr><th>#</th><th>Title</th><th>Branches</th><th>Author</th><th></th></tr></thead>
+                                                <tbody>
+                                                    <template x-for="pr in gh.prs" :key="pr.number">
+                                                        <tr>
+                                                            <td x-text="pr.number"></td>
+                                                            <td><a :href="pr.url" target="_blank" x-text="pr.title"></a>
+                                                                <span x-show="pr.isDraft" class="badge bg-secondary ms-1">draft</span></td>
+                                                            <td class="small"><code x-text="pr.headRefName"></code> → <code x-text="pr.baseRefName"></code></td>
+                                                            <td class="small" x-text="pr.author?.login"></td>
+                                                            <td><button class="btn btn-sm btn-link" @click="checkoutPr(pr)">Checkout</button></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                            <div x-show="!gh.loadingPrs && !gh.prs.length" class="text-muted p-3">No open pull requests.</div>
+                                        </div>
+                                        <!-- Cache tab -->
+                                        <div x-show="gh.tab === 'cache'" class="p-2">
+                                            <div x-show="repoCheckouts(gh.selectedRepo).length">
+                                                <p class="text-muted small mb-2">Local copies (<span x-text="repoCheckouts(gh.selectedRepo).length"></span>):</p>
+                                                <template x-for="c in repoCheckouts(gh.selectedRepo)" :key="c.path">
+                                                    <div class="gh-copy-row">
+                                                        <div class="gh-copy-info">
+                                                            <div><strong x-text="c.title || repoTitleOf(gh.selectedRepo, c.path)"></strong></div>
+                                                            <div><code x-text="c.path"></code></div>
+                                                        </div>
+                                                        <div class="gh-copy-actions">
+                                                            <button class="btn btn-sm btn-outline-primary" @click="openCheckoutInTab(gh.selectedRepo, c.path)">Open</button>
+                                                            <button class="btn btn-sm btn-outline-secondary" @click="updateCheckout(gh.selectedRepo, c.path)" title="Fetch + ff pull">Update</button>
+                                                            <button class="btn btn-sm btn-outline-secondary" @click="setRepoTitle(gh.selectedRepo, c.path)">Rename</button>
+                                                            <button class="btn btn-sm btn-outline-danger" @click="forgetCheckout(gh.selectedRepo, c.path)" title="Remove from cache (files are not deleted)">Forget</button>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                            <p x-show="!repoCheckouts(gh.selectedRepo).length" class="text-muted">No local checkout recorded for this repo.</p>
+                                            <div class="mt-2 d-flex gap-2 flex-wrap">
+                                                <button class="btn btn-sm btn-outline-primary" @click="checkoutNewCopy(gh.selectedRepo)" x-show="repoCheckouts(gh.selectedRepo).length">+ Check out a new copy…</button>
+                                                <button class="btn btn-sm btn-outline-primary" @click="cloneRepo(gh.selectedRepo)" x-show="!repoCheckouts(gh.selectedRepo).length">Clone here…</button>
+                                                <button class="btn btn-sm btn-outline-secondary" @click="registerExistingClone(gh.selectedRepo)">Register existing clone…</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="!gh.selectedRepo">
+                                    <div class="text-muted text-center p-4">Select a repository on the left.</div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== COMMIT BROWSER ============== -->
+<div class="modal fade" id="commitBrowserModal" tabindex="-1" x-data x-init="commitBrowserModalEl = $el; $el.addEventListener('hidden.bs.modal', () => _onCommitBrowserClosed())">
+    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Commits: <code x-text="commitBrowser.repo"></code> / <strong x-text="commitBrowser.branch"></strong>
+                    <span class="text-muted small ms-2" x-show="commitBrowser.cachePath" x-text="'(' + commitBrowser.cachePath + ')'"></span>
+                    <span class="text-muted small ms-2" x-show="!commitBrowser.cachePath">(remote — clones on first diff)</span>
+                </h5>
+                <div class="btn-group btn-group-sm ms-auto me-3" role="group" x-show="commitBrowser.fileDiff">
+                    <button class="btn btn-outline-secondary" :class="{ active: settings.diffView === 'side' }" @click="settings.diffView='side'; saveSettings(); renderDiff()">Side-by-side</button>
+                    <button class="btn btn-outline-secondary" :class="{ active: settings.diffView === 'line' }" @click="settings.diffView='line'; saveSettings(); renderDiff()">Unified</button>
+                </div>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 commit-browser-body">
+                <div class="cb-grid">
+                    <div class="cb-col cb-commits">
+                        <div class="cb-col-header">Commits</div>
+                        <div class="cb-list">
+                            <template x-for="c in commitBrowser.commits" :key="c.hash">
+                                <div class="cb-commit" :class="{ active: commitBrowser.selectedCommit?.hash === c.hash }" @click="selectCommit(c)">
+                                    <div class="cb-commit-subject" x-text="c.subject"></div>
+                                    <div class="cb-commit-meta">
+                                        <code x-text="c.short"></code>
+                                        <span x-text="c.author"></span>
+                                        <span x-text="formatRel(c.date)"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="commitBrowser.loadingCommits" class="text-muted p-3">Loading…</div>
+                        </div>
+                    </div>
+                    <div class="cb-col cb-files">
+                        <div class="cb-col-header">Files changed</div>
+                        <div class="cb-list">
+                            <template x-for="f in commitBrowser.files" :key="f.path">
+                                <div class="cb-file" :class="{ active: commitBrowser.selectedFile?.path === f.path }" @click="selectCommitFile(f)">
+                                    <div class="cb-file-path" x-text="f.path"></div>
+                                    <div class="cb-file-stats">
+                                        <span class="text-success">+<span x-text="f.added"></span></span>
+                                        <span class="text-danger">-<span x-text="f.deleted"></span></span>
+                                        <button class="btn btn-sm btn-link" @click.stop="viewFileAtCommit(f)">view file</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="cb-col cb-diff">
+                        <div class="cb-col-header">Diff</div>
+                        <div id="cbDiffContainer" class="cb-diff-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== TYPE-TO-CONFIRM ============== -->
+<div class="modal fade" id="typeConfirmModal" tabindex="-1" x-data x-init="typeConfirmModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" x-text="typeConfirm.title"></h5></div>
+            <div class="modal-body">
+                <p x-text="typeConfirm.message"></p>
+                <p class="text-muted small">Type <code x-text="typeConfirm.phrase"></code> to confirm.</p>
+                <input class="form-control font-monospace" x-model="typeConfirm.typed" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="resolveTypeConfirm(false)">Cancel</button>
+                <button class="btn btn-danger" @click="resolveTypeConfirm(true)" :disabled="typeConfirm.typed !== typeConfirm.phrase">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== PUSH CONFLICT DIALOG ============== -->
+<div class="modal fade" id="pushConflictModal" tabindex="-1" x-data x-init="pushConflictModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Remote has diverged</h5></div>
+            <div class="modal-body">
+                <p>Remote has changes you don't have locally
+                    (behind <strong x-text="pushConflict.behind"></strong>,
+                     ahead <strong x-text="pushConflict.ahead"></strong>).</p>
+                <p>Merging or rebasing isn't supported by this plugin. Pick one:</p>
+                <ul class="text-muted small">
+                    <li><strong>Discard</strong> will lose <span x-text="pushConflict.dirtyCount"></span> uncommitted edits and <span x-text="pushConflict.ahead"></span> local commits.</li>
+                    <li><strong>Keep local</strong> does nothing — resolve manually in a terminal later.</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="resolvePushConflict('cancel')">Cancel</button>
+                <button class="btn btn-outline-secondary" @click="resolvePushConflict('keep')">Keep local, don't push</button>
+                <button class="btn btn-danger" @click="resolvePushConflict('discard')">Discard local changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== COMMIT MESSAGE DIALOG ============== -->
+<div class="modal fade" id="commitMsgModal" tabindex="-1" x-data x-init="commitMsgModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Commit</h5></div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2"><span x-text="commitMsg.fileCount"></span> file(s) will be staged.</div>
+                <textarea class="form-control font-monospace" rows="4" x-model="commitMsg.message" placeholder="Commit message"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="resolveCommitMsg(null)">Cancel</button>
+                <button class="btn btn-primary" @click="resolveCommitMsg(commitMsg.message)" :disabled="!commitMsg.message.trim()" x-text="commitMsg.push ? 'Commit &amp; Push' : 'Commit'"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== PUBLISH TO GITHUB MODAL ============== -->
+<div class="modal fade" id="publishModal" tabindex="-1" x-data x-init="publishModalEl = $el">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Publish to GitHub</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2">Folder: <code x-text="publish.folder"></code></div>
+
+                <div x-show="publish.scopeBlocked" class="alert alert-warning small">
+                    Your GitHub token lacks the <code>repo</code> scope needed to create repositories.
+                    Add it at <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a>
+                    and sign in again from the GH panel.
+                </div>
+                <div x-show="publish.scopeUnknown" class="alert alert-info small">
+                    Couldn't verify token scopes (fine-grained token?). Publishing may fail if the token
+                    lacks repository-creation permission.
+                </div>
+
+                <div class="row">
+                    <div class="col-7 mb-2">
+                        <label class="form-label">Repository name</label>
+                        <input class="form-control" x-model="publish.name" @input="validatePublishName()">
+                        <div class="form-text text-danger" x-show="publish.nameError" x-text="publish.nameError"></div>
+                    </div>
+                    <div class="col-5 mb-2">
+                        <label class="form-label">Owner</label>
+                        <select class="form-select" x-model="publish.owner">
+                            <option :value="gh.user" x-text="gh.user + ' (you)'"></option>
+                            <template x-for="o in publish.orgs" :key="o">
+                                <option :value="o" x-text="o"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Visibility</label>
+                    <div>
+                        <label class="me-3"><input type="radio" value="private" x-model="publish.visibility"> Private</label>
+                        <label><input type="radio" value="public" x-model="publish.visibility"> Public</label>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+                    <input class="form-control" x-model="publish.description">
+                </div>
+
+                <div class="row">
+                    <div class="col-6 mb-2">
+                        <label class="form-label">.gitignore template <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" x-model="publish.gitignore">
+                            <template x-for="g in publish.gitignoreTemplates" :key="g">
+                                <option :value="g" x-text="g || '(none)'"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label">License <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" x-model="publish.license">
+                            <template x-for="l in publish.licenses" :key="l.key">
+                                <option :value="l.key" x-text="l.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Initial commit message</label>
+                    <input class="form-control" x-model="publish.commitMessage">
+                </div>
+
+                <div class="small text-muted" x-show="publish.empty">This folder is empty — a starter <code>README.md</code> will be created so there's something to push.</div>
+            </div>
+            <div class="modal-footer">
+                <span x-show="publish.error" class="text-danger me-auto small" x-text="publish.error"></span>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="doPublish()"
+                        :disabled="publish.scopeBlocked || publish.nameError || !publish.name || publish.busy">
+                    <span x-show="!publish.busy">Publish</span>
+                    <span x-show="publish.busy">Publishing…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

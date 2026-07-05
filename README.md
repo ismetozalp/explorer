@@ -1437,7 +1437,11 @@ prompts for these, pre-filled with the last commit message).
 ```
 explorer/
 ├── manifest.json         Cockpit plugin manifest (+ CSP)
-├── index.html            UI shell (tab bar, toolbar, modals)
+├── index.html            app shell — tab bar, tabs, context menus, toasts
+├── html/
+│   └── modals/               dialog partials, fetched + injected by js/boot.js
+│       ├── windows.html  files.html   dialogs.html  mounts.html
+│       └── grub.html     actions.html toolbar.html  github.html
 ├── css/
 │   ├── bootstrap.min.css      Bootstrap 5.3.3
 │   ├── prism.css              Prism syntax-highlight theme (for preview)
@@ -1464,6 +1468,7 @@ explorer/
 │   ├── git.js                     gh CLI + local git wrappers
 │   ├── js-yaml.min.js             YAML parser/serializer (for settings.yml)
 │   ├── runtime.js                 window.ExRT — shared non-reactive registries + constants
+│   ├── boot.js                    fetches html/modals/* → injects → loads Alpine (no build step)
 │   ├── features/                  per-feature method mixins (window.Explorer…)
 │   │   ├── github.js  mounts.js  actions.js  terminal.js
 │   │   └── upload.js  editor.js  grub.js
@@ -1498,6 +1503,18 @@ defined in two files) and `tools/compose-test.js` (loads everything and asserts 
 component assembles) — alongside `tests/smoke.mjs`, a Playwright check through
 Cockpit. This was purely an internal reorganization: **no behavior changed** from
 1.1.6.
+
+**Architecture (2.1.0) — HTML partials.** The same idea was then applied to the
+markup. The ~21 modal dialogs moved out of `index.html` into `html/modals/*.html`,
+leaving `index.html` as just the app shell (~660 lines, down from ~2,140). Because
+plain HTML has no build-step-free `#include`, a tiny **`js/boot.js`** does it at
+runtime: it `fetch`es each partial (same-origin, allowed by the CSP), injects them
+into an `#ex-partials` host inside the `x-data="explorer"` scope, and **only then**
+loads Alpine — so Alpine walks the completed DOM and runs each modal's `x-init`
+exactly as if it had been inline. If a partial fails to load the shell still works;
+the affected dialog just won't open. Still **no build step**, and no behavior
+change — verified in-browser (the modals are confirmed to be injected into
+`#ex-partials`, not inlined).
 
 ---
 

@@ -1,0 +1,81 @@
+<!-- Preview/editor window host — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
+<div class="modal fade" id="windowHost" tabindex="-1" x-data
+     x-init="windowHostEl = $el; $el.addEventListener('hidden.bs.modal', () => hostVisible = false)"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered" :class="hostMaximized ? 'modal-fullscreen' : 'modal-xl'">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center" style="gap:.4rem; min-width:0;">
+                    <span class="text-truncate" x-text="activeWin() ? activeWin().title : ''"></span>
+                    <span x-show="activeWin() && activeWin().kind === 'editor' && activeWin().dirty" class="dirty-marker">●</span>
+                    <span class="badge bg-secondary small" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().lang" x-text="activeWin() && activeWin().lang"></span>
+                    <span class="badge bg-secondary small" x-show="activeWin() && activeWin().readOnly">read-only</span>
+                </h5>
+                <div class="btn-group btn-group-sm ms-3" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().canWysiwyg" role="group" aria-label="Editor mode">
+                    <button type="button" class="btn btn-outline-secondary" :class="{ active: activeWin() && activeWin().mode === 'code' }" @click="setEditorMode('code')">Source</button>
+                    <button type="button" class="btn btn-outline-secondary" :class="{ active: activeWin() && activeWin().mode === 'wysiwyg' }" @click="setEditorMode('wysiwyg')">WYSIWYG</button>
+                </div>
+                <div class="win-controls ms-auto">
+                    <button type="button" class="win-btn" @click="minimizeHost()" title="Minimize" x-html="winIconMinimize"></button>
+                    <button type="button" class="win-btn" @click="hostMaximized = !hostMaximized" :title="hostMaximized ? 'Restore' : 'Maximize'" x-html="hostMaximized ? winIconRestore : winIconMaximize"></button>
+                    <button type="button" class="win-btn win-btn-close" @click="closeActiveWindow()" title="Close" x-html="winIconClose"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" :class="(activeWin() && activeWin().kind === 'preview') ? 'preview-body' : 'editor-body'">
+                <!-- Editor surfaces (always in the DOM; shown for editor windows) -->
+                <div id="monacoContainer" class="editor-monaco" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().mode === 'code'"></div>
+                <div class="editor-quill" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().mode === 'wysiwyg'">
+                    <div id="quillContainer"></div>
+                </div>
+                <!-- Preview surfaces -->
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'text'">
+                    <div class="preview-code-wrap">
+                        <pre class="preview-gutter" aria-hidden="true" x-text="pvLineNumbers(activeWin().pv.content)"></pre>
+                        <pre class="preview-code"><code :class="'language-' + (activeWin().pv.lang || 'plain')" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && Prism.highlightElement($el)"></code></pre>
+                    </div>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'image'">
+                    <img :src="activeWin().pv.url" class="preview-img" alt="">
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'pdf'">
+                    <iframe :src="activeWin().pv.url" class="preview-iframe"></iframe>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video'">
+                    <video :src="activeWin().pv.url" controls class="preview-media"></video>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'audio'">
+                    <audio :src="activeWin().pv.url" controls class="preview-media"></audio>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'binary'">
+                    <div class="preview-fallback">
+                        <p>This file cannot be previewed inline.</p>
+                        <p x-text="activeWin().pv.reason"></p>
+                        <button class="btn btn-sm btn-warning" x-show="activeWin().pv.permissionDenied" @click="retryPreviewAsAdmin(activeWin().id)">Retry as administrator</button>
+                    </div>
+                </template>
+                <div class="loading-overlay" x-show="activeWin() && activeWin().loading">Loading…</div>
+            </div>
+            <div class="modal-footer" x-show="activeWin() && activeWin().kind === 'editor' && !activeWin().readOnly">
+                <span x-show="activeWin() && activeWin().error" class="text-danger me-auto" x-text="activeWin() && activeWin().error"></span>
+                <span class="text-muted small me-auto" x-show="activeWin() && activeWin().mode === 'wysiwyg' && activeWin().isHtml">⚠ WYSIWYG may reformat complex HTML on save.</span>
+                <button class="btn btn-secondary" @click="closeActiveWindow()">Cancel</button>
+                <button class="btn" :class="(activeWin() && activeWin().needsAdmin) ? 'btn-warning' : 'btn-primary'"
+                        @click="saveEditor()" :disabled="!(activeWin() && activeWin().dirty)"
+                        x-text="(activeWin() && activeWin().needsAdmin) ? 'Save as administrator' : 'Save'"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Open-windows taskbar -->
+<div class="explorer-taskbar" :class="{ 'taskbar-floating': hostVisible && hostMaximized }" x-show="windows.length">
+    <template x-for="w in windows" :key="w.id">
+        <div class="taskbar-item" :class="{ active: w.id === activeWinId && hostVisible }" @click="taskbarClick(w.id)" :title="w.path || w.title">
+            <span class="taskbar-ico" x-text="winTaskIcon(w)"></span>
+            <span class="taskbar-label" x-text="w.title + ((w.kind === 'editor' && w.dirty) ? ' ●' : '')"></span>
+            <button type="button" class="taskbar-close" @click.stop="closeWindow(w.id)" title="Close">✕</button>
+        </div>
+    </template>
+</div>
+
+<!-- Permissions modal -->

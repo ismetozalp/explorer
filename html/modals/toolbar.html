@@ -1,0 +1,170 @@
+<!-- Settings, Global actions, Self-update, Run command — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
+<div class="modal fade" id="settingsModal" tabindex="-1" x-data x-init="settingsModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Settings</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Theme</label>
+                    <select class="form-select" x-model="settings.theme" @change="saveSettings(); applyTheme()">
+                        <option value="system">Follow system</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </div>
+                <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-hidden" x-model="settings.showHidden"><label class="form-check-label" for="set-hidden">Show hidden files by default</label></div>
+                <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-follow" x-model="settings.followSymlinks"><label class="form-check-label" for="set-follow">Follow symlinks on navigation</label></div>
+                <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-persist" x-model="settings.persistTabs"><label class="form-check-label" for="set-persist">Persist open tabs across reloads</label></div>
+                <div class="mb-2"><label class="form-label">Preview text size limit (MB)</label><input type="number" class="form-control" x-model.number="settings.previewLimitMB" min="1" max="100"></div>
+                <div class="mb-2"><label class="form-label">Upload chunk size (MB)</label><input type="number" class="form-control" x-model.number="settings.uploadChunkMB" min="1" max="64"></div>
+                <div class="mb-2"><label class="form-label">Terminal clipboard-image folder</label><input type="text" class="form-control" x-model="settings.clipboardUploadDir" @change="saveSettings()" placeholder="/tmp/explorer-clip"><small class="form-text text-muted">Remote folder where images pasted into the terminal are saved.</small></div>
+                <div class="mb-2"><label class="form-label">Keep pasted images for (hours)</label><input type="number" class="form-control" x-model.number="settings.clipboardKeepHours" @change="saveSettings()" min="0" max="8760"><small class="form-text text-muted">Older clip-* files in that folder are pruned on each paste. 0 = never prune.</small></div>
+                <div class="mb-2"><label class="form-label">Output pane line limit</label><input type="number" class="form-control" x-model.number="settings.outputMaxLines" min="0" max="1000000"><small class="form-text text-muted">Streaming panes keep at most this many lines; oldest are dropped. 0 = unlimited.</small></div>
+                <hr>
+                <div class="mb-2">
+                    <label class="form-label">Update source (GitHub repo or releases URL)</label>
+                    <input class="form-control" x-model="settings.updateRepo" placeholder="ismetozalp/explorer">
+                    <small class="form-text text-muted">Releases here are used to offer self-updates. Default: ismetozalp/explorer.</small>
+                </div>
+                <div class="mb-2 form-check"><input type="checkbox" class="form-check-input" id="set-updatestart" x-model="settings.updateCheckOnStart"><label class="form-check-label" for="set-updatestart">Check for updates on startup</label></div>
+                <div class="mb-2">
+                    <button class="btn btn-sm btn-outline-primary" @click="checkForUpdate(true)" :disabled="updateState.checking">
+                        <span x-text="updateState.checking ? 'Checking…' : 'Check for updates now'"></span>
+                    </button>
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <label class="form-label">Default shell (Run command)</label>
+                    <select class="form-select" x-model="settings.defaultShell">
+                        <template x-for="sh in shells" :key="sh">
+                            <option :value="sh" x-text="sh"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Diff view default</label>
+                    <select class="form-select" x-model="settings.diffView">
+                        <option value="side">Side-by-side</option>
+                        <option value="line">Unified</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" data-bs-dismiss="modal" @click="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== GLOBAL ACTIONS (toolbar) MODAL ============== -->
+<div class="modal fade" id="globalActionsModal" tabindex="-1" x-data x-init="globalActionsModalEl = $el">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Run an action</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <template x-if="globalActions().length">
+                    <table class="table table-sm table-dark align-middle mb-0">
+                        <thead>
+                            <tr><th style="width:30%">Action</th><th>Command</th><th style="width:80px"></th></tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="ga in globalActions()" :key="ga.id">
+                                <tr>
+                                    <td>
+                                        <span x-text="ga.label"></span>
+                                        <span class="badge bg-secondary ms-1" style="font-size:9px" x-text="ga._source"></span>
+                                        <span x-show="ga.interactive" class="badge bg-info ms-1" style="font-size:9px">interactive</span>
+                                        <span x-show="ga.requiresGh" class="badge bg-warning text-dark ms-1" style="font-size:9px">gh</span>
+                                    </td>
+                                    <td><code class="small text-truncate d-inline-block" style="max-width:340px" x-text="ga.command"></code></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" @click="runGlobalAction(ga)"
+                                                :disabled="ga.requiresGh && gh.state !== 'authed'"
+                                                :title="(ga.requiresGh && gh.state !== 'authed') ? 'Requires GitHub (gh) — set it up first' : ''">Run</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <div x-show="!globalActions().length" class="text-muted p-3 text-center">
+                    No global actions yet. Create one in <strong>⚙ Actions</strong> with <em>Applies to: Global (toolbar)</em>.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== SELF-UPDATE MODAL ============== -->
+<div class="modal fade" id="updateModal" tabindex="-1" x-data x-init="updateModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update available</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" x-show="updateState.available">
+                <p class="mb-2">
+                    Explorer <strong x-text="'v' + (updateState.available?.version || '')"></strong>
+                    is available (installed: <span x-text="'v' + (pluginVersion || '?')"></span>).
+                </p>
+                <p class="text-muted small mb-3">
+                    Download it from <code x-text="_updateRepo()"></code> and install now. This
+                    runs <code>make install</code> as administrator and restarts Cockpit — you'll be
+                    briefly disconnected, so reload afterwards.
+                </p>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="updDelSettings" x-model="updateState.deleteSettings">
+                    <label class="form-check-label" for="updDelSettings">
+                        Delete settings file
+                        <span class="d-block text-muted small">Resets Explorer to defaults after updating. Leave unchecked to keep your settings.</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="confirmSelfUpdate()">Download &amp; install</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============== RUN COMMAND MODAL ============== -->
+<div class="modal fade" id="runCmdModal" tabindex="-1" x-data x-init="runCmdModalEl = $el">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Run command</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2 small text-muted">Working directory: <code x-text="runCmd.cwd"></code></div>
+                <div class="mb-2">
+                    <label class="form-label">Shell</label>
+                    <select class="form-select" x-model="runCmd.shell">
+                        <template x-for="sh in shells" :key="sh">
+                            <option :value="sh" x-text="sh"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Command</label>
+                    <textarea class="form-control font-monospace" rows="3" x-model="runCmd.command" @keydown.ctrl.enter="doRunCommand()" placeholder="ls -la"></textarea>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="runcmd-admin" x-model="runCmd.admin">
+                    <label class="form-check-label" for="runcmd-admin">Run as administrator</label>
+                </div>
+                <div class="form-text">Output will stream to a new tab. Ctrl-Enter to run.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" @click="doRunCommand()" :disabled="!runCmd.command.trim()">Run</button>
+            </div>
+        </div>
+    </div>
+</div>
+

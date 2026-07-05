@@ -1,0 +1,80 @@
+<!-- Confirm, Prompt, Directory picker — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
+<div class="modal fade" id="confirmModal" tabindex="-1" x-data x-init="confirmModalEl = $el; $el.addEventListener('hidden.bs.modal', () => { if (confirmDlg.resolve) { const r = confirmDlg.resolve; const v = (confirmDlg.result !== undefined) ? confirmDlg.result : (confirmDlg.buttons ? null : false); confirmDlg.resolve = null; r(v); } })">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" x-text="confirmDlg.title"></h5></div>
+            <div class="modal-body"><div x-text="confirmDlg.message" style="white-space:pre-wrap"></div></div>
+            <div class="modal-footer">
+                <template x-if="!confirmDlg.buttons">
+                    <span>
+                        <button class="btn btn-secondary me-2" @click="resolveConfirm(false)" x-text="confirmDlg.cancelLabel || 'Cancel'"></button>
+                        <button class="btn btn-primary" @click="resolveConfirm(true)" x-text="confirmDlg.confirmLabel || 'OK'"></button>
+                    </span>
+                </template>
+                <template x-if="confirmDlg.buttons">
+                    <span>
+                        <template x-for="b in confirmDlg.buttons" :key="b.id">
+                            <button class="btn ms-2" :class="'btn-' + (b.variant || 'secondary')" @click="resolveConfirm(b.id)" x-text="b.label"></button>
+                        </template>
+                    </span>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prompt modal -->
+<div class="modal fade" id="promptModal" tabindex="-1" x-data x-init="promptModalEl = $el">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" x-text="promptDlg.title"></h5></div>
+            <div class="modal-body">
+                <label class="form-label" x-text="promptDlg.label"></label>
+                <input x-show="!promptDlg.multiline" type="text" class="form-control" x-model="promptDlg.value" @keydown.enter="resolvePrompt(promptDlg.value)" x-init="$nextTick(() => { if (!promptDlg.multiline) $el.focus(); })">
+                <textarea x-show="promptDlg.multiline" class="form-control font-monospace" rows="6" x-model="promptDlg.value" @keydown.ctrl.enter="resolvePrompt(promptDlg.value)" @keydown.meta.enter="resolvePrompt(promptDlg.value)" x-init="$nextTick(() => { if (promptDlg.multiline) $el.focus(); })"></textarea>
+                <small x-show="promptDlg.multiline" class="text-muted">Multiple lines allowed · press Ctrl/⌘ + Enter to submit.</small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="resolvePrompt(null)">Cancel</button>
+                <button class="btn btn-primary" @click="resolvePrompt(promptDlg.value)">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Directory picker -->
+<div class="modal fade" id="dirPickerModal" tabindex="-1" x-data
+     x-init="dirPickerEl = $el; $el.addEventListener('hidden.bs.modal', () => { if (dirPicker.resolve) { const r = dirPicker.resolve; dirPicker.resolve = null; r(null); } })"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" x-text="dirPicker.title"></h5>
+                <button class="btn-close" @click="_dpCancel()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group input-group-sm mb-2">
+                    <button class="btn btn-outline-secondary" @click="_dpUp()" title="Up one level">↑</button>
+                    <input type="text" class="form-control" x-model="dirPicker.pathInput" @keydown.enter.prevent="_dpGoTo()" spellcheck="false">
+                    <button class="btn btn-outline-secondary" @click="_dpGoTo()">Go</button>
+                    <button class="btn btn-outline-secondary" @click="_dpNewFolder()" title="Create a new folder here">+ Folder</button>
+                </div>
+                <div class="dir-picker-list">
+                    <div x-show="dirPicker.loading" class="text-muted p-2">Loading…</div>
+                    <template x-for="d in dirPicker.entries" :key="d.path">
+                        <div class="dir-picker-item" @click="_dpEnter(d)" @dblclick="_dpEnter(d)">
+                            <span class="dir-picker-ico">📁</span>
+                            <span x-text="d.name"></span>
+                        </div>
+                    </template>
+                    <div x-show="!dirPicker.loading && !dirPicker.entries.length" class="text-muted p-2">No subfolders here.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <code class="small me-auto text-truncate" style="max-width:60%" x-text="dirPicker.path"></code>
+                <button class="btn btn-secondary" @click="_dpCancel()">Cancel</button>
+                <button class="btn btn-primary" @click="_dpChoose()">Choose this folder</button>
+            </div>
+        </div>
+    </div>
+</div>

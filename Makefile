@@ -14,7 +14,7 @@ RELEASE_NOTES ?= Release $(VERSION)
 export RELEASE_NOTES
 
 FILES = manifest.json index.html README.md VERSION Makefile \
-        css js actions screenshots
+        css js html actions screenshots
 
 .PHONY: all install uninstall zip publish clean help version
 
