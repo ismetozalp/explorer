@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="330" viewBox="0 0 900 330" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="330" fill="#1b1d21"/>
+
+  <!-- tab with a root badge -->
+  <rect x="0" y="0" width="900" height="40" fill="#23262b"/>
+  <rect x="12" y="7" width="170" height="26" rx="6" fill="#31363c" stroke="#4a5560"/>
+  <text x="26" y="24" fill="#ffffff" font-size="12.5">etc</text>
+  <rect x="120" y="12" width="44" height="16" rx="8" fill="#7a2e2e"/>
+  <text x="128" y="24" fill="#ffd7d7" font-size="10">root</text>
+  <text x="60" y="24" fill="#9aa0a8" font-size="11">← elevated listing</text>
+
+  <!-- an admin-required directory listing -->
+  <g font-size="12.5" fill="#cfd3d8">
+    <rect x="0" y="46" width="900" height="24" fill="#202327"/>
+    <text x="16" y="63" fill="#8b93a0">/etc/nginx  (listed as administrator)</text>
+    <text x="16" y="92">📄 nginx.conf</text>
+    <text x="16" y="118">📁 sites-available</text>
+  </g>
+
+  <!-- Save-as-administrator (editor footer) -->
+  <rect x="470" y="86" width="416" height="70" rx="7" fill="#292d31" stroke="#3d4147"/>
+  <text x="488" y="110" fill="#f0f0f0" font-size="12.5" font-weight="bold">Editor · save was denied</text>
+  <text x="488" y="130" fill="#c7ccd2" font-size="11.5">Permission denied → the Save button flips to:</text>
+  <rect x="720" y="118" width="150" height="26" rx="4" fill="#8a5a00"/>
+  <text x="734" y="135" fill="#ffe1a8" font-size="11.5">Save as administrator</text>
+
+  <!-- toast: retry as administrator -->
+  <rect x="470" y="176" width="416" height="120" rx="8" fill="#23262b" stroke="#444649"/>
+  <text x="488" y="202" fill="#e2777a" font-size="12.5">Copy → /etc/nginx — Permission denied</text>
+  <text x="488" y="226" fill="#c7ccd2" font-size="11.5">Any EACCES failure offers a one-click retry through</text>
+  <text x="488" y="242" fill="#c7ccd2" font-size="11.5">Cockpit's superuser bridge:</text>
+  <rect x="488" y="256" width="196" height="28" rx="4" fill="#8a5a00"/>
+  <text x="502" y="275" fill="#ffe1a8" font-size="12">↑ Retry as administrator</text>
+
+  <text x="16" y="176" fill="#9aa0a8" font-size="12">Hit a permission wall?</text>
+  <text x="16" y="198" fill="#c7ccd2" font-size="12">Explorer never just fails —</text>
+  <text x="16" y="216" fill="#c7ccd2" font-size="12">it offers to redo the exact</text>
+  <text x="16" y="234" fill="#c7ccd2" font-size="12">action as administrator, and</text>
+  <text x="16" y="252" fill="#c7ccd2" font-size="12">a tab that lists a root-only</text>
+  <text x="16" y="270" fill="#c7ccd2" font-size="12">folder stays elevated (with the</text>
+  <text x="16" y="288" fill="#c7ccd2" font-size="12"><tspan fill="#ff9a9a">root</tspan> badge) so it won't nag again.</text>
+</svg>

@@ -350,6 +350,12 @@ diffView: side
 
 ### Tabs
 
+![Tab bar and toolbar](screenshots/tab-bar.svg)
+
+Work on several places at once. The tab bar holds four kinds of tab —
+directory, **❯** terminal, **⧉** tmux, and **▶** streaming-output — each
+colour- and icon-coded, and the toolbar beneath drives the active one.
+
 - `+` button or **Ctrl-T** opens a new directory tab on the current folder.
 - `+▤` button opens a new **terminal tab** (a full-tab terminal stack —
   see *Integrated terminals* below).
@@ -897,6 +903,10 @@ directory view.
 
 ### Archives
 
+![Archives — compress and extract](screenshots/archives.svg)
+
+Zip things up or unpack them without a shell:
+
 - **Compress…** from the context menu opens a dialog with archive
   name + format picker (zip · tar · tar.gz · tar.bz2 · tar.xz).
 - On any recognised archive, the context menu also shows *Extract here*
@@ -961,7 +971,11 @@ rsync transfers), cancel buttons, and — when something fails with
 
 ### "Retry as administrator"
 
-Any operation that fails with EACCES gives you a *Retry as
+![Retry as administrator + root badge](screenshots/retry-admin.svg)
+
+You browse as *you*, and only step up to root exactly where you need it —
+never by running the whole plugin as administrator. Any operation that
+fails with EACCES gives you a *Retry as
 administrator* button that re-runs through Cockpit's superuser bridge.
 The same applies to the editor's *Save as administrator*, to opening or
 previewing an unreadable file (*Open / Retry as administrator*), and to

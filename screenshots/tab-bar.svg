@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="150" viewBox="0 0 900 150" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="150" fill="#1b1d21"/>
+
+  <!-- tab bar -->
+  <rect x="0" y="0" width="900" height="46" fill="#23262b"/>
+  <!-- dir tab (active) -->
+  <rect x="10" y="9" width="130" height="30" rx="6" fill="#31363c" stroke="#4a5560"/>
+  <text x="24" y="29" fill="#ffffff" font-size="12.5">projects  ×</text>
+  <!-- plain terminal tab -->
+  <rect x="146" y="9" width="120" height="30" rx="6" fill="#292d31" stroke="#3d4147"/>
+  <rect x="146" y="9" width="4" height="30" rx="2" fill="#60a5fa"/>
+  <text x="162" y="29" fill="#cfd3d8" font-size="12.5">❯ Terminal ×</text>
+  <!-- tmux tab -->
+  <rect x="272" y="9" width="110" height="30" rx="6" fill="#292d31" stroke="#3d4147"/>
+  <rect x="272" y="9" width="4" height="30" rx="2" fill="#22c55e"/>
+  <text x="288" y="29" fill="#cfd3d8" font-size="12.5">⧉ build  ×</text>
+  <!-- output tab -->
+  <rect x="388" y="9" width="120" height="30" rx="6" fill="#292d31" stroke="#3d4147"/>
+  <text x="402" y="29" fill="#cfd3d8" font-size="12.5">▶ podman  ×</text>
+  <!-- new tab / new terminal -->
+  <text x="522" y="29" fill="#9aa0a8" font-size="16">+</text>
+  <text x="546" y="29" fill="#9aa0a8" font-size="14">+▤</text>
+  <!-- version badge + tool buttons -->
+  <rect x="592" y="11" width="118" height="26" rx="5" fill="#0d6efd"/>
+  <text x="606" y="28" fill="#fff" font-size="12">Explorer v2.0.1</text>
+  <text x="720" y="28" fill="#9aa0a8" font-size="11">▶Run  ▤tmux  ⛁Mounts  ⚙</text>
+
+  <!-- toolbar (navigation) -->
+  <rect x="0" y="46" width="900" height="40" fill="#1e2125"/>
+  <rect x="14" y="55" width="170" height="24" rx="4" fill="#2b2f34" stroke="#3d4147"/>
+  <text x="26" y="71" fill="#e8e8e8" font-size="14" letter-spacing="4">←  →  ↑  ⌂  ⟳</text>
+  <rect x="196" y="55" width="80" height="24" rx="4" fill="#2b2f34"/>
+  <text x="210" y="71" fill="#cfd3d8" font-size="12">⊞ Split</text>
+  <!-- breadcrumb -->
+  <rect x="286" y="55" width="440" height="24" rx="4" fill="#2b2f34"/>
+  <text x="298" y="71" font-size="12"><tspan fill="#6ea6ff">/</tspan><tspan fill="#8b93a0"> home </tspan><tspan fill="#6ea6ff">/</tspan><tspan fill="#8b93a0"> ismet </tspan><tspan fill="#6ea6ff">/</tspan><tspan fill="#e8e8e8"> projects</tspan></text>
+  <!-- search -->
+  <rect x="738" y="55" width="150" height="24" rx="4" fill="#1b1d21" stroke="#3d4147"/>
+  <text x="750" y="71" fill="#6f7681" font-size="12">Search…</text>
+
+  <!-- callout -->
+  <text x="14" y="112" fill="#9aa0a8" font-size="12">One tab bar, four kinds of tab:</text>
+  <text x="14" y="132" fill="#c7ccd2" font-size="12">directory · ❯ terminal (blue) · ⧉ tmux (green) · ▶ streaming output — drag to reorder, middle-click to close.</text>
+</svg>
