@@ -2,6 +2,15 @@
 // Extracted from app.js (2.0 modularization). Methods only; window/preview/
 // editor reactive state stays in app.js; Monaco/Quill instances on window.ExRT.
 window.ExplorerEditor = {
+    // Line-number gutter text for the code preview: "1\n2\n…\nN", one per line
+    // the <pre> renders (content.split('\n') — a trailing newline counts, as it
+    // does in the pre). white-space:pre means lines don't wrap, so this aligns
+    // one-to-one with the highlighted code beside it.
+    pvLineNumbers(content) {
+        const n = (content == null ? '' : String(content)).split('\n').length;
+        return Array.from({ length: n }, (_, i) => i + 1).join('\n');
+    },
+
     async openPreview(file, opts) {
         opts = opts || {};
         if (!file) return;

@@ -428,9 +428,14 @@ Open with **Space** or *Preview* in the context menu. Modal popup that
 handles:
 
 - Text & code (syntax-highlighted with Prism, up to 10 MB by default,
-  configurable in Settings).
+  configurable in Settings) — with a **line-number gutter** (new in 2.0.1)
+  down the left, aligned to each line. It stays pinned while you scroll a
+  long line sideways, and the numbers aren't selectable, so copying the code
+  never grabs them.
 - Images, PDF (browser iframe), video, audio.
 - Binary fallback explains why the file can't be previewed.
+
+![Code preview with line numbers](screenshots/preview-code.svg)
 
 Close the preview with **Esc** or the **×**. Text in a text/code preview is
 selectable, and **Ctrl/⌘+C** copies the selection (the browser's native copy

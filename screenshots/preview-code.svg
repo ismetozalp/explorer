@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="520" fill="#1b1d21"/>
+  <rect width="900" height="520" fill="#000" opacity="0.45"/>
+
+  <!-- modal -->
+  <rect x="70" y="34" width="760" height="452" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="70" y="34" width="760" height="44" rx="8" fill="#23262b"/>
+  <rect x="70" y="68" width="760" height="10" fill="#23262b"/>
+  <text x="92" y="62" fill="#f0f0f0" font-size="14" font-weight="bold">open-firewall-ports.sh</text>
+  <text x="770" y="63" fill="#a6a6a6" font-size="15">–  ▢  ×</text>
+  <line x1="70" y1="78" x2="830" y2="78" stroke="#444649"/>
+
+  <!-- code preview surface -->
+  <rect x="70" y="78" width="760" height="408" fill="#2d2d2d"/>
+  <!-- line-number gutter -->
+  <rect x="70" y="78" width="46" height="408" fill="#2d2d2d"/>
+  <line x1="116" y1="78" x2="116" y2="486" stroke="#444"/>
+  <g font-family="Consolas,Monaco,monospace" font-size="12.5" fill="#777" text-anchor="end">
+    <text x="106" y="104">1</text><text x="106" y="122">2</text><text x="106" y="140">3</text>
+    <text x="106" y="158">4</text><text x="106" y="176">5</text><text x="106" y="194">6</text>
+    <text x="106" y="212">7</text><text x="106" y="230">8</text><text x="106" y="248">9</text>
+    <text x="106" y="266">10</text><text x="106" y="284">11</text><text x="106" y="302">12</text>
+    <text x="106" y="320">13</text><text x="106" y="338">14</text><text x="106" y="356">15</text>
+    <text x="106" y="374">16</text><text x="106" y="392">17</text><text x="106" y="410">18</text>
+    <text x="106" y="428">19</text><text x="106" y="446">20</text><text x="106" y="464">21</text>
+  </g>
+  <!-- highlighted code (Prism Tomorrow-Night-ish colors) -->
+  <g font-family="Consolas,Monaco,monospace" font-size="12.5">
+    <text x="130" y="104" fill="#cc99cd">#!/usr/bin/env bash</text>
+    <text x="130" y="122" fill="#999">#</text>
+    <text x="130" y="140" fill="#7ec699"># open-firewall-ports.sh</text>
+    <text x="130" y="158" fill="#999">#</text>
+    <text x="130" y="176" fill="#7ec699"># Opens a set of TCP ports in firewalld (permanent) and reloads.</text>
+    <text x="130" y="194" fill="#999">#</text>
+    <text x="130" y="212" fill="#7ec699"># Usage:</text>
+    <text x="130" y="230" fill="#7ec699">#   sudo ./open-firewall-ports.sh</text>
+    <text x="130" y="248" fill="#999">#</text>
+    <text x="130" y="266" fill="#e2777a">set</text><text x="158" y="266" fill="#f8f8f2">-euo pipefail</text>
+    <text x="130" y="302" fill="#7ec699"># --- Ports to open (host-side TCP ports) ---</text>
+    <text x="130" y="320" fill="#f8f8f2">PORTS=(</text>
+    <text x="150" y="338" fill="#f08d49">27017</text><text x="200" y="338" fill="#7ec699"># MongoDB</text>
+    <text x="150" y="356" fill="#f08d49">29092</text><text x="200" y="356" fill="#7ec699"># Kafka (external listener)</text>
+    <text x="150" y="374" fill="#f08d49">5601</text><text x="200" y="374" fill="#7ec699"># Kibana</text>
+    <text x="150" y="392" fill="#f08d49">7233</text><text x="200" y="392" fill="#7ec699"># Temporal gRPC</text>
+    <text x="150" y="410" fill="#f08d49">8080</text><text x="200" y="410" fill="#7ec699"># web / app</text>
+    <text x="150" y="428" fill="#f08d49">9200</text><text x="200" y="428" fill="#7ec699"># Elasticsearch HTTP</text>
+    <text x="150" y="446" fill="#f08d49">9300</text><text x="200" y="446" fill="#7ec699"># Elasticsearch transport</text>
+    <text x="130" y="464" fill="#f8f8f2">)</text>
+  </g>
+
+  <!-- callout -->
+  <rect x="560" y="150" width="252" height="86" rx="7" fill="#23262b" stroke="#3d4147"/>
+  <text x="576" y="176" fill="#f0f0f0" font-size="12.5" font-weight="bold">Line numbers (2.0.1)</text>
+  <text x="576" y="198" fill="#c7ccd2" font-size="11.5">Aligned 1:1, pinned on horizontal</text>
+  <text x="576" y="214" fill="#c7ccd2" font-size="11.5">scroll, and not selectable — copying</text>
+  <text x="576" y="230" fill="#c7ccd2" font-size="11.5">the code never grabs them.</text>
+</svg>

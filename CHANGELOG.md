@@ -2,6 +2,13 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.0.1
+
+- **Line numbers in the code preview.** The text/code Preview now shows a
+  line-number gutter down the left, aligned 1:1 with the syntax-highlighted
+  code. The gutter stays pinned while you scroll a wide line horizontally, and
+  the numbers aren't selectable — copying the code never picks them up.
+
 ## 2.0.0
 
 - **Internal: `app.js` split into per-feature + per-core modules.** The

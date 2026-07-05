@@ -609,7 +609,10 @@
                 </div>
                 <!-- Preview surfaces -->
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'text'">
-                    <pre class="preview-code"><code :class="'language-' + (activeWin().pv.lang || 'plain')" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && Prism.highlightElement($el)"></code></pre>
+                    <div class="preview-code-wrap">
+                        <pre class="preview-gutter" aria-hidden="true" x-text="pvLineNumbers(activeWin().pv.content)"></pre>
+                        <pre class="preview-code"><code :class="'language-' + (activeWin().pv.lang || 'plain')" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && Prism.highlightElement($el)"></code></pre>
+                    </div>
                 </template>
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'image'">
                     <img :src="activeWin().pv.url" class="preview-img" alt="">

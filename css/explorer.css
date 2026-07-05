@@ -418,14 +418,44 @@ body {
     align-items: center;
     justify-content: center;
 }
-.preview-code {
+/* Code preview: a line-number gutter (sticky-left) beside the highlighted code,
+   both inside one scroll container. The gutter mirrors the code's font, 12px
+   size, 1.5 line-height and 1em top padding so numbers line up 1:1. */
+.preview-code-wrap {
     align-self: flex-start;
     width: 100%;
-    margin: 0;
     max-height: 70vh;
     overflow: auto;
-    font-size: 12px;
+    display: flex;
+    align-items: flex-start;
     background: #2d2d2d;
+}
+.preview-gutter {
+    flex: 0 0 auto;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 1em 0.55em;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: right;
+    color: #777;
+    background: #2d2d2d;
+    border-right: 1px solid #444;
+    user-select: none;
+    white-space: pre;
+}
+pre.preview-code {
+    align-self: stretch;
+    flex: 1 1 auto;
+    width: auto;
+    margin: 0;
+    max-height: none;
+    overflow: visible;
+    font-size: 12px;
+    background: transparent;
 }
 .preview-img { max-width: 100%; max-height: 70vh; object-fit: contain; }
 .preview-iframe { width: 100%; height: 75vh; border: none; background: #fff; }
