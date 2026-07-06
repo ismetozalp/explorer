@@ -442,7 +442,7 @@
                             :title="termKindOf(tab) === 'tmux' ? 'New tmux session' : 'New terminal here'">+</button>
                     <span class="term-tabbar-spacer"></span>
                     <button class="term-paste-img" @click="pasteClipboardImageToTerminal(tab)"
-                            title="Paste clipboard image → upload to temp folder and send its path">🖼</button>
+                            title="Paste clipboard image or video → upload to temp folder and send its path">📋</button>
                 </div>
                 <div class="term-containers">
                     <template x-for="t in (tab.terminals || [])" :key="t.id">
