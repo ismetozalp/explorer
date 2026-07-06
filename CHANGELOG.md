@@ -2,6 +2,19 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.0
+
+- **Clipboard paste now accepts video, not just images.** Pasting into a
+  terminal (Ctrl+V, or the paste button) uploads a copied **video**
+  (`mp4`, `webm`, `mov`, `mkv`, `avi`, `ogv`) the same way it already
+  handled images: saved to the remote `clipboardUploadDir` as
+  `clip-<timestamp>-<random>.<ext>`, with the path typed into the shell.
+  The terminal's paste button changed from **🖼** to **📋** and its title
+  now reads "Paste clipboard image or video …"; the two related Settings
+  fields are relabelled "Terminal clipboard-media folder" and "Keep pasted
+  media for (hours)" to reflect that both file types are covered. No
+  behavior change for images.
+
 ## 2.1.0
 
 - **Internal: `index.html` split into HTML partials.** The ~21 modal dialogs
