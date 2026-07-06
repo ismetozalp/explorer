@@ -73,20 +73,37 @@ window.ExplorerUpload = {
         });
     },
 
-    // Map an image MIME type to a filename extension for pasted clipboard images.
-    _clipImageExt(mime) {
+    // Map an image OR video MIME type to a filename extension for pasted
+    // clipboard media. Falls back to png for unknown images, mp4 for unknown
+    // video, png otherwise.
+    _clipMediaExt(mime) {
         switch ((mime || '').toLowerCase()) {
-            case 'image/png':     return 'png';
-            case 'image/jpeg':    return 'jpg';
-            case 'image/gif':     return 'gif';
-            case 'image/webp':    return 'webp';
-            case 'image/bmp':     return 'bmp';
-            case 'image/svg+xml': return 'svg';
-            default:              return 'png';
+            case 'image/png':      return 'png';
+            case 'image/jpeg':     return 'jpg';
+            case 'image/gif':      return 'gif';
+            case 'image/webp':     return 'webp';
+            case 'image/bmp':      return 'bmp';
+            case 'image/svg+xml':  return 'svg';
+            case 'video/mp4':      return 'mp4';
+            case 'video/webm':     return 'webm';
+            case 'video/quicktime':return 'mov';
+            case 'video/x-matroska':return 'mkv';
+            case 'video/x-msvideo':return 'avi';
+            case 'video/ogg':      return 'ogv';
+            default:
+                return String(mime || '').toLowerCase().startsWith('video/') ? 'mp4' : 'png';
         }
     },
 
-    // Upload a clipboard image Blob (already extracted in the browser) to the
+    // True for any clipboard item we upload-and-path into the terminal:
+    // pasted images and videos. Shared by the terminal Ctrl+V intercept, the
+    // navigator.clipboard.read() path, and the fallback overlay so all three
+    // stay in sync.
+    _isPasteableMedia(type) {
+        return !!type && (type.startsWith('image/') || type.startsWith('video/'));
+    },
+
+    // Upload a clipboard image or video Blob (already extracted in the browser) to the
     // remote clipboardUploadDir, then type its path + Enter into the given
     // terminal (→ tmux active pane → Claude). Cross-protocol: the Blob was
     // obtained by the caller from a paste event or clipboard read, so no secure
@@ -97,11 +114,11 @@ window.ExplorerUpload = {
         if (!inst || !inst.channel) { this.toast('Terminal not ready for paste', 'warning'); return; }
 
         const dir = (this.settings.clipboardUploadDir || '/tmp/explorer-clip').replace(/\/+$/, '') || '/';
-        const ext = this._clipImageExt(blob.type);
+        const ext = this._clipMediaExt(blob.type);
         const rand = Math.random().toString(36).slice(2, 8);
         const dest = Util.joinPath(dir, `clip-${Date.now()}-${rand}.${ext}`);
 
-        const op = this._beginOp('Paste image');
+        const op = this._beginOp('Paste media');
         try {
             await FS.mkdir(dir);
             const hours = Number(this.settings.clipboardKeepHours);
@@ -118,13 +135,13 @@ window.ExplorerUpload = {
         } catch (e) {
             console.error('Clipboard image upload failed:', e, 'dest:', dest);
             this._failOp(op, e);
-            this.toast('Could not save pasted image: ' + (e.message || e), 'danger');
+            this.toast('Could not save pasted media: ' + (e.message || e), 'danger');
             return;
         }
 
         try { inst.channel.send(dest + '\r'); } catch (e) {}
         try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(dest).catch(() => {}); } catch (e) {}
-        this.toast('Pasted image → ' + dest, 'success');
+        this.toast('Pasted media → ' + dest, 'success');
     },
 
     // Toolbar entry point: read a clipboard image and hand it to the uploader.
@@ -139,14 +156,14 @@ window.ExplorerUpload = {
             try {
                 const items = await navigator.clipboard.read();
                 for (const item of items) {
-                    const type = (item.types || []).find(t => t.startsWith('image/'));
+                    const type = (item.types || []).find(t => this._isPasteableMedia(t));
                     if (type) {
                         const blob = await item.getType(type);
                         await this._uploadClipboardImageBlob(blob, termId);
                         return;
                     }
                 }
-                this.toast('No image found in clipboard', 'info');
+                this.toast('No image or video found in clipboard', 'info');
                 return;
             } catch (e) {
                 // NotAllowedError / SecurityError (http or blocked) → modal fallback
@@ -162,8 +179,8 @@ window.ExplorerUpload = {
         overlay.className = 'paste-img-overlay';
         overlay.innerHTML =
             '<div class="paste-img-box">' +
-            '  <div class="paste-img-msg">Press Ctrl+V (⌘V) to paste your image here</div>' +
-            '  <textarea class="paste-img-target" aria-label="Paste image here"></textarea>' +
+            '  <div class="paste-img-msg">Press Ctrl+V (⌘V) to paste your image or video here</div>' +
+            '  <textarea class="paste-img-target" aria-label="Paste image or video here"></textarea>' +
             '  <div class="paste-img-hint">Esc to cancel</div>' +
             '</div>';
         document.body.appendChild(overlay);
@@ -181,14 +198,14 @@ window.ExplorerUpload = {
             e.preventDefault();
             const items = (e.clipboardData && e.clipboardData.items) || [];
             for (const it of items) {
-                if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+                if (it.kind === 'file' && this._isPasteableMedia(it.type)) {
                     const blob = it.getAsFile();
                     close();
                     if (blob) this._uploadClipboardImageBlob(blob, termId);
                     return;
                 }
             }
-            this.toast('No image in the paste — nothing uploaded', 'info');
+            this.toast('No image or video in the paste — nothing uploaded', 'info');
             close();
         });
 
