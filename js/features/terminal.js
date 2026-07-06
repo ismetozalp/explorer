@@ -518,7 +518,7 @@ window.ExplorerTerminal = {
         xterm.open(container);
         try { fitAddon.fit(); } catch (e) {}
 
-        // Image paste: intercept a clipboard image (capture phase, so we run
+        // Image/video paste: intercept a clipboard image or video (capture phase, so we run
         // before xterm's own paste handler) and upload it instead of letting it
         // hit the shell. Text / non-image pastes are untouched — we neither
         // preventDefault nor stopPropagation, so xterm's native paste proceeds.
@@ -528,7 +528,7 @@ window.ExplorerTerminal = {
             xterm.textarea.addEventListener('paste', (e) => {
                 const items = (e.clipboardData && e.clipboardData.items) || [];
                 for (const it of items) {
-                    if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+                    if (it.kind === 'file' && this._isPasteableMedia(it.type)) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
                         const blob = it.getAsFile();
