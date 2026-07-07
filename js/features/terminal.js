@@ -295,10 +295,13 @@ window.ExplorerTerminal = {
     },
 
     // Make sure every terminal in a tab has a live xterm/channel instance.
-    // Used when activating a (restored) terminal tab whose terminals were
-    // declared but never mounted because the tab wasn't visible yet.
+    // Used when activating a tab whose terminals were declared but never mounted
+    // while it was hidden — restored terminal tabs, and dir-tab split panes whose
+    // instances were torn down by an auto-reconnect while backgrounded. Serves
+    // both terminal-kind tabs and dir-kind split panes (callers gate dir tabs on
+    // splitOpen so we only mount when the container is actually rendered).
     _ensureTerminalsMounted(tab) {
-        if (!tab || tab.kind !== 'terminal' || !tab.terminals) return;
+        if (!tab || !tab.terminals) return;
         for (const t of tab.terminals) {
             if (!ExRT.term.get(t.id)) {
                 this.$nextTick(() => this._mountTerminal(t.id, t.dir));
@@ -495,13 +498,16 @@ window.ExplorerTerminal = {
             if (attempt < 20) {
                 setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
             } else if (ExRT.term.reconn.has(termId)) {
-                // Reconnect-driven mount of a backgrounded terminal (its container
-                // is display:none → 0-height while another tab is active). Don't
-                // error or keep hammering at the wrong size: drop the backoff entry
-                // and let _ensureTerminalsMounted remount it at the correct size
-                // when the user activates its tab. The visible terminal, whose
-                // container IS sized, reconnects actively via the backoff above.
-                ExRT.term.reconn.delete(termId);
+                // Reconnect-driven mount but the container is still 0-height — the
+                // terminal's tab (or dir-tab split pane) is backgrounded
+                // (display:none). Don't error; keep the backoff alive so it
+                // remounts the moment the tab becomes visible and the container
+                // sizes. This covers both terminal-kind tabs and dir-kind split
+                // panes uniformly (the latter has no activation remount hook).
+                // No channel/xterm is created on this path, so hidden polling is
+                // cheap. The visible terminal, whose container IS sized, skips
+                // this branch and reconnects immediately.
+                this._scheduleTermReconnect(termId, dir);
             } else {
                 console.warn('[explorer] terminal container never sized; giving up', termId);
                 this.toast('Terminal failed to size — try toggling the tab', 'error');
