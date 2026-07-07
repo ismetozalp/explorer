@@ -698,6 +698,21 @@ window.ExplorerTerminal = {
             try {
                 channel.control({ command: 'options', window: { rows: xterm.rows, cols: xterm.cols } });
             } catch (e) {}
+            // tmux only issues a full repaint when the client size actually
+            // changes. On (re)attach at the same size it stays blank, so nudge
+            // the PTY one row smaller then back — two SIGWINCHes force tmux to
+            // redraw the whole screen. Scoped to tmux; plain shells are untouched.
+            if (tmuxSession) {
+                setTimeout(() => {
+                    const rows = xterm.rows, cols = xterm.cols;
+                    if (rows > 1) {
+                        try {
+                            channel.control({ command: 'options', window: { rows: rows - 1, cols } });
+                            channel.control({ command: 'options', window: { rows, cols } });
+                        } catch (e) {}
+                    }
+                }, 120);
+            }
         });
     },
 
