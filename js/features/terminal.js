@@ -295,13 +295,10 @@ window.ExplorerTerminal = {
     },
 
     // Make sure every terminal in a tab has a live xterm/channel instance.
-    // Used when activating a tab whose terminals were declared but never mounted
-    // while it was hidden — restored terminal tabs, and dir-tab split panes whose
-    // instances were torn down by an auto-reconnect while backgrounded. Serves
-    // both terminal-kind tabs and dir-kind split panes (callers gate dir tabs on
-    // splitOpen so we only mount when the container is actually rendered).
+    // Used when activating a (restored) terminal tab whose terminals were
+    // declared but never mounted because the tab wasn't visible yet.
     _ensureTerminalsMounted(tab) {
-        if (!tab || !tab.terminals) return;
+        if (!tab || tab.kind !== 'terminal' || !tab.terminals) return;
         for (const t of tab.terminals) {
             if (!ExRT.term.get(t.id)) {
                 this.$nextTick(() => this._mountTerminal(t.id, t.dir));
@@ -497,17 +494,6 @@ window.ExplorerTerminal = {
             // yet (terminal-tab-body still flex-calculating). Retry up to ~1s.
             if (attempt < 20) {
                 setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
-            } else if (ExRT.term.reconn.has(termId)) {
-                // Reconnect-driven mount but the container is still 0-height — the
-                // terminal's tab (or dir-tab split pane) is backgrounded
-                // (display:none). Don't error; keep the backoff alive so it
-                // remounts the moment the tab becomes visible and the container
-                // sizes. This covers both terminal-kind tabs and dir-kind split
-                // panes uniformly (the latter has no activation remount hook).
-                // No channel/xterm is created on this path, so hidden polling is
-                // cheap. The visible terminal, whose container IS sized, skips
-                // this branch and reconnects immediately.
-                this._scheduleTermReconnect(termId, dir);
             } else {
                 console.warn('[explorer] terminal container never sized; giving up', termId);
                 this.toast('Terminal failed to size — try toggling the tab', 'error');
@@ -745,20 +731,24 @@ window.ExplorerTerminal = {
     },
 
     // Auto-reconnect a terminal whose Cockpit channel dropped (transport
-    // disconnect / cockpit restart). Disposes the dead xterm and re-mounts,
-    // reusing the persistent DOM container (keyed by term-container-<id>). Backs
-    // off and polls until the transport returns: tmux reattaches to its live
-    // session (new-session -A), a plain shell respawns fresh.
+    // disconnect / cockpit restart). Single authority for reconnects: it gates on
+    // visibility, so a backgrounded terminal (0-height container while another tab
+    // or split is active) is polled cheaply — no channel, no mount — until it's
+    // visible, then the stale xterm is disposed and re-mounted in the same
+    // persistent container. tmux reattaches to its live session (new-session -A);
+    // a plain shell respawns fresh. Works uniformly for terminal-kind tabs and
+    // dir-kind split panes, with no dependence on any activation remount hook.
     _scheduleTermReconnect(termId, dir) {
-        const term = this._findTermById(termId);
-        if (!term) { ExRT.term.reconn.delete(termId); return; }  // user closed it
+        if (!this._findTermById(termId)) { ExRT.term.reconn.delete(termId); return; }  // user closed it
 
         const DELAYS = [500, 1000, 2000, 3000, 5000];
-        const MAX_ATTEMPTS = 40;
-        const rec = ExRT.term.reconn.get(termId) || { attempt: 0, timer: null };
+        const MAX_ATTEMPTS = 40;        // real channel reconnect attempts (transport down)
+        const VISIBILITY_POLL = 750;    // cheap re-check cadence while backgrounded
+        const MAX_HIDDEN_WAITS = 600;   // ~7.5 min of hidden polling, then give up
+        const rec = ExRT.term.reconn.get(termId) || { attempt: 0, waits: 0, timer: null };
         if (rec.timer) return;  // a reconnect is already pending — coalesce
 
-        if (rec.attempt >= MAX_ATTEMPTS) {
+        if (rec.attempt >= MAX_ATTEMPTS || rec.waits >= MAX_HIDDEN_WAITS) {
             const inst = ExRT.term.get(termId);
             if (inst && inst.term) { try { inst.term.write('\r\n\x1b[31m[reconnect gave up — reopen the tab]\x1b[0m\r\n'); } catch (e) {} }
             else { this.toast('Terminal could not reconnect — reopen the tab', 'warning'); }
@@ -766,16 +756,24 @@ window.ExplorerTerminal = {
             return;
         }
 
-        const delay = DELAYS[Math.min(rec.attempt, DELAYS.length - 1)];
-        rec.attempt += 1;
+        const isHidden = () => {
+            const c = document.getElementById('term-container-' + termId);
+            return !c || c.offsetHeight === 0;
+        };
+        const hidden = isHidden();
+        const delay = hidden ? VISIBILITY_POLL : DELAYS[Math.min(rec.attempt, DELAYS.length - 1)];
+        if (hidden) rec.waits += 1; else { rec.waits = 0; rec.attempt += 1; }
+
         rec.timer = setTimeout(() => {
             rec.timer = null;
             ExRT.term.reconn.set(termId, rec);
             // Bail if the terminal was closed while we waited.
             if (!this._findTermById(termId)) { ExRT.term.reconn.delete(termId); return; }
-            // Drop the stale instance so _mountTerminal builds a fresh xterm in
-            // the same container. ExRT.term.del() disposes the xterm and closes
-            // the (dead) channel itself — just unhook the window resize listener.
+            // Still backgrounded → keep waiting for visibility (no mount).
+            if (isHidden()) { this._scheduleTermReconnect(termId, dir); return; }
+            // Visible: drop the stale instance so _mountTerminal builds a fresh
+            // xterm in the same container. ExRT.term.del() disposes the xterm and
+            // closes the (dead) channel itself — just unhook the resize listener.
             const inst = ExRT.term.get(termId);
             if (inst) {
                 if (inst.onWinResize) { try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {} }

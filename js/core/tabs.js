@@ -165,11 +165,6 @@ window.ExplorerTabs = {
             // Restored tmux tabs declare their terminals up front but can't
             // mount while hidden — mount them now the tab is visible.
             this._ensureTerminalsMounted(tab);
-        } else if (tab.kind === 'dir' && tab.splitOpen) {
-            // A dir-tab split-pane terminal whose instance was torn down by an
-            // auto-reconnect while this tab was backgrounded has no other remount
-            // hook — remount it now the split is visible again.
-            this._ensureTerminalsMounted(tab);
         }
         this._refreshTabGit(tab);
     },
