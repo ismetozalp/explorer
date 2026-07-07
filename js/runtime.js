@@ -12,7 +12,6 @@ window.ExRT = {
             persistTabs: true,
             columns: { size: true, modified: true, perms: true, owner: true, type: false },
             previewLimitMB: 10,
-            uploadChunkMB: 4,
             outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)
             theme: 'system',           // 'system' | 'light' | 'dark'
             updateRepo: 'ismetozalp/explorer',  // GitHub owner/repo (or releases URL) to check for updates
