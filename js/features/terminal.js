@@ -515,6 +515,9 @@ window.ExplorerTerminal = {
         }
         const container = document.getElementById('term-container-' + termId);
         if (!container || container.offsetHeight === 0) {
+            // Terminal was closed while a mount chain was still retrying → abort
+            // quietly (no "failed to size" toast for a terminal that's gone).
+            if (!this._findTermById(termId)) { ExRT.term.pending.delete(termId); return; }
             // Container not yet in DOM, or DOM in but parent has no height
             // yet (terminal-tab-body still flex-calculating). Retry up to ~1s.
             if (attempt < 20) {
