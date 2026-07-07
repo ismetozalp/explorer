@@ -294,15 +294,23 @@ window.ExplorerTerminal = {
         return reactive;
     },
 
-    // Make sure every terminal in a tab has a live xterm/channel instance.
-    // Used when activating a (restored) terminal tab whose terminals were
-    // declared but never mounted because the tab wasn't visible yet.
+    // Make sure the ACTIVE sub-tab of a (restored) terminal tab has a live
+    // xterm/channel instance. Only the active sub-tab is visible — a hidden
+    // sub-tab's container is 0-height and can't size, so mounting it here would
+    // just spin for ~1s and give up. Non-active sub-tabs mount lazily via
+    // selectTerminal when they become visible.
     _ensureTerminalsMounted(tab) {
-        if (!tab || tab.kind !== 'terminal' || !tab.terminals) return;
-        for (const t of tab.terminals) {
-            if (!ExRT.term.get(t.id)) {
-                this.$nextTick(() => this._mountTerminal(t.id, t.dir));
-            }
+        if (!tab || tab.kind !== 'terminal' || !tab.terminals || !tab.terminals.length) return;
+        // The active sub-tab is the only visible one (x-show gates on activeTermId).
+        // If activeTermId is stale/unset, default it to the first sub-tab so its
+        // container is the one that renders — otherwise the mount would target a
+        // 0-height (hidden) container and fail.
+        if (!tab.terminals.find(x => x.id === tab.activeTermId)) {
+            tab.activeTermId = tab.terminals[0].id;
+        }
+        const t = tab.terminals.find(x => x.id === tab.activeTermId);
+        if (t && !ExRT.term.get(t.id)) {
+            this.$nextTick(() => this._mountTerminal(t.id, t.dir));
         }
     },
 
@@ -423,7 +431,8 @@ window.ExplorerTerminal = {
 
     selectTerminal(tab, termId) {
         if (!tab || !tab.terminals) return;
-        if (!tab.terminals.find(t => t.id === termId)) return;
+        const t = tab.terminals.find(x => x.id === termId);
+        if (!t) return;
         tab.activeTermId = termId;
         // Newly-visible xterm has stale dimensions if it was display:none;
         // refit and refocus on next tick.
@@ -432,6 +441,12 @@ window.ExplorerTerminal = {
             if (inst) {
                 try { inst.fitAddon.fit(); } catch (e) {}
                 try { inst.term.focus(); } catch (e) {}
+            } else {
+                // Sub-tab was declared but never mounted — e.g. a restored tmux
+                // session that wasn't the active sub-tab on reload, so its
+                // container was 0-height and couldn't size. Now that it's the
+                // visible sub-tab, mount it (blank-tab-until-reopen fix).
+                this._mountTerminal(termId, t.dir);
             }
         });
     },

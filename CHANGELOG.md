@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.2
+
+- **Fixed: a restored tmux tab's non-active session came back blank.** With
+  multiple tmux sessions open as sub-tabs, reloading mounted only the active
+  sub-tab; switching to another one showed a blank pane until you closed and
+  reopened it. Non-active sub-tabs (whose container is hidden and can't size at
+  restore time) now mount lazily the moment you select them, and tab activation
+  only mounts the visible sub-tab instead of futilely retrying hidden ones.
+
 ## 2.2.1
 
 - **Large uploads/pastes no longer disconnect Cockpit.** Uploads (drag-drop,
