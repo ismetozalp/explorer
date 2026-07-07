@@ -53,6 +53,7 @@ window.ExRT = {
     // tab.id. Off reactive state so Alpine doesn't deep-walk xterm internals.
     term: {
         map: new Map(),
+        reconn: new Map(),   // termId → { attempt, timer } for auto-reconnect backoff
         set(tabId, val) { this.map.set(tabId, val); },
         get(tabId) { return this.map.get(tabId); },
         del(tabId) {

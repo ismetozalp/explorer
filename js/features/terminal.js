@@ -658,13 +658,21 @@ window.ExplorerTerminal = {
             });
         } catch (e) {
             console.error('[explorer] failed to spawn shell:', e);
-            this.toast('Failed to spawn shell: ' + (e.message || e), 'error');
             try { xterm.dispose(); } catch (e2) {}
+            // Transport likely still down mid-reconnect — keep polling instead of
+            // giving up. (First-ever mount will also retry, which is harmless.)
+            this._scheduleTermReconnect(termId, dir);
             return;
         }
 
         xterm.onData(data => { try { channel.send(data); } catch (e) {} });
+        let _gotData = false;
         channel.addEventListener('message', (ev, data) => {
+            if (!_gotData) {
+                _gotData = true;
+                // Channel is live again — clear any reconnect backoff for this term.
+                if (ExRT.term.reconn.has(termId)) ExRT.term.reconn.delete(termId);
+            }
             try { xterm.write(data); } catch (e) { console.warn('[explorer] xterm.write failed:', e); }
         });
         channel.addEventListener('close', (ev, options) => {
@@ -676,6 +684,12 @@ window.ExplorerTerminal = {
             else reason = 'closed';
             console.warn('[explorer] terminal channel closed:', reason, options);
             try { xterm.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`); } catch (e) {}
+            // A `problem` (terminated/disconnected/protocol-error/…) is a transport
+            // drop, not a clean shell exit — auto-reconnect. `cancelled` is our own
+            // close; a numeric exit-status with no problem is a real shell exit.
+            if (problem && problem !== 'cancelled') {
+                this._scheduleTermReconnect(termId, dir);
+            }
         });
         xterm.onResize(({ cols, rows }) => {
             try { channel.control({ command: 'options', window: { rows, cols } }); } catch (e) {}
@@ -714,6 +728,47 @@ window.ExplorerTerminal = {
                 }, 120);
             }
         });
+    },
+
+    // Auto-reconnect a terminal whose Cockpit channel dropped (transport
+    // disconnect / cockpit restart). Disposes the dead xterm and re-mounts,
+    // reusing the persistent DOM container (keyed by term-container-<id>). Backs
+    // off and polls until the transport returns: tmux reattaches to its live
+    // session (new-session -A), a plain shell respawns fresh.
+    _scheduleTermReconnect(termId, dir) {
+        const term = this._findTermById(termId);
+        if (!term) { ExRT.term.reconn.delete(termId); return; }  // user closed it
+
+        const DELAYS = [500, 1000, 2000, 3000, 5000];
+        const MAX_ATTEMPTS = 40;
+        const rec = ExRT.term.reconn.get(termId) || { attempt: 0, timer: null };
+        if (rec.timer) return;  // a reconnect is already pending — coalesce
+
+        if (rec.attempt >= MAX_ATTEMPTS) {
+            const inst = ExRT.term.get(termId);
+            if (inst && inst.term) { try { inst.term.write('\r\n\x1b[31m[reconnect gave up — reopen the tab]\x1b[0m\r\n'); } catch (e) {} }
+            ExRT.term.reconn.delete(termId);
+            return;
+        }
+
+        const delay = DELAYS[Math.min(rec.attempt, DELAYS.length - 1)];
+        rec.attempt += 1;
+        rec.timer = setTimeout(() => {
+            rec.timer = null;
+            ExRT.term.reconn.set(termId, rec);
+            // Bail if the terminal was closed while we waited.
+            if (!this._findTermById(termId)) { ExRT.term.reconn.delete(termId); return; }
+            // Drop the stale instance so _mountTerminal builds a fresh xterm in
+            // the same container. ExRT.term.del() disposes the xterm and closes
+            // the (dead) channel itself — just unhook the window resize listener.
+            const inst = ExRT.term.get(termId);
+            if (inst) {
+                if (inst.onWinResize) { try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {} }
+                ExRT.term.del(termId);
+            }
+            this._mountTerminal(termId, dir);
+        }, delay);
+        ExRT.term.reconn.set(termId, rec);
     },
 
     _startTermResize(ev, tab) {
