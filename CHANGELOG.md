@@ -2,6 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.1
+
+- **Large uploads/pastes no longer disconnect Cockpit.** Uploads (drag-drop,
+  folder trees, and clipboard image/video paste) now stream to the host in
+  64 KiB chunks — matching Cockpit's own transport framing — instead of one
+  oversized message that tripped Cockpit's `too-large` limit and dropped the
+  whole session (the "Reconnect" overlay). Pasting a video no longer knocks you
+  offline. The unused "Upload chunk size" setting was removed.
+- **Terminals auto-reconnect after a Cockpit restart or disconnect.** When the
+  transport drops, dropped terminal channels now re-attach automatically (with
+  backoff): **tmux** sessions reattach to the live server and force a full
+  repaint instead of coming back **blank**, and plain shells respawn. Terminals
+  in backgrounded tabs reconnect the moment their tab becomes visible again.
+
 ## 2.2.0
 
 - **Clipboard paste now accepts video, not just images.** Pasting into a

@@ -7,6 +7,10 @@ single browser-side plugin (pure HTML/CSS/JS, **no build step**, no server
 daemon) that runs every privileged action through Cockpit's own superuser
 bridge.
 
+> **📺 Another Cockpit plugin of mine:** [**InFlight TV**](https://github.com/ismetozalp/iftv)
+> (`ismetozalp/iftv`) — an IPTV / live-TV player for the Cockpit console. If you
+> like Explorer, give it a look.
+
 **Highlights**
 
 - 🗂️ **Multi-tab browser** with an optional **two-pane** (Midnight Commander)
@@ -25,7 +29,7 @@ bridge.
   a GRUB editor, archive create/extract, and admin-aware uploads.
 
 The installed plugin version shows as a badge in the top-right of the tab
-bar (e.g. **Explorer v2.0.1**). It targets `/usr/share/cockpit/explorer/`.
+bar (e.g. **Explorer v2.2.1**). It targets `/usr/share/cockpit/explorer/`.
 
 ---
 
@@ -596,6 +600,16 @@ Two **Settings** control this:
 > The path is typed into whatever currently has focus in the terminal, and
 > Enter is pressed. If you are at a bare shell prompt rather than inside a
 > program, that means the shell will try to *run* the path as a command.
+
+#### Auto-reconnect after a Cockpit restart
+
+If the Cockpit transport drops — you restart `cockpit` on the host, a network
+blip, or the session otherwise disconnects — open terminals **reconnect
+automatically** once the transport is back (with a short backoff). A **tmux**
+terminal reattaches to its still-running session and forces a full repaint, so
+it comes back showing your session rather than a **blank** pane; a plain shell
+respawns. A terminal on a backgrounded tab reconnects the moment you switch back
+to it. No manual "reconnect" step is needed.
 
 #### Copying text out of the terminal
 
