@@ -54,6 +54,7 @@ window.ExRT = {
     term: {
         map: new Map(),
         reconn: new Map(),   // termId → { attempt, waits, timer } for auto-reconnect backoff
+        pending: new Set(),  // termIds with a _mountTerminal chain in flight (double-mount guard)
         set(tabId, val) { this.map.set(tabId, val); },
         get(tabId) { return this.map.get(tabId); },
         del(tabId) {

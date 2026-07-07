@@ -503,6 +503,16 @@ window.ExplorerTerminal = {
             return;
         }
         attempt = attempt || 0;
+        // Idempotency guard: bail if a live instance already exists, or another
+        // mount chain for this term is already in flight (e.g. activateTab →
+        // _ensureTerminalsMounted and selectTerminal firing back-to-back for the
+        // same sub-tab, either of which may still be inside its ~1s container
+        // retry with no instance registered yet). Guard only the first call of a
+        // chain; recursive retries (attempt > 0) ARE the in-flight chain.
+        if (attempt === 0) {
+            if (ExRT.term.get(termId) || ExRT.term.pending.has(termId)) return;
+            ExRT.term.pending.add(termId);
+        }
         const container = document.getElementById('term-container-' + termId);
         if (!container || container.offsetHeight === 0) {
             // Container not yet in DOM, or DOM in but parent has no height
@@ -510,6 +520,7 @@ window.ExplorerTerminal = {
             if (attempt < 20) {
                 setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
             } else {
+                ExRT.term.pending.delete(termId);
                 console.warn('[explorer] terminal container never sized; giving up', termId);
                 this.toast('Terminal failed to size — try toggling the tab', 'error');
             }
@@ -674,6 +685,7 @@ window.ExplorerTerminal = {
         } catch (e) {
             console.error('[explorer] failed to spawn shell:', e);
             try { xterm.dispose(); } catch (e2) {}
+            ExRT.term.pending.delete(termId);
             // Transport likely still down mid-reconnect — keep polling instead of
             // giving up. (First-ever mount will also retry, which is harmless.)
             this._scheduleTermReconnect(termId, dir);
@@ -718,6 +730,7 @@ window.ExplorerTerminal = {
         window.addEventListener('resize', onWinResize);
 
         ExRT.term.set(termId, { term: xterm, channel, fitAddon, container, onWinResize });
+        ExRT.term.pending.delete(termId);  // mount chain complete
 
         // Final fit + force initial PTY resize. Without an initial control
         // message, some shells start with 80x24 default and don't redraw.
