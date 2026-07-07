@@ -66,7 +66,16 @@ window.ExplorerUpload = {
                     }
                     resolve();
                 });
-                channel.send(b64);
+                // Cockpit's transport chunks every channel payload into 64 KiB
+                // frames internally; sending one giant raw message instead trips
+                // its `too-large` guard and drops the whole transport (the
+                // "Reconnect" overlay). Mirror Cockpit here: stream the base64 in
+                // 64 KiB slices. `base64 -d` is a stream decoder, so arbitrary
+                // slice boundaries decode correctly.
+                const CHUNK = 64 * 1024;
+                for (let i = 0; i < b64.length; i += CHUNK) {
+                    channel.send(b64.slice(i, i + CHUNK));
+                }
                 channel.control({ command: 'done' });
             };
             r.readAsDataURL(file);
