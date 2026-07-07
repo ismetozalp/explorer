@@ -494,6 +494,14 @@ window.ExplorerTerminal = {
             // yet (terminal-tab-body still flex-calculating). Retry up to ~1s.
             if (attempt < 20) {
                 setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
+            } else if (ExRT.term.reconn.has(termId)) {
+                // Reconnect-driven mount of a backgrounded terminal (its container
+                // is display:none → 0-height while another tab is active). Don't
+                // error or keep hammering at the wrong size: drop the backoff entry
+                // and let _ensureTerminalsMounted remount it at the correct size
+                // when the user activates its tab. The visible terminal, whose
+                // container IS sized, reconnects actively via the backoff above.
+                ExRT.term.reconn.delete(termId);
             } else {
                 console.warn('[explorer] terminal container never sized; giving up', termId);
                 this.toast('Terminal failed to size — try toggling the tab', 'error');
@@ -747,6 +755,7 @@ window.ExplorerTerminal = {
         if (rec.attempt >= MAX_ATTEMPTS) {
             const inst = ExRT.term.get(termId);
             if (inst && inst.term) { try { inst.term.write('\r\n\x1b[31m[reconnect gave up — reopen the tab]\x1b[0m\r\n'); } catch (e) {} }
+            else { this.toast('Terminal could not reconnect — reopen the tab', 'warning'); }
             ExRT.term.reconn.delete(termId);
             return;
         }
