@@ -45,6 +45,7 @@ Alpine.data('explorer', () => ({
     activeWinId: null,
     hostVisible: false,
     hostMaximized: false,
+    previewCopied: false,   // transient "Copied ✓" feedback on the preview Copy button
     _winSeq: 1,
     // Windows-style window-control glyphs.
     winIconMinimize: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 8 H9" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>',

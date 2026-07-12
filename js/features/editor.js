@@ -11,6 +11,20 @@ window.ExplorerEditor = {
         return Array.from({ length: n }, (_, i) => i + 1).join('\n');
     },
 
+    // Copy the text of the active text-preview window to the clipboard. Reuses
+    // the terminal's execCommand-based helper so it also works over plain HTTP
+    // (no secure-context clipboard). Shows a brief "Copied ✓" on the button.
+    copyPreviewContent() {
+        const w = this.activeWin();
+        if (!w || w.kind !== 'preview' || !w.pv || w.pv.kind !== 'text') return;
+        const ok = this._copyToClipboard(w.pv.content || '');
+        if (!ok) { this.toast('Could not copy to clipboard', 'danger'); return; }
+        this.previewCopied = true;
+        this.toast('Copied file contents to clipboard', 'success');
+        clearTimeout(this._previewCopiedTimer);
+        this._previewCopiedTimer = setTimeout(() => { this.previewCopied = false; }, 1500);
+    },
+
     async openPreview(file, opts) {
         opts = opts || {};
         if (!file) return;
