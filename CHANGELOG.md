@@ -12,6 +12,13 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   the interactive **Script Prompt Protocol** text prompts. (Previously the
   prompt tried to focus via `x-init`, which runs at page load while the modal is
   hidden and so never took effect; it now focuses on the modal's shown event.)
+- **Per-row actions menu (⋮) for touch screens.** Every file/folder row now has
+  a ⋮ button that opens the same menu as right-click — so the context menu is
+  reachable on touch devices that have no right-click. On desktop it appears on
+  row hover; on touch it's always shown with a larger tap target.
+- **Copy button in text previews.** Previewing a text-based file (md, txt, html,
+  code, …) now shows a **Copy** button in the window header that copies the
+  file's contents to the clipboard (works over plain HTTP too).
 
 - **Fixed: a restored tmux tab's non-active session came back blank.** With
   multiple tmux sessions open as sub-tabs, reloading mounted only the active

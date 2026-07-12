@@ -29,7 +29,7 @@ bridge.
   a GRUB editor, archive create/extract, and admin-aware uploads.
 
 The installed plugin version shows as a badge in the top-right of the tab
-bar (e.g. **Explorer v2.2.1**). It targets `/usr/share/cockpit/explorer/`.
+bar (e.g. **Explorer v2.2.3**). It targets `/usr/share/cockpit/explorer/`.
 
 ---
 
@@ -440,6 +440,11 @@ actions they're listed flat; with **more than 3** they're grouped into
 the screen. The flyouts open to the left automatically when the menu is
 near the right edge of the window.
 
+**Touch screens (⋮ button).** Every file/folder row has a **⋮** button that
+opens this same menu — so it's reachable on touch devices that have no
+right-click. On a mouse it appears when you hover the row; on touch it's
+always shown with a larger tap target.
+
 **Paste-as-name.** When you paste (Ctrl-V or the menu) a *single* file or
 folder, the plugin asks for the name it should have in the destination —
 so you can duplicate or rename in one step. The default is the original
@@ -459,7 +464,8 @@ handles:
   configurable in Settings) — with a **line-number gutter** (new in 2.0.1)
   down the left, aligned to each line. It stays pinned while you scroll a
   long line sideways, and the numbers aren't selectable, so copying the code
-  never grabs them.
+  never grabs them. A **Copy** button in the window header copies the whole
+  file's contents to the clipboard.
 - Images, PDF (browser iframe), video, audio.
 - Binary fallback explains why the file can't be previewed.
 
