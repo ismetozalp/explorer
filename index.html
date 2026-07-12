@@ -343,10 +343,10 @@
                                 <td class="col-perms" x-show="settings.columns.perms" x-text="file.perms"></td>
                                 <td class="col-owner" x-show="settings.columns.owner" x-text="file.owner + ':' + file.group"></td>
                                 <td class="col-type" x-show="settings.columns.type" x-text="typeLabel(file)"></td>
-                                <td class="col-menu" @click.stop>
+                                <td class="col-menu" @click.stop @dblclick.stop>
                                     <button type="button" class="row-menu-btn" title="Actions"
                                             aria-label="Open actions menu"
-                                            @click.stop="onRowContextMenu($event, p, file)">⋮</button>
+                                            @click.stop="onRowContextMenu($event, p, file)" @dblclick.stop>⋮</button>
                                 </td>
                             </tr>
                         </template>

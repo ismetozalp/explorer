@@ -20,7 +20,7 @@
                             x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv && activeWin().pv.kind === 'text'"
                             @click="copyPreviewContent()"
                             title="Copy file contents to clipboard" aria-label="Copy file contents to clipboard"
-                            x-text="previewCopied ? 'Copied ✓' : 'Copy'"></button>
+                            x-text="(activeWin() && copiedWinId === activeWin().id) ? 'Copied ✓' : 'Copy'"></button>
                     <button type="button" class="win-btn" @click="minimizeHost()" title="Minimize" x-html="winIconMinimize"></button>
                     <button type="button" class="win-btn" @click="hostMaximized = !hostMaximized" :title="hostMaximized ? 'Restore' : 'Maximize'" x-html="hostMaximized ? winIconRestore : winIconMaximize"></button>
                     <button type="button" class="win-btn win-btn-close" @click="closeActiveWindow()" title="Close" x-html="winIconClose"></button>

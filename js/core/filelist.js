@@ -119,7 +119,14 @@ window.ExplorerFileList = {
         this._activatePaneRef(tab, pane);
         // If the row isn't in current selection, select just it.
         if (!pane.selection.includes(file.path)) pane.selection = [file.path];
-        this.ctxMenu = { open: true, x: ev.clientX, y: ev.clientY, kind: 'file', target: file, tabId: tab ? tab.id : null, flyLeft: false };
+        let x = ev.clientX, y = ev.clientY;
+        // Keyboard-activating the ⋮ button (Enter/Space) fires a click with
+        // clientX/clientY = 0 — anchor the menu to the button, not the corner.
+        if (!x && !y && ev.currentTarget && ev.currentTarget.getBoundingClientRect) {
+            const r = ev.currentTarget.getBoundingClientRect();
+            x = Math.round(r.left); y = Math.round(r.bottom);
+        }
+        this.ctxMenu = { open: true, x, y, kind: 'file', target: file, tabId: tab ? tab.id : null, flyLeft: false };
         this._clampCtxMenu();
     },
 

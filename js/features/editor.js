@@ -19,10 +19,10 @@ window.ExplorerEditor = {
         if (!w || w.kind !== 'preview' || !w.pv || w.pv.kind !== 'text') return;
         const ok = this._copyToClipboard(w.pv.content || '');
         if (!ok) { this.toast('Could not copy to clipboard', 'danger'); return; }
-        this.previewCopied = true;
+        this.copiedWinId = w.id;   // scoped to this window so other previews don't show it
         this.toast('Copied file contents to clipboard', 'success');
         clearTimeout(this._previewCopiedTimer);
-        this._previewCopiedTimer = setTimeout(() => { this.previewCopied = false; }, 1500);
+        this._previewCopiedTimer = setTimeout(() => { this.copiedWinId = null; }, 1500);
     },
 
     async openPreview(file, opts) {
