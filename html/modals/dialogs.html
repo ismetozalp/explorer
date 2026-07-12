@@ -55,7 +55,7 @@
             <div class="modal-body">
                 <div class="input-group input-group-sm mb-2">
                     <button class="btn btn-outline-secondary" @click="_dpUp()" title="Up one level">↑</button>
-                    <input type="text" class="form-control" x-model="dirPicker.pathInput" @keydown.enter.prevent="_dpGoTo()" spellcheck="false">
+                    <input type="text" class="form-control" x-model="dirPicker.pathInput" @keydown.enter.prevent="_dpGoTo()" spellcheck="false" autofocus>
                     <button class="btn btn-outline-secondary" @click="_dpGoTo()">Go</button>
                     <button class="btn btn-outline-secondary" @click="_dpNewFolder()" title="Create a new folder here">+ Folder</button>
                 </div>

@@ -55,24 +55,43 @@ window.ExplorerDialogs = {
     _focusFirstField(root) {
         if (!root) return;
         const scope = root.querySelector('.modal-body') || root;
-        const controls = scope.querySelectorAll('input, textarea, select, button');
-        for (const el of controls) {
-            if (el.getClientRects().length === 0) continue;                    // not visible
-            if (el.closest('.monaco-editor, .ql-container, .xterm')) continue; // editor widget
+        const isText = (el) => {
             const tag = el.tagName.toLowerCase();
+            if (tag === 'textarea') return true;
+            if (tag !== 'input') return false;
             const type = (el.getAttribute('type') || 'text').toLowerCase();
-            const isText = tag === 'textarea'
-                || (tag === 'input' && ['text', 'search', 'url', 'email', 'password', 'number', 'tel', ''].includes(type));
-            if (isText && !el.disabled && !el.readOnly) {
-                try {
-                    el.focus();
-                    // Cursor to the end so a prefilled default can be edited/appended.
-                    const v = el.value;
-                    if (typeof v === 'string' && el.setSelectionRange) {
-                        try { el.setSelectionRange(v.length, v.length); } catch (e) {}
-                    }
-                } catch (e) {}
-            }
+            return ['text', 'search', 'url', 'email', 'password', 'number', 'tel', ''].includes(type);
+        };
+        // Visible and not inside an editor widget that manages its own focus
+        // (Monaco, xterm, and Quill's toolbar/tooltip — the latter live as
+        // siblings of .ql-container, so list them explicitly).
+        const usable = (el) => el.getClientRects().length > 0
+            && !el.disabled && !el.readOnly
+            && !el.closest('.monaco-editor, .ql-container, .ql-toolbar, .ql-tooltip, .xterm');
+        const focus = (el) => {
+            try {
+                el.focus();
+                // Cursor to the end so a prefilled default can be edited/appended.
+                const v = el.value;
+                if (typeof v === 'string' && el.setSelectionRange) {
+                    try { el.setSelectionRange(v.length, v.length); } catch (e) {}
+                }
+            } catch (e) {}
+        };
+        // 1) Explicit opt-in wins, in DOM order, regardless of preceding
+        //    controls — for modals whose primary field is preceded by other
+        //    chrome (e.g. Run-command's textarea after a shell <select>, the
+        //    dir-picker path input after an "up" button, the GitHub token input).
+        for (const el of scope.querySelectorAll('[autofocus]')) {
+            if (usable(el) && isText(el)) { focus(el); return; }
+        }
+        // 2) Otherwise: if the FIRST visible control is a text input/textarea,
+        //    focus it. If it's a checkbox/select/button (e.g. Settings), do
+        //    nothing — never reach past it into the middle of a form.
+        for (const el of scope.querySelectorAll('input, textarea, select, button')) {
+            if (el.getClientRects().length === 0
+                || el.closest('.monaco-editor, .ql-container, .ql-toolbar, .ql-tooltip, .xterm')) continue;
+            if (isText(el) && !el.disabled && !el.readOnly) focus(el);
             return;  // decide from the first visible control, whatever it is
         }
     },

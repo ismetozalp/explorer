@@ -151,7 +151,7 @@
                 </div>
                 <div class="mb-2">
                     <label class="form-label">Command</label>
-                    <textarea class="form-control font-monospace" rows="3" x-model="runCmd.command" @keydown.ctrl.enter="doRunCommand()" placeholder="ls -la"></textarea>
+                    <textarea class="form-control font-monospace" rows="3" x-model="runCmd.command" @keydown.ctrl.enter="doRunCommand()" placeholder="ls -la" autofocus></textarea>
                 </div>
                 <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="runcmd-admin" x-model="runCmd.admin">

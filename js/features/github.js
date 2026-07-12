@@ -142,6 +142,10 @@ window.ExplorerGithub = {
     async openGithubPanel(tab) {
         bootstrap.Modal.getOrCreateInstance(this.ghModalEl).show();
         await this._refreshGhState();
+        // The token field only renders once gh.state resolves to 'notauthed',
+        // which happens after shown.bs.modal already fired — focus it now that
+        // it exists (no-op if the panel opened already-authenticated or closed).
+        this.$nextTick(() => this._focusFirstField(this.ghModalEl));
     },
 
     async _refreshGhState() {
