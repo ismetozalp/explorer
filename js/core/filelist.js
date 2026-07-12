@@ -61,7 +61,8 @@ window.ExplorerFileList = {
     // ───── Sorting & display helpers ────────────────────────────────────────
     visibleColumnCount() {
         const c = this.settings.columns;
-        return 2 + (c.size ? 1 : 0) + (c.modified ? 1 : 0) + (c.perms ? 1 : 0) + (c.owner ? 1 : 0) + (c.type ? 1 : 0);
+        // 3 = col-check + col-name + col-menu (all always visible).
+        return 3 + (c.size ? 1 : 0) + (c.modified ? 1 : 0) + (c.perms ? 1 : 0) + (c.owner ? 1 : 0) + (c.type ? 1 : 0);
     },
 
     setSort(tab, col) {

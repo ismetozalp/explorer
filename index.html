@@ -318,6 +318,7 @@
                             <th class="col-perms" x-show="settings.columns.perms">Permissions</th>
                             <th class="col-owner" x-show="settings.columns.owner">Owner</th>
                             <th class="col-type" x-show="settings.columns.type">Type</th>
+                            <th class="col-menu" aria-label="Actions"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -342,6 +343,11 @@
                                 <td class="col-perms" x-show="settings.columns.perms" x-text="file.perms"></td>
                                 <td class="col-owner" x-show="settings.columns.owner" x-text="file.owner + ':' + file.group"></td>
                                 <td class="col-type" x-show="settings.columns.type" x-text="typeLabel(file)"></td>
+                                <td class="col-menu" @click.stop>
+                                    <button type="button" class="row-menu-btn" title="Actions"
+                                            aria-label="Open actions menu"
+                                            @click.stop="onRowContextMenu($event, p, file)">⋮</button>
+                                </td>
                             </tr>
                         </template>
                         <tr x-show="!p.loading && p.files.length === 0">

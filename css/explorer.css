@@ -232,6 +232,24 @@ body {
 .col-owner { width: 140px; }
 .col-type { width: 110px; }
 
+/* Per-row actions menu (⋮) — opens the same menu as right-click. Primarily for
+   touch screens with no right-click; on desktop it appears on row hover. */
+.col-menu { width: 40px; text-align: center; padding: 0; }
+.row-menu-btn {
+    border: 0; background: transparent; cursor: pointer;
+    color: var(--ex-text); opacity: 0;
+    font-size: 18px; line-height: 1; padding: 2px 8px; border-radius: 4px;
+    transition: opacity .1s ease, background-color .1s ease;
+}
+.file-list tbody tr:hover .row-menu-btn,
+.file-list tbody tr.selected .row-menu-btn { opacity: .55; }
+.row-menu-btn:hover, .row-menu-btn:focus-visible { opacity: 1; background: rgba(127, 127, 127, .18); outline: none; }
+/* Touch / no-hover pointers: always show the affordance with a bigger tap target. */
+@media (hover: none), (pointer: coarse) {
+    .row-menu-btn { opacity: .75; padding: 8px 10px; font-size: 20px; }
+    .col-menu { width: 46px; }
+}
+
 .file-list tbody tr { cursor: default; }
 .file-list tbody tr:hover { background: var(--ex-bg-alt); }
 .file-list tbody tr.selected { background: var(--ex-selected); }
