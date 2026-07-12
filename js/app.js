@@ -198,6 +198,10 @@ Alpine.data('explorer', () => ({
         };
         document.addEventListener('show.bs.modal', (e) => { e.target._openSeq = ++_modalSeq; });
         document.addEventListener('shown.bs.modal', _placeTopModal);
+        // Autofocus the first field when a modal opens, if it's a text input /
+        // textarea, so users can type immediately (covers dialogs, prompts, and
+        // the interactive Script Prompt Protocol which prompts via #promptModal).
+        document.addEventListener('shown.bs.modal', (e) => this._focusFirstField(e.target));
         document.addEventListener('hidden.bs.modal', () => setTimeout(_placeTopModal, 0));
 
         // Load settings from ~/.config/cockpit/explorer/settings.yml

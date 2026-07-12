@@ -43,6 +43,40 @@ window.ExplorerDialogs = {
         if (r) r(value);
     },
 
+    // When a modal opens, put the cursor in its first field IF that field is a
+    // text input or textarea — so users can type immediately without clicking.
+    // Wired to the global `shown.bs.modal` event (bootstrap fires it once the
+    // modal is actually visible; an x-init/autofocus at page-load time can't
+    // focus a hidden element). The decision is based on the FIRST visible
+    // control in the modal body: if it's a checkbox/select/button (e.g. the
+    // Settings modal) nothing is focused. Editor widgets (Monaco/Quill/xterm)
+    // manage their own focus and are skipped. Covers the interactive Script
+    // Prompt Protocol too, since it prompts via askPrompt → #promptModal.
+    _focusFirstField(root) {
+        if (!root) return;
+        const scope = root.querySelector('.modal-body') || root;
+        const controls = scope.querySelectorAll('input, textarea, select, button');
+        for (const el of controls) {
+            if (el.getClientRects().length === 0) continue;                    // not visible
+            if (el.closest('.monaco-editor, .ql-container, .xterm')) continue; // editor widget
+            const tag = el.tagName.toLowerCase();
+            const type = (el.getAttribute('type') || 'text').toLowerCase();
+            const isText = tag === 'textarea'
+                || (tag === 'input' && ['text', 'search', 'url', 'email', 'password', 'number', 'tel', ''].includes(type));
+            if (isText && !el.disabled && !el.readOnly) {
+                try {
+                    el.focus();
+                    // Cursor to the end so a prefilled default can be edited/appended.
+                    const v = el.value;
+                    if (typeof v === 'string' && el.setSelectionRange) {
+                        try { el.setSelectionRange(v.length, v.length); } catch (e) {}
+                    }
+                } catch (e) {}
+            }
+            return;  // decide from the first visible control, whatever it is
+        }
+    },
+
     // ───── Directory picker ────────────────────────────────────────────────
     // Returns a Promise<string|null> resolving to the chosen directory path.
     askDirectory(title, startPath) {

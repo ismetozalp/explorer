@@ -2,7 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
-## 2.2.2
+## 2.2.3
+
+- **Dialogs put the cursor in the first field automatically.** When a modal
+  opens and its first field is a text input or textarea, it's focused
+  immediately so you can type without clicking first — new-folder/rename/new
+  tmux session prompts, the commit message box, GitHub token entry, etc. Modals
+  whose first field isn't text (e.g. Settings) are left alone. This also covers
+  the interactive **Script Prompt Protocol** text prompts. (Previously the
+  prompt tried to focus via `x-init`, which runs at page load while the modal is
+  hidden and so never took effect; it now focuses on the modal's shown event.)
 
 - **Fixed: a restored tmux tab's non-active session came back blank.** With
   multiple tmux sessions open as sub-tabs, reloading mounted only the active
