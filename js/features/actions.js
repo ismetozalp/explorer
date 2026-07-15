@@ -389,6 +389,27 @@ window.ExplorerActions = {
         }
     },
 
+    // Reorder actions within the current scope. The context menu lists actions
+    // in array order (see applicableActions), so moving a row up/down changes the
+    // menu order immediately (in-memory); the new order is written to disk on
+    // Save, like every other edit. Keeps the selected action selected as it moves.
+    moveActionAt(i, dir) {
+        const scope = this.actionsMgr.scope;
+        const arr = this.customActions[scope];
+        const j = i + dir;
+        if (i == null || i < 0 || i >= arr.length || j < 0 || j >= arr.length) return;
+        // In code view, commit the pending edit first so a swap can't drop it.
+        if (this.actionsMgr.mode === 'code') {
+            if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
+        }
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        const cur = this.actionsMgr.editingIdx;
+        if (cur === i) this.actionsMgr.editingIdx = j;
+        else if (cur === j) this.actionsMgr.editingIdx = i;
+    },
+    moveActionUp(i) { this.moveActionAt(i, -1); },
+    moveActionDown(i) { this.moveActionAt(i, 1); },
+
     appliesToLabel(v) {
         return ({
             '': 'all items', both: 'files & directories', file: 'files',

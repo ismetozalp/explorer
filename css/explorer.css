@@ -1325,6 +1325,8 @@ pre.preview-code {
     overflow: hidden;
 }
 .actions-list .btn-link { text-decoration: none; font-size: 14px; line-height: 1; }
+.actions-list .action-move { padding: 2px 5px; font-size: 15px; }
+.actions-list .action-move:disabled { opacity: .3; }
 .modal-dialog.actions-dialog-code .actions-list { max-height: 100%; overflow-y: auto; }
 
 /* ===== User/system badges on custom-action menu items ===== */

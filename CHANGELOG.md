@@ -2,6 +2,13 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.4
+
+- **Reorder custom actions.** Each action in the Custom Actions manager now has
+  **↑ / ↓** buttons to move it up or down within its scope (User / System). The
+  order you set is the order the actions appear in the right-click menu — the
+  change takes effect immediately and is written to disk when you **Save**.
+
 ## 2.2.3
 
 - **Dialogs put the cursor in the first field automatically.** When a modal

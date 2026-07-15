@@ -34,7 +34,11 @@
                                         <span x-text="a.label"></span>
                                         <small class="text-muted d-block text-truncate" x-text="appliesToLabel(a.appliesTo) + (a.pattern ? ' · /' + a.pattern + '/' : '')"></small>
                                     </span>
-                                    <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(i)" title="Delete this action">✕</button>
+                                    <span class="action-row-controls d-flex align-items-center flex-shrink-0">
+                                        <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionUp(i)" :disabled="i === 0" title="Move up (menu order)" aria-label="Move action up">↑</button>
+                                        <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionDown(i)" :disabled="i === customActions[actionsMgr.scope].length - 1" title="Move down (menu order)" aria-label="Move action down">↓</button>
+                                        <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(i)" title="Delete this action">✕</button>
+                                    </span>
                                 </li>
                             </template>
                             <li class="list-group-item text-muted" x-show="!customActions[actionsMgr.scope].length">No actions yet.</li>
