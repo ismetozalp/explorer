@@ -30,6 +30,14 @@
     <text x="126" y="237" fill="#f0f0f0">Patch: apply</text>
     <text x="126" y="265" fill="#f0f0f0">Open in VS Code</text>
   </g>
+  <!-- per-row reorder controls: ↑/↓ (menu order) + delete. Top ↑ and bottom ↓ dimmed (disabled at the ends). -->
+  <g font-size="12" text-anchor="middle">
+    <text x="270" y="153" fill="#8a8f96" opacity="0.3">↑</text><text x="286" y="153" fill="#8a8f96">↓</text><text x="302" y="153" fill="#c8504b">✕</text>
+    <text x="270" y="181" fill="#8a8f96">↑</text><text x="286" y="181" fill="#8a8f96">↓</text><text x="302" y="181" fill="#c8504b">✕</text>
+    <text x="270" y="209" fill="#8a8f96">↑</text><text x="286" y="209" fill="#8a8f96">↓</text><text x="302" y="209" fill="#c8504b">✕</text>
+    <text x="270" y="237" fill="#8a8f96">↑</text><text x="286" y="237" fill="#8a8f96">↓</text><text x="302" y="237" fill="#c8504b">✕</text>
+    <text x="270" y="265" fill="#8a8f96">↑</text><text x="286" y="265" fill="#8a8f96" opacity="0.3">↓</text><text x="302" y="265" fill="#c8504b">✕</text>
+  </g>
   <rect x="112" y="440" width="200" height="28" rx="4" fill="#1b1d21" stroke="#444649"/>
   <text x="126" y="458" fill="#75b6fd" font-size="12">＋ New action</text>
 
