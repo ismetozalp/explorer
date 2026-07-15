@@ -402,7 +402,11 @@ window.ExplorerActions = {
         if (this.actionsMgr.mode === 'code') {
             if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
         }
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+        // Move via splice (the array-mutation convention used elsewhere, and a
+        // reactive op Alpine's x-for reliably reconciles) rather than bare index
+        // assignment. j = i ± 1, so this is an adjacent swap.
+        const [moved] = arr.splice(i, 1);
+        arr.splice(j, 0, moved);
         const cur = this.actionsMgr.editingIdx;
         if (cur === i) this.actionsMgr.editingIdx = j;
         else if (cur === j) this.actionsMgr.editingIdx = i;
