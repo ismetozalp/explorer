@@ -351,7 +351,7 @@ window.FS = (function () {
         compress, extract,
         searchFilename, searchContent, listForSearch,
         spawnOpts,
-        hasRsync, duSum, dfAvail, sameFilesystem,
+        hasRsync, duSum, dfAvail, sameFilesystem, fsType, isZfs,
     };
 
     // ─── Capability + pre-flight helpers ────────────────────────────────────
@@ -380,4 +380,19 @@ window.FS = (function () {
             return !!a && a === b;
         } catch (e) { return false; }
     }
+    // Filesystem type for a path. findmnt is most reliable (resolves the exact
+    // containing mountpoint; no root); stat -f is the fallback on hosts without
+    // util-linux. Returns a lowercased fstype string ('zfs', 'ext4', …) or ''.
+    async function fsType(path, opts) {
+        try {
+            const o = await cockpit.spawn(['findmnt', '-no', 'FSTYPE', '-T', path], spawnOpts(opts));
+            const t = o.trim();
+            if (t) return t.toLowerCase();
+        } catch (e) { /* fall through to stat -f */ }
+        try {
+            const o = await cockpit.spawn(['stat', '-f', '-c', '%T', path], spawnOpts(opts));
+            return o.trim().toLowerCase();
+        } catch (e) { return ''; }
+    }
+    async function isZfs(path, opts) { return (await fsType(path, opts)) === 'zfs'; }
 })();
