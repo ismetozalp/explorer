@@ -269,9 +269,12 @@ window.FS = (function () {
         const fmt = `%y${FSEP}%M${FSEP}%u${FSEP}%g${FSEP}%s${FSEP}%T@${FSEP}%l${FSEP}%p${FSEP}%f\\036`;
         const flag = caseInsensitive ? '-iname' : '-name';
         const pattern = '*' + query.replace(/([*?\[\]])/g, '\\$1') + '*';
+        const zfs = await isZfs(root, opts).catch(() => false);
+        const prune = zfs ? ['-name', '.zfs', '-prune', '-o'] : [];
         const cmd = ['find', root,
                      ...(recursive ? [] : ['-maxdepth', '1']),
                      '-mindepth', '1',
+                     ...prune,
                      flag, pattern,
                      '-printf', fmt];
         const data = await cockpit.spawn(cmd, spawnOpts(opts));
@@ -303,9 +306,13 @@ window.FS = (function () {
      */
     async function searchContent(root, query, recursive, caseInsensitive, regex, opts) {
         // 1. Enumerate candidate files at the requested depth.
+        const zfs = await isZfs(root, opts).catch(() => false);
+        const prune = zfs ? ['-name', '.zfs', '-prune', '-o'] : [];
         const findCmd = ['find', root,
                          ...(recursive ? [] : ['-maxdepth', '1']),
-                         '-mindepth', '1', '-type', 'f', '-print0'];
+                         '-mindepth', '1',
+                         ...prune,
+                         '-type', 'f', '-print0'];
         let fileData;
         try {
             fileData = await cockpit.spawn(findCmd, spawnOpts(opts));
