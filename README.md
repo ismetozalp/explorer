@@ -928,6 +928,13 @@ subfolder search is enabled. Results replace the file list inline, with
 a banner (showing the active flags) you can dismiss to return to the
 directory view.
 
+Explorer is **ZFS-aware**: on a ZFS dataset, search automatically skips
+the `.zfs` snapshot directory (so a `snapdir=visible` dataset doesn't get
+traversed as if it were live data), and copy/move skips the slow `du`
+disk-space pre-flight — ZFS `df` already reports correct free space, and
+copies go over `rsync --sparse` so sparse files aren't ballooned to full
+size. Non-ZFS filesystems are unaffected.
+
 ### Archives
 
 ![Archives — compress and extract](screenshots/archives.svg)

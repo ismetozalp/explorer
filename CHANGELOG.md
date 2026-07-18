@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.5
+
+- **ZFS-aware filesystem operations.** On ZFS paths, Explorer no longer runs the slow
+  `du` space-preflight before a copy/move (ZFS `df` already reports correct free space and
+  returns ENOSPC if a write truly won't fit); filename/content **search** and **rsync**
+  copies now skip the `.zfs` snapshot directory so a `snapdir=visible` dataset can't
+  inflate sizes or stall traversal. Detection is per-path (`findmnt`/`stat -f`), so mixed
+  ext4/ext3/zfs hosts each get the right behavior. Also: rsync now copies with `--sparse`
+  so sparse files (e.g. VM images) aren't ballooned to full size.
+
 ## 2.2.4
 
 - **Reorder custom actions.** Each action in the Custom Actions manager now has
