@@ -220,7 +220,7 @@ window.ExplorerFileOps = {
 
         // 4. rsync path
         if (this.rsyncAvailable) {
-            await this._runRsync(op, srcs, dest, mode, opts);
+            await this._runRsync(op, srcs, dest, mode, { ...opts, srcZfs });
             // Move: remove now-empty source dirs (rsync --remove-source-files
             // doesn't delete dirs).
             if (mode === 'move') {
@@ -237,7 +237,8 @@ window.ExplorerFileOps = {
 
     _runRsync(op, srcs, dest, mode, opts) {
         const destWithSlash = dest.endsWith('/') ? dest : dest + '/';
-        const args = ['rsync', '-a', '--info=progress2', '--no-i-r'];
+        const args = ['rsync', '-a', '--sparse', '--info=progress2', '--no-i-r'];
+        if (opts.srcZfs) args.push('--exclude=.zfs/');
         if (mode === 'move') args.push('--remove-source-files');
         args.push('--', ...srcs, destWithSlash);
         return this._rsyncRun(op, args, opts);
@@ -284,12 +285,14 @@ window.ExplorerFileOps = {
         if (mode === 'move') { try { await FS.remove([src], opts); } catch (e) {} }
     },
 
-    _runRsyncRenamed(op, src, fullTarget, mode, isDir, opts) {
+    async _runRsyncRenamed(op, src, fullTarget, mode, isDir, opts) {
         // For a directory, trailing slashes on BOTH sides copy the contents
         // into the (new-named) target dir. For a file, no trailing slash.
         const s = isDir ? (src.endsWith('/') ? src : src + '/') : src;
         const t = isDir ? (fullTarget.endsWith('/') ? fullTarget : fullTarget + '/') : fullTarget;
-        const args = ['rsync', '-a', '--info=progress2', '--no-i-r'];
+        const srcZfs = await FS.isZfs(Util.dirname(src), opts).catch(() => false);
+        const args = ['rsync', '-a', '--sparse', '--info=progress2', '--no-i-r'];
+        if (srcZfs) args.push('--exclude=.zfs/');
         if (mode === 'move') args.push('--remove-source-files');
         args.push('--', s, t);
         return this._rsyncRun(op, args, opts);
