@@ -170,9 +170,13 @@ window.ExplorerFileOps = {
                 throw new Error(`Cannot ${mode} into a subdirectory of itself:\n  ${s}\n  → ${dest}`);
             }
         }
-        // 2. Disk-space pre-flight (best effort, capped at 5s)
+        // 2. Disk-space pre-flight (best effort, capped at 5s). Skipped on ZFS:
+        //    `du` there is a slow tree-walk and (with dest compression) can only
+        //    over-warn — `df` governs the real write, returning ENOSPC if it
+        //    truly runs out. `srcZfs` is reused by the rsync step below.
+        const srcZfs = await FS.isZfs(Util.dirname(srcs[0]), opts).catch(() => false);
         op.statusText = 'Checking sizes…';
-        try {
+        if (!srcZfs) try {
             const sumPromise = (async () => {
                 let total = 0;
                 for (const s of srcs) total += await FS.duSum(s, opts);
