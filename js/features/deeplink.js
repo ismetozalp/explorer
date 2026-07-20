@@ -48,7 +48,7 @@ window.ExplorerDeepLink = {
                 await this._openParentAndSelect(target);
             }
         } catch (e) {
-            this.toast('Could not open path', 'danger');
+            this.toast('Could not open path: ' + raw, 'danger');
         } finally {
             this._openInFlight = false;
         }
@@ -57,9 +57,10 @@ window.ExplorerDeepLink = {
     // Open the parent dir in a new focused tab, load it, then select + scroll to the file.
     async _openParentAndSelect(filePath) {
         const parent = Util.dirname(filePath);
-        const tab = this._buildTab(parent, 'dir');
-        this.tabs.push(tab);
-        this.activeTabId = tab.id;
+        const raw = this._buildTab(parent, 'dir');
+        this.tabs.push(raw);
+        this.activeTabId = raw.id;
+        const tab = this.tabs.find(t => t.id === raw.id);   // reactive proxy (raw refs don't trigger Alpine re-render)
         await this._loadDir(tab);                       // single awaited load (not newTab's $nextTick load)
         tab.selection = [filePath];
         this.$nextTick(() => this._scrollToPath(filePath));
