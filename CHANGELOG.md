@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.6
+
+- **Deep-link "open this directory."** Another Cockpit plugin can now hand a folder to
+  Explorer via `cockpit.jump("/explorer#open=" + encodeURIComponent(absolutePath))`.
+  Explorer reads the `#open=<url-encoded path>` hash on startup and on every `hashchange`,
+  opens the directory in a new focused tab (a file path opens its parent and selects the
+  file; a bad path shows a toast), then strips the `open=` param so a reload doesn't
+  re-fire it. Used by the companion **ctop** plugin.
+
 ## 2.2.5
 
 - **ZFS-aware filesystem operations.** On ZFS paths, Explorer no longer runs the slow

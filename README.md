@@ -10,6 +10,10 @@ bridge.
 > **📺 Another Cockpit plugin of mine:** [**InFlight TV**](https://github.com/ismetozalp/iftv)
 > (`ismetozalp/iftv`) — an IPTV / live-TV player for the Cockpit console. If you
 > like Explorer, give it a look.
+>
+> **📊 And another:** [**ctop**](https://github.com/ismetozalp/ctop) (`ismetozalp/ctop`) —
+> a live system/process monitor for the Cockpit console; from ctop you can jump straight
+> into any directory here.
 
 **Highlights**
 
@@ -1589,4 +1593,19 @@ change — verified in-browser (the modals are confirmed to be injected into
   running shell in its split pane (the shell keeps its own working
   directory). Open a fresh terminal sub-tab if you want one rooted at
   the new folder.
+
+---
+
+## Deep-linking from other plugins
+
+Another Cockpit plugin can open a directory in Explorer by navigating the shell with:
+
+```js
+cockpit.jump("/explorer#open=" + encodeURIComponent("/absolute/path"));
+```
+
+Explorer reads the `#open=<url-encoded absolute path>` hash on load and on every
+`hashchange`: a directory opens in a new focused tab, a file opens its parent folder with
+the file selected, and an inaccessible path shows a notification. The `open=` param is
+cleared after handling, so it never survives a reload or clobbers tab state.
 
