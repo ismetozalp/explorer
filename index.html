@@ -324,6 +324,7 @@
                     <tbody>
                         <template x-for="file in sortedFiles(p)" :key="file.path">
                             <tr :class="{ selected: p.selection.includes(file.path), 'cut-file': clipboard.op === 'cut' && clipboard.paths.includes(file.path) }"
+                                :data-path="file.path"
                                 @click="onRowClick($event, p, file)"
                                 @dblclick="openFile(p, file)"
                                 @contextmenu.prevent="onRowContextMenu($event, p, file)"
@@ -631,6 +632,7 @@
 <script src="js/features/terminal.js"></script>
 <script src="js/features/upload.js"></script>
 <script src="js/features/editor.js"></script>
+<script src="js/features/deeplink.js"></script>
 <script src="js/core/tabs.js"></script>
 <script src="js/core/filelist.js"></script>
 <script src="js/core/fileops.js"></script>

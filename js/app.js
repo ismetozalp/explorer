@@ -12,6 +12,7 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerTerminal,  // js/features/terminal.js
     ...window.ExplorerUpload,  // js/features/upload.js
     ...window.ExplorerEditor,  // js/features/editor.js
+    ...window.ExplorerDeepLink,  // js/features/deeplink.js
     ...window.ExplorerTabs,      // js/core/tabs.js
     ...window.ExplorerFileList,  // js/core/filelist.js
     ...window.ExplorerFileOps,   // js/core/fileops.js
@@ -331,6 +332,10 @@ Alpine.data('explorer', () => ({
                 }
             } catch (e) {}
         })();
+
+        // Deep-link entry point: react to #open=<path> (from ctop's cockpit.jump).
+        this._initDeepLink();
+        this._handleDeepLink();
     },
 
 
