@@ -14,6 +14,10 @@ bridge.
 > **📊 And another:** [**ctop**](https://github.com/ismetozalp/ctop) (`ismetozalp/ctop`) —
 > a live system/process monitor for the Cockpit console; from ctop you can jump straight
 > into any directory here.
+>
+> **⬇️ And another:** [**Manifest**](https://github.com/ismetozalp/manifest) (`ismetozalp/manifest`) —
+> a download manager for the Cockpit console (torrents, magnets, HTTP/FTP/Metalink via a
+> per-user `aria2c`); it deep-links its downloads straight into Explorer.
 
 **Highlights**
 
