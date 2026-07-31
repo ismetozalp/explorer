@@ -2,8 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
-## 2.2.8
+## 2.3.0
 
+- **New: Plugin Manager — update or install all your Cockpit plugins from one place.**
+  The **⬆ Plugins** toolbar button opens a panel listing Explorer, Cockpit Top, IF TV and Manifest
+  with their installed and latest released versions. Each plugin's update repo is
+  read from its own settings file where it has one (Explorer `updateRepo`, IF TV
+  `updateRepo` in JSON, Manifest `update.repo`), falling back to a built-in default
+  (Cockpit Top is static). **Update** a plugin or **Update all** at once (a *Force
+  reinstall* toggle also reinstalls up-to-date plugins, and IF TV whose installed
+  version isn't tracked). Not-installed plugins can be **multi-selected and
+  installed at once**. Install logs stream live, and a **Restart Cockpit** button
+  (confirm-gated — it disconnects your session) appears when updates finish.
+  Downloads use your `gh`/`curl` credentials; only the install into
+  `/usr/share/cockpit` runs through the superuser bridge.
 - **Fixed: "Retry as administrator" now appears when a delete hits root/foreign-owned
   files.** Deleting a folder whose tree contains items you don't own (e.g. a root-owned
   `node_modules/` or a container's foreign-uid `data/`) failed with a bare `rm exit 1`

@@ -1037,6 +1037,23 @@ elevated for that path — reloads and post-save refreshes won't drop back
 and nag you again — and the tab header shows a small **root** badge so
 it's clear the listing is elevated.
 
+### Plugin Manager — update / install your Cockpit plugins
+
+![Plugin Manager](screenshots/plugins-updater.svg)
+
+The **⬆ Plugins** button in the top toolbar opens the **Plugin Manager**, which manages your four
+plugins together — **Explorer, Cockpit Top, IF TV, Manifest**. It shows each
+plugin's installed version and the latest GitHub release, reading the update repo
+from each plugin's own settings file where it has one (Cockpit Top uses a built-in
+default). **Update** a single plugin or **Update all** at once; a **Force
+reinstall** toggle updates even up-to-date plugins (and IF TV, whose installed
+version isn't tracked on disk). A not-installed plugin can be installed — tick
+several and **Install selected** to install them in one go. Install output streams
+live in the panel, and when it finishes a **Restart Cockpit** button applies the
+changes (it disconnects your session — log back in after a few seconds). Downloads
+use your own `gh`/`curl` credentials; only the install step runs with
+administrator rights.
+
 ### Mounts (fstab editor)
 
 The **⛁ Mounts** button in the top toolbar opens an editor for
