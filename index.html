@@ -370,12 +370,16 @@
           </div>
         </template>
         </div>
-        <!-- Integrated terminal split — vertical (right) normally, horizontal (bottom) in dual mode -->
-        <div class="term-resizer" :class="{ horizontal: tab.dual }"
-             x-show="tab.splitOpen && tab.terminals && tab.terminals.length > 0"
-             @mousedown="_startTermResize($event, tab)"></div>
+        <!-- Integrated terminal split — vertical (right) normally, horizontal (bottom) in dual mode.
+             x-if (not x-show): the pane also carries a reactive :style, and toggling Split re-applies
+             that :style, which wiped the inline display:none x-show had set — leaving an empty pane
+             stuck visible. x-if adds/removes the elements from the DOM, so an empty split can't linger. -->
+        <template x-if="tab.splitOpen && tab.terminals && tab.terminals.length > 0">
+            <div class="term-resizer" :class="{ horizontal: tab.dual }"
+                 @mousedown="_startTermResize($event, tab)"></div>
+        </template>
+        <template x-if="tab.splitOpen && tab.terminals && tab.terminals.length > 0">
         <div class="term-pane"
-             x-show="tab.splitOpen && tab.terminals && tab.terminals.length > 0"
              :style="tab.dual ? `height:${tab.splitHeight || 260}px` : `width:${tab.splitWidth || 480}px`">
             <div class="term-stack">
                 <div class="term-tabbar">
@@ -404,6 +408,7 @@
                 </div>
             </div>
         </div>
+        </template>
         </div>
 
         <!-- Status bar (active pane) -->

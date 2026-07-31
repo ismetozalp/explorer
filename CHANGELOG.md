@@ -4,13 +4,19 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
 
 ## 2.3.1
 
-- **Fixed: the integrated terminal split could be left open with no terminals.**
-  `closeTerminal` only closed the split (dir tabs) or the terminal tab when the
-  closed sub-tab happened to be the *active* one, so an edge path could leave the
-  terminal pane's state "open" with zero terminals — an empty bar with just the
-  `+` / `×` buttons and no sub-tabs. Closing the last terminal now always closes
-  the split (or the terminal tab), independent of which sub-tab was active, so the
-  pane can never be left open-but-empty from any path. Covered by a new unit test
+- **Fixed: an empty terminal pane appeared when toggling Split (dual pane) and
+  couldn't be dismissed.** The integrated terminal pane used `x-show` for its
+  visibility gate, but it also carries a reactive `:style` (the split width/height).
+  Toggling **Split** re-applied that `:style`, which overwrote the inline
+  `display:none` that `x-show` had set — so an empty terminal pane (no terminals)
+  became visible and got *stuck*: its `×` wouldn't close it, and the only way to
+  clear it was to open a terminal and then close it. The pane and its resizer are now
+  gated with `x-if`, which adds/removes them from the DOM entirely, so an empty
+  split can never be shown.
+- **Hardened: closing the last terminal always closes the split.** `closeTerminal`
+  previously closed the split (dir tabs) / the terminal tab only when the closed
+  sub-tab happened to be the *active* one; it now closes whenever the last terminal
+  is gone, regardless of which sub-tab was active. Covered by a new unit test
   (`tests/terminal-close-unit.mjs`).
 
 ## 2.3.0
