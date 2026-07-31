@@ -43,7 +43,7 @@
                 </td>
                 <td class="text-end">
                   <button class="btn btn-sm btn-primary" x-show="row.installed"
-                          :disabled="row.busy || pluginUpd.updating || !( row.status==='update' || pluginUpd.force )"
+                          :disabled="row.busy || pluginUpd.updating || !_pluginEligible(row, pluginUpd.force)"
                           @click="updatePlugin(row)">
                     <span x-show="!row.busy">Update</span><span x-show="row.busy">…</span>
                   </button>
@@ -64,7 +64,7 @@
         <button class="btn btn-outline-primary" x-show="pluginUpd.rows.some(r => r.status==='notinstalled' && r.selected)"
                 :disabled="pluginUpd.updating" @click="installSelectedPlugins()"
                 x-text="'Install selected (' + pluginUpd.rows.filter(r => r.status==='notinstalled' && r.selected).length + ')'"></button>
-        <button class="btn btn-primary" :disabled="pluginUpd.updating || pluginUpd.checking" @click="updateAllPlugins()">Update all</button>
+        <button class="btn btn-primary" :disabled="pluginUpd.updating || pluginUpd.checking || !pluginUpd.rows.some(r => _pluginEligible(r, pluginUpd.force))" @click="updateAllPlugins()">Update all</button>
         <button class="btn btn-warning" x-show="pluginUpd.finished" @click="restartCockpit()">Restart Cockpit</button>
         <button class="btn btn-secondary" @click="closePluginUpdater()">Close</button>
       </div>
