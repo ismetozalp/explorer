@@ -2,6 +2,24 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.8
+
+- **Fixed: "Retry as administrator" now appears when a delete hits root/foreign-owned
+  files.** Deleting a folder whose tree contains items you don't own (e.g. a root-owned
+  `node_modules/` or a container's foreign-uid `data/`) failed with a bare `rm exit 1`
+  and no way forward. The delete channel merges `rm`'s stderr into its output stream, so
+  the "Permission denied" text was being discarded and the generic exit message didn't
+  match the permission-error check that gates the admin retry. The failure now carries
+  the actual `rm` error and flags permission/EPERM cases, so the **Retry as administrator**
+  button shows and the delete completes through the superuser bridge.
+- **Fixed: editing the path bar in split (dual-pane) view.** The top path bar and the
+  active pane's per-pane path bar shared a single `editingPath` flag, so clicking the top
+  bar rendered *two* auto-focusing inputs; their cross-blur closed the editor immediately
+  and you couldn't type. The top bar now uses its own flag, so exactly one input renders.
+- **New: "Copy path" in the right-click menu.** Copies the absolute path of the selected
+  file/folder to the system clipboard (one per line for a multi-selection). Shown as
+  "Copy paths" when several items are selected.
+
 ## 2.2.7
 
 - **Fixed: pasting a video (webm/mp4/…) via the terminal 📋 button.** The one-click

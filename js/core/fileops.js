@@ -80,6 +80,11 @@ window.ExplorerFileOps = {
             let dirCount = 0;
             let lastItem = '';
             let buf = '';
+            // stderr is merged into this stream (err:'out'). Keep the last few
+            // error lines so a non-zero exit can report *why* (e.g. a
+            // root-owned node_modules/ or foreign-uid data/ inside the tree)
+            // and flag permission failures for the admin-retry path.
+            const errLines = [];
             channel.addEventListener('message', (ev, data) => {
                 const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
                 buf += text;
@@ -97,9 +102,12 @@ window.ExplorerFileOps = {
                         let p = line.slice('removed '.length);
                         if (p.startsWith("'") && p.endsWith("'")) p = p.slice(1, -1);
                         lastItem = p;
+                    } else {
+                        // Merged stderr (e.g. "rm: cannot remove 'x': Permission
+                        // denied"). Keep a bounded tail for the failure message.
+                        errLines.push(line);
+                        if (errLines.length > 20) errLines.shift();
                     }
-                    // Other lines (errors merged from stderr) are ignored
-                    // for counting but stay visible in the channel buffer.
                 }
                 let s = `${fileCount} file${fileCount === 1 ? '' : 's'}, ${dirCount} folder${dirCount === 1 ? '' : 's'}`;
                 if (lastItem) s += ` · ${Util.basename(lastItem)}`;
@@ -115,7 +123,14 @@ window.ExplorerFileOps = {
                     return reject(e);
                 }
                 const status = info && info['exit-status'];
-                if (status != null && status !== 0) return reject(new Error('rm exit ' + status));
+                if (status != null && status !== 0) {
+                    // Flush any partial last line still in buf.
+                    if (buf.trim()) errLines.push(buf.trim());
+                    const detail = errLines.join('\n').trim();
+                    const e = new Error(detail || ('rm exit ' + status));
+                    e.permissionDenied = /permission denied|EACCES|operation not permitted|EPERM/i.test(detail);
+                    return reject(e);
+                }
                 resolve();
             });
         });
@@ -138,6 +153,17 @@ window.ExplorerFileOps = {
         if (!sel.length) return;
         this.clipboard = { op: op, paths: sel.map(f => f.path) };
         this.toast(`${op === 'cut' ? 'Cut' : 'Copied'} ${sel.length} item(s)`);
+    },
+
+    // Copy the absolute path(s) of the current selection to the system
+    // clipboard (one per line for multi-select). Distinct from copyToClipboard,
+    // which fills Explorer's internal cut/copy buffer for paste.
+    async copyPathToClipboard() {
+        const tab = this.currentPane();
+        const sel = this.selectedFiles(tab);
+        if (!sel.length) return;
+        const text = sel.map(f => f.path).join('\n');
+        await this.copyTextToClipboard(text);
     },
 
     /**

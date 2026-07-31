@@ -19,7 +19,8 @@ window.ExplorerTabs = {
             listAdminPath: null,
             history: [path || this.homePath],
             historyIdx: 0,
-            editingPath: false,
+            editingPath: false,      // per-pane path bar (dual mode)
+            editingPathTop: false,   // top toolbar path bar (independent flag)
             lastClickedPath: null,
             search: { query: '', mode: 'name', recursive: false, caseInsensitive: false, regex: false, active: false },
             // for output panes

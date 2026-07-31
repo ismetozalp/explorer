@@ -14,7 +14,7 @@
   </g>
 
   <!-- context menu -->
-  <rect x="150" y="116" width="272" height="404" rx="8" fill="#292d31" stroke="#4a4e53"/>
+  <rect x="150" y="116" width="272" height="430" rx="8" fill="#292d31" stroke="#4a4e53"/>
   <g font-size="13">
     <!-- custom actions (top), with badges -->
     <rect x="150" y="124" width="272" height="28" fill="#31363c"/>
@@ -32,16 +32,17 @@
     <line x1="150" y1="300" x2="422" y2="300" stroke="#3d4147"/>
     <text x="168" y="322" fill="#cfd3d8">Copy</text>
     <text x="168" y="348" fill="#cfd3d8">Cut</text>
-    <line x1="150" y1="360" x2="422" y2="360" stroke="#3d4147"/>
-    <text x="168" y="382" fill="#cfd3d8">Rename…</text>
-    <text x="168" y="408" fill="#cfd3d8">Delete…</text>
-    <line x1="150" y1="420" x2="422" y2="420" stroke="#3d4147"/>
-    <text x="168" y="442" fill="#cfd3d8">Open terminal here (split)</text>
-    <text x="168" y="468" fill="#cfd3d8">Permissions…</text>
-    <line x1="150" y1="480" x2="422" y2="480" stroke="#3d4147"/>
+    <text x="168" y="374" fill="#cfd3d8">Copy path</text>
+    <line x1="150" y1="386" x2="422" y2="386" stroke="#3d4147"/>
+    <text x="168" y="408" fill="#cfd3d8">Rename…</text>
+    <text x="168" y="434" fill="#cfd3d8">Delete…</text>
+    <line x1="150" y1="446" x2="422" y2="446" stroke="#3d4147"/>
+    <text x="168" y="468" fill="#cfd3d8">Open terminal here (split)</text>
+    <text x="168" y="494" fill="#cfd3d8">Permissions…</text>
+    <line x1="150" y1="506" x2="422" y2="506" stroke="#3d4147"/>
     <!-- reload actions (highlighted) -->
-    <rect x="150" y="484" width="272" height="30" fill="#2b3138"/>
-    <text x="168" y="504" fill="#7fd18a">↻ Reload actions</text>
+    <rect x="150" y="510" width="272" height="30" fill="#2b3138"/>
+    <text x="168" y="530" fill="#7fd18a">↻ Reload actions</text>
   </g>
 
   <!-- callout -->

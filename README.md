@@ -432,7 +432,7 @@ history, selection, sort order, search, and git strip.
 
 > ***Custom actions*** (only the ones that apply to the current selection) — listed at the **top** of the menu
 > *Open · Edit · Preview (Space)*
-> *Copy · Cut · Paste*
+> *Copy · Cut · Copy path · Paste*
 > *Rename · Delete*
 > *New file · New folder*
 > *Download · Upload here*
@@ -447,6 +447,11 @@ actions they're listed flat; with **more than 3** they're grouped into
 (each showing its count) so a long list is never clipped off the bottom of
 the screen. The flyouts open to the left automatically when the menu is
 near the right edge of the window.
+
+**Copy path.** Copies the selected item's absolute path to the system
+clipboard (one path per line for a multi-selection, and the label reads
+*Copy paths*). Distinct from **Copy**, which fills Explorer's internal
+cut/copy buffer for *Paste*.
 
 **Touch screens (⋮ button).** Every file/folder row has a **⋮** button that
 opens this same menu — so it's reachable on touch devices that have no
@@ -1021,8 +1026,11 @@ never by running the whole plugin as administrator. Any operation that
 fails with EACCES gives you a *Retry as
 administrator* button that re-runs through Cockpit's superuser bridge.
 The same applies to the editor's *Save as administrator*, to opening or
-previewing an unreadable file (*Open / Retry as administrator*), and to
-listing a directory you can't read.
+previewing an unreadable file (*Open / Retry as administrator*), to
+listing a directory you can't read, and to **deleting** a folder whose
+tree holds items you don't own (e.g. a root-owned `node_modules/` or a
+container's foreign-uid `data/`) — the delete surfaces the real
+*Permission denied* and offers the retry instead of failing silently.
 
 Once you list a root-only directory as administrator, the tab stays
 elevated for that path — reloads and post-save refreshes won't drop back

@@ -107,18 +107,21 @@
                     @click="toggleDualPane(tab)" :title="tab.dual ? 'Switch to single pane' : 'Split into two panes'">⊞ <span x-text="tab.dual ? 'Single' : 'Split'"></span></button>
 
             <!-- Breadcrumbs / path input (active pane) -->
-            <div class="path-bar flex-grow-1" @dblclick="activePane(tab).editingPath = true">
-                <template x-if="!activePane(tab).editingPath">
-                    <div class="breadcrumbs" @click="activePane(tab).editingPath = true">
+            <!-- Uses tab.editingPathTop (not the pane's editingPath) so that in
+                 dual mode the top bar and the active pane's per-pane bar never
+                 render two focus-stealing inputs for the same flag. -->
+            <div class="path-bar flex-grow-1" @dblclick="tab.editingPathTop = true">
+                <template x-if="!tab.editingPathTop">
+                    <div class="breadcrumbs" @click="tab.editingPathTop = true">
                         <a href="#" class="breadcrumb-root" @click.prevent.stop="navigate(activePane(tab), '/')">/</a><template x-for="(seg, i) in pathSegments(activePane(tab).path)" :key="i"><span><a href="#" @click.prevent.stop="navigate(activePane(tab), seg.path)" x-text="seg.label"></a><span x-show="i < pathSegments(activePane(tab).path).length - 1" class="sep">/</span></span></template>
                     </div>
                 </template>
-                <template x-if="activePane(tab).editingPath">
+                <template x-if="tab.editingPathTop">
                     <input type="text" class="form-control form-control-sm path-input"
                            :value="activePane(tab).path"
-                           @keydown.enter="navigate(activePane(tab), $event.target.value); activePane(tab).editingPath = false"
-                           @keydown.escape="activePane(tab).editingPath = false"
-                           @blur="activePane(tab).editingPath = false"
+                           @keydown.enter="navigate(activePane(tab), $event.target.value); tab.editingPathTop = false"
+                           @keydown.escape="tab.editingPathTop = false"
+                           @blur="tab.editingPathTop = false"
                            x-init="$nextTick(() => $el.focus())">
                 </template>
             </div>
@@ -513,6 +516,7 @@
             <li class="ctx-sep" x-show="ctxMenu.kind === 'file'"></li>
             <li x-show="ctxMenu.kind === 'file'" @click="copyToClipboard('copy')">Copy</li>
             <li x-show="ctxMenu.kind === 'file'" @click="copyToClipboard('cut')">Cut</li>
+            <li x-show="ctxMenu.kind === 'file'" @click="copyPathToClipboard()" x-text="selectedFiles().length > 1 ? 'Copy paths' : 'Copy path'"></li>
             <li @click="paste()" :class="{ disabled: !clipboard.paths.length }">Paste</li>
             <li class="ctx-sep" x-show="ctxMenu.kind === 'file'"></li>
             <li x-show="ctxMenu.kind === 'file' && currentPane() && currentPane().selection.length === 1" @click="renameSelected()">Rename…</li>
