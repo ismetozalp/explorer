@@ -464,20 +464,22 @@ window.ExplorerTerminal = {
 
         tab.terminals.splice(idx, 1);
 
-        if (tab.activeTermId === termId) {
-            if (tab.terminals.length === 0) {
-                tab.activeTermId = null;
-                if (tab.kind === 'dir') {
-                    tab.splitOpen = false;
-                } else if (tab.kind === 'terminal') {
-                    // Closing last terminal in a terminal-kind tab closes the tab.
-                    this.closeTab(tab.id);
-                    return;
-                }
-            } else {
-                const next = tab.terminals[Math.min(idx, tab.terminals.length - 1)];
-                this.selectTerminal(tab, next.id);
+        // Close the split (dir) or the whole tab (terminal-kind) whenever the
+        // LAST terminal is gone — independent of which sub-tab was active — so
+        // no path can leave an open-but-empty terminal pane. Only reselect a
+        // neighbour when the closed sub-tab was the active one and others remain.
+        if (tab.terminals.length === 0) {
+            tab.activeTermId = null;
+            if (tab.kind === 'dir') {
+                tab.splitOpen = false;
+            } else if (tab.kind === 'terminal') {
+                // Closing last terminal in a terminal-kind tab closes the tab.
+                this.closeTab(tab.id);
+                return;
             }
+        } else if (tab.activeTermId === termId) {
+            const next = tab.terminals[Math.min(idx, tab.terminals.length - 1)];
+            this.selectTerminal(tab, next.id);
         }
     },
 

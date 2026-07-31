@@ -2,6 +2,17 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.3.1
+
+- **Fixed: the integrated terminal split could be left open with no terminals.**
+  `closeTerminal` only closed the split (dir tabs) or the terminal tab when the
+  closed sub-tab happened to be the *active* one, so an edge path could leave the
+  terminal pane's state "open" with zero terminals — an empty bar with just the
+  `+` / `×` buttons and no sub-tabs. Closing the last terminal now always closes
+  the split (or the terminal tab), independent of which sub-tab was active, so the
+  pane can never be left open-but-empty from any path. Covered by a new unit test
+  (`tests/terminal-close-unit.mjs`).
+
 ## 2.3.0
 
 - **New: Plugin Manager — update or install all your Cockpit plugins from one place.**
