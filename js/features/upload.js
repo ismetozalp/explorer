@@ -156,7 +156,16 @@ window.ExplorerUpload = {
     // Toolbar entry point: read a clipboard image and hand it to the uploader.
     // HTTPS + permission → navigator.clipboard.read() (one click). Otherwise
     // (http, or a blocked read) → a small overlay that captures a Ctrl+V paste,
-    // which exposes image data even on http.
+    // which exposes media even on http.
+    //
+    // The async Clipboard API only surfaces a safelisted set of types — in
+    // practice image/png and image/svg+xml — and CANNOT expose video at all
+    // (ClipboardItem.supports('video/webm') is false and read() omits it), nor
+    // image/jpeg / image/webp. So read() handles PNG/SVG in one click, but a
+    // pasted video/webm (or jpeg/webp) reads back with no pasteable type. When
+    // that happens we must fall through to the native-paste overlay, whose DOM
+    // paste event (clipboardData) is NOT subject to the async-clipboard safelist
+    // and can extract the video/jpeg File — not dead-end with "nothing found".
     async pasteClipboardImageToTerminal(tab) {
         const termId = tab && tab.activeTermId;
         if (!termId || !ExRT.term.get(termId)) { this.toast('No active terminal', 'warning'); return; }
@@ -172,8 +181,9 @@ window.ExplorerUpload = {
                         return;
                     }
                 }
-                this.toast('No image or video found in clipboard', 'info');
-                return;
+                // read() succeeded but exposed no image/video: a video (or a
+                // jpeg/webp image) the async API can't see may still be on the
+                // clipboard — fall through to the native-paste overlay below.
             } catch (e) {
                 // NotAllowedError / SecurityError (http or blocked) → modal fallback
             }

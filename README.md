@@ -596,9 +596,10 @@ video types are `mp4`, `webm`, `mov`, `mkv`, `avi` and `ogv`.
   context and prompts for no permission.
 - **📋 button.** The terminal sub-tab bar also has a **📋** button that does
   the same thing on demand. On HTTPS it reads the clipboard directly in one
-  click; on HTTP (where direct clipboard reads are blocked by the browser)
-  it opens a small *“press Ctrl+V here”* panel that captures the image or
-  video.
+  click for a PNG/SVG image; for a **video** (or a JPEG/WebP image) — which
+  the browser's one-click clipboard API can't expose — and on HTTP (where
+  direct clipboard reads are blocked), it opens a small *“press Ctrl+V here”*
+  panel that captures the image or video.
 - Files are saved as `clip-<timestamp>-<random>.<ext>` in a world-readable
   folder, so any program on the host — not just the one in your terminal —
   can open them.

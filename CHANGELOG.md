@@ -2,6 +2,18 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.2.7
+
+- **Fixed: pasting a video (webm/mp4/…) via the terminal 📋 button.** The one-click
+  path used the browser's async Clipboard API, which only exposes a safelisted set of
+  types (in practice `image/png` and `image/svg+xml`) and **cannot surface video at all**
+  (nor `image/jpeg`/`image/webp`). When it found no readable media it stopped with
+  "No image or video found" instead of trying the native-paste overlay — so a copied
+  **webm** was never detected. The button now falls through to the *"press Ctrl+V here"*
+  panel, whose DOM paste event isn't subject to that safelist, so videos (and JPEG/WebP
+  images) upload as expected. Ctrl+V directly in the terminal already used the native
+  paste path and was unaffected.
+
 ## 2.2.6
 
 - **Deep-link "open this directory."** Another Cockpit plugin can now hand a folder to
