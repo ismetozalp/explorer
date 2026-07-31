@@ -62,5 +62,22 @@ try {
     await app.locator('#pluginsModal label:has-text("Force reinstall") input').uncheck();
     console.log(`OK force: Update button enabled by Force reinstall (was ${before ? 'enabled' : 'disabled'} → enabled)`);
   }
+  if (process.env.RUN_INSTALL === '1') {
+    // The install runs privileged (superuser:'require'); the shell session
+    // starts in "Limited access" and the channel gets access-denied unless we
+    // switch to administrative access first (same password as login, no TTY).
+    if (await page.locator('text=Limited access').count()) {
+      await page.locator('text=Limited access').first().click();
+      await page.locator('#switch-to-admin-access-password').fill(PASS);
+      await page.locator('button', { hasText: 'Authenticate' }).click();
+      await page.locator('text=Administrative access').first().waitFor({ timeout: 10000 });
+    }
+    await app.locator('#pluginsModal label:has-text("Force reinstall") input').check();
+    const exp = app.locator('#pluginsModal tbody tr', { hasText: 'Explorer' });
+    await exp.locator('button', { hasText: 'Update' }).click();
+    await app.locator('#pluginLog').filter({ hasText: /install done|installed\/updated/ }).waitFor({ timeout: 60000 });
+    await app.locator('#pluginsModal button', { hasText: 'Restart Cockpit' }).waitFor({ timeout: 10000 });
+    console.log('OK install: Explorer force-reinstall streamed logs and finished');
+  }
   await browser.close(); process.exit(0);
 } catch (e) { await page.screenshot({ path: SHOT }).catch(() => {}); fail('exception: ' + e.message); }

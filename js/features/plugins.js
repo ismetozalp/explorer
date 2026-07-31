@@ -132,4 +132,88 @@ window.ExplorerPlugins = {
         }
         this.pluginUpd.checking = false;
     },
+
+    _appendPluginLog(text) {
+        this.pluginUpd.log += text;
+        this.$nextTick(() => { const el = document.getElementById('pluginLog'); if (el) el.scrollTop = el.scrollHeight; });
+    },
+
+    async _recordPluginVersion(key, ver) {
+        const obj = await this._readVersionsFile();
+        obj[key] = ver;
+        try { await FS.mkdir(Util.dirname(this._versionsFilePath())); } catch (e) { /* exists */ }
+        await FS.writeText(this._versionsFilePath(), JSON.stringify(obj, null, 2));
+    },
+
+    // Privileged install, streamed into the log. make install if a Makefile is
+    // present (Explorer/ctop/Manifest), else rsync/cp the tree into $DEST (IF TV).
+    _installPluginZip(desc, srcDir, base) {
+        return new Promise((resolve, reject) => {
+            const dest = base + '/' + desc.dir;
+            const script =
+                'set -e; SRC=' + Util.shq(srcDir) + '; DEST=' + Util.shq(dest) + '; ' +
+                'if [ -f "$SRC/Makefile" ]; then echo "installing via make…"; make -C "$SRC" install; ' +
+                'else echo "installing via copy…"; mkdir -p "$DEST"; ' +
+                'if command -v rsync >/dev/null 2>&1; then rsync -a --delete "$SRC"/ "$DEST"/; ' +
+                'else cp -a "$SRC"/. "$DEST"/; fi; fi; echo "install done."';
+            const channel = cockpit.channel({ payload: 'stream', spawn: ['sh', '-c', script], superuser: 'require', err: 'out' });
+            let buf = '';
+            channel.addEventListener('message', (ev, data) => {
+                const t = typeof data === 'string' ? data : new TextDecoder().decode(data);
+                buf += t; this._appendPluginLog(t);
+            });
+            channel.addEventListener('close', (ev, info) => {
+                if (info && info.problem) return reject(new Error(info.message || info.problem));
+                const st = info && info['exit-status'];
+                if (st != null && st !== 0) {
+                    const last = buf.trim().split('\n').pop() || '';
+                    return reject(new Error('install exit ' + st + (last ? ': ' + last : '')));
+                }
+                resolve();
+            });
+        });
+    },
+
+    // Download + install one plugin. Works for update AND fresh install.
+    async updatePlugin(row) {
+        if (row.busy) return;
+        const desc = this._pluginDescriptors().find(d => d.key === row.key);
+        if (!desc) return;
+        if (!row.tag) { row.message = 'No release to install'; return; }
+        row.busy = true; this.pluginUpd.updating = true; row.message = '';
+        this._appendPluginLog('\n=== ' + row.label + ' → ' + row.latest + ' (' + row.repo + ') ===\n');
+        let work = null;
+        try {
+            this._appendPluginLog('downloading ' + desc.dir + '-' + row.latest + '.zip…\n');
+            const zip = await this._downloadReleaseZip(row.repo, row.tag, desc.dir);
+            work = Util.dirname(zip);
+            this._appendPluginLog('unzipping…\n');
+            await cockpit.spawn(['sh', '-c', 'unzip -oq ' + Util.shq(zip) + ' -d ' + Util.shq(work)], { err: 'message' });
+            await this._installPluginZip(desc, work + '/' + desc.dir, row.base);
+            await this._recordPluginVersion(row.key, row.latest);
+            row.installed = true; row.current = row.latest; row.status = 'uptodate'; row.selected = false;
+            this.pluginUpd.finished = true;
+            this._appendPluginLog(row.label + ' installed/updated to ' + row.latest + '.\n');
+        } catch (e) {
+            row.status = 'error'; row.message = e.message || String(e);
+            this._appendPluginLog('ERROR: ' + (e.message || e) + '\n');
+        } finally {
+            if (work) { try { await cockpit.spawn(['rm', '-rf', work], { err: 'ignore' }); } catch (e) {} }
+            row.busy = false;
+            if (!this.pluginUpd.rows.some(r => r.busy)) this.pluginUpd.updating = false;
+        }
+    },
+
+    async updateAllPlugins() {
+        const force = this.pluginUpd.force;
+        const targets = this.pluginUpd.rows.filter(r => this._pluginEligible(r, force));
+        if (!targets.length) { this.toast('Nothing to update.', 'info'); return; }
+        for (const row of targets) await this.updatePlugin(row);
+    },
+
+    async installSelectedPlugins() {
+        const targets = this.pluginUpd.rows.filter(r => r.status === 'notinstalled' && r.selected && r.tag);
+        if (!targets.length) { this.toast('Select a not-installed plugin first.', 'info'); return; }
+        for (const row of targets) await this.updatePlugin(row);
+    },
 };
