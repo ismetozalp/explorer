@@ -81,6 +81,9 @@
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openPluginUpdater()" title="Plugin Manager — update or install your Cockpit plugins">
+        <span>⬆ Plugins</span>
+    </button>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openSettings()" title="Settings">
         <span>⚙</span>
     </button>
@@ -629,6 +632,81 @@
 <script src="js/fs.js"></script>
 <script src="js/git.js"></script>
 <script src="js/runtime.js"></script>
+
+<!-- Plugin updater / installer -->
+<div class="modal fade" id="pluginsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" x-data>
+      <div class="modal-header">
+        <h5 class="modal-title">Plugin Manager</h5>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <label class="form-check-label small text-muted me-2">
+            <input type="checkbox" class="form-check-input me-1" x-model="pluginUpd.force"> Force reinstall
+          </label>
+          <button class="btn btn-sm btn-outline-secondary" @click="checkAllPlugins()" :disabled="pluginUpd.checking || pluginUpd.updating">
+            <span x-show="!pluginUpd.checking">Check for updates</span>
+            <span x-show="pluginUpd.checking">Checking…</span>
+          </button>
+          <button type="button" class="btn-close" @click="closePluginUpdater()" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <table class="table table-sm align-middle plugins-table">
+          <thead><tr>
+            <th style="width:2rem"></th><th>Plugin</th><th>Repo</th><th>Version</th><th>Status</th><th class="text-end">Action</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="row in pluginUpd.rows" :key="row.key">
+              <tr>
+                <td>
+                  <input type="checkbox" class="form-check-input" x-show="row.status === 'notinstalled'"
+                         x-model="row.selected">
+                </td>
+                <td x-text="row.label"></td>
+                <td class="text-muted small" x-text="row.repo"></td>
+                <td class="small">
+                  <span x-text="row.current || '—'"></span>
+                  <span x-show="row.latest && row.current !== row.latest"> → <span x-text="row.latest"></span></span>
+                </td>
+                <td>
+                  <span class="badge" :class="{
+                    'bg-success': row.status==='uptodate', 'bg-primary': row.status==='update',
+                    'bg-warning text-dark': row.status==='unknown', 'bg-secondary': row.status==='notinstalled' || row.status==='checking',
+                    'bg-danger': row.status==='error' }"
+                    x-text="({uptodate:'✓ Up to date',update:'↑ Update',unknown:'? Unknown',notinstalled:'— Not installed',checking:'…',error:'⚠ Error'})[row.status]"></span>
+                  <span class="text-danger small ms-1" x-show="row.message" x-text="row.message"></span>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-primary" x-show="row.installed"
+                          :disabled="row.busy || pluginUpd.updating || !( row.status==='update' || pluginUpd.force )"
+                          @click="updatePlugin(row)">
+                    <span x-show="!row.busy">Update</span><span x-show="row.busy">…</span>
+                  </button>
+                  <button class="btn btn-sm btn-outline-primary" x-show="row.status==='notinstalled'"
+                          :disabled="row.busy || pluginUpd.updating || !row.tag"
+                          @click="updatePlugin(row)">
+                    <span x-show="!row.busy">Install</span><span x-show="row.busy">…</span>
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <pre id="pluginLog" class="plugins-log" x-show="pluginUpd.log" x-text="pluginUpd.log"
+             style="max-height:16rem;overflow:auto;background:#111;color:#ddd;padding:.5rem;border-radius:.25rem;font-size:12px"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-primary" x-show="pluginUpd.rows.some(r => r.status==='notinstalled' && r.selected)"
+                :disabled="pluginUpd.updating" @click="installSelectedPlugins()"
+                x-text="'Install selected (' + pluginUpd.rows.filter(r => r.status==='notinstalled' && r.selected).length + ')'"></button>
+        <button class="btn btn-primary" :disabled="pluginUpd.updating || pluginUpd.checking" @click="updateAllPlugins()">Update all</button>
+        <button class="btn btn-warning" x-show="pluginUpd.finished" @click="restartCockpit()">Restart Cockpit</button>
+        <button class="btn btn-secondary" @click="closePluginUpdater()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="js/features/grub.js"></script>
 <script src="js/features/mounts.js"></script>
 <script src="js/features/github.js"></script>
@@ -637,6 +715,7 @@
 <script src="js/features/upload.js"></script>
 <script src="js/features/editor.js"></script>
 <script src="js/features/deeplink.js"></script>
+<script src="js/features/plugins.js"></script>
 <script src="js/core/tabs.js"></script>
 <script src="js/core/filelist.js"></script>
 <script src="js/core/fileops.js"></script>

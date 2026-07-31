@@ -46,4 +46,28 @@ window.ExplorerPlugins = {
         return !!row.installed && !!row.tag &&
             (row.status === 'update' || (!!force && (row.status === 'uptodate' || row.status === 'unknown')));
     },
+
+    openPluginUpdater() {
+        this.pluginUpd.rows = this._pluginDescriptors().map(d => ({
+            key: d.key, label: d.label, dir: d.dir, repo: d.defaultRepo,
+            installed: false, base: '/usr/share/cockpit',
+            current: null, latest: null, tag: null,
+            status: 'checking', busy: false, selected: false, message: '',
+        }));
+        this.pluginUpd.log = '';
+        this.pluginUpd.finished = false;
+        this.pluginUpd.open = true;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('pluginsModal')).show();
+        this.checkAllPlugins();
+    },
+
+    closePluginUpdater() {
+        try { bootstrap.Modal.getOrCreateInstance(document.getElementById('pluginsModal')).hide(); } catch (e) {}
+        this.pluginUpd.open = false;
+    },
+
+    // Filled in Task 4. Stub keeps the modal functional meanwhile.
+    async checkAllPlugins() {
+        this.pluginUpd.checking = false;
+    },
 };

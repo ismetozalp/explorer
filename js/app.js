@@ -13,6 +13,7 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerUpload,  // js/features/upload.js
     ...window.ExplorerEditor,  // js/features/editor.js
     ...window.ExplorerDeepLink,  // js/features/deeplink.js
+    ...window.ExplorerPlugins,   // js/features/plugins.js
     ...window.ExplorerTabs,      // js/core/tabs.js
     ...window.ExplorerFileList,  // js/core/filelist.js
     ...window.ExplorerFileOps,   // js/core/fileops.js
@@ -29,6 +30,9 @@ Alpine.data('explorer', () => ({
 
     // Self-update / release-check state
     updateState: { checking: false, available: null, deleteSettings: false },
+
+    // Plugin Manager (update/install other Cockpit plugins) state
+    pluginUpd: { open: false, checking: false, updating: false, force: false, rows: [], log: '', finished: false },
 
     customActions: { user: [], system: [], builtin: [] },
 
