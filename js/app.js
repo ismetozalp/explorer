@@ -33,6 +33,7 @@ Alpine.data('explorer', () => ({
 
     // Plugin Manager (update/install other Cockpit plugins) state
     pluginUpd: { open: false, checking: false, updating: false, force: false, rows: [], log: '', finished: false },
+    pluginsModalEl: null,
 
     customActions: { user: [], system: [], builtin: [] },
 

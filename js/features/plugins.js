@@ -57,12 +57,12 @@ window.ExplorerPlugins = {
         this.pluginUpd.log = '';
         this.pluginUpd.finished = false;
         this.pluginUpd.open = true;
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('pluginsModal')).show();
+        bootstrap.Modal.getOrCreateInstance(this.pluginsModalEl).show();
         this.checkAllPlugins();
     },
 
     closePluginUpdater() {
-        try { bootstrap.Modal.getOrCreateInstance(document.getElementById('pluginsModal')).hide(); } catch (e) {}
+        try { bootstrap.Modal.getOrCreateInstance(this.pluginsModalEl).hide(); } catch (e) {}
         this.pluginUpd.open = false;
     },
 

@@ -18,6 +18,7 @@
         'html/modals/actions.html',   // custom actions manager
         'html/modals/toolbar.html',   // settings, global actions, self-update, run command
         'html/modals/github.html',    // gh panel, commit browser, publish, …
+        'html/modals/plugins.html',   // Plugin Manager (update/install Cockpit plugins)
     ];
 
     function loadScript(src) {
