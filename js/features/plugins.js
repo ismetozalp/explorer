@@ -216,4 +216,19 @@ window.ExplorerPlugins = {
         if (!targets.length) { this.toast('Select a not-installed plugin first.', 'info'); return; }
         for (const row of targets) await this.updatePlugin(row);
     },
+
+    async restartCockpit() {
+        const ok = await this.askConfirm(
+            'Restart Cockpit',
+            'This restarts the Cockpit service. Your current session will disconnect — wait a few seconds, then log back in.',
+            'Restart');
+        if (!ok) return;
+        try {
+            await cockpit.spawn(['sh', '-c', '(sleep 1; systemctl restart cockpit || systemctl restart cockpit.socket) >/dev/null 2>&1 &'],
+                { superuser: 'require', err: 'message' });
+            this.toast('Restarting Cockpit… reconnect in a few seconds.', 'info');
+        } catch (e) {
+            this.toast('Restart failed: ' + (e.message || e), 'danger');
+        }
+    },
 };

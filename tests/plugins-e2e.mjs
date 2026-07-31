@@ -78,6 +78,14 @@ try {
     await app.locator('#pluginLog').filter({ hasText: /install done|installed\/updated/ }).waitFor({ timeout: 60000 });
     await app.locator('#pluginsModal button', { hasText: 'Restart Cockpit' }).waitFor({ timeout: 10000 });
     console.log('OK install: Explorer force-reinstall streamed logs and finished');
+    // Restart button opens the askConfirm dialog (cancelLabel 'Cancel');
+    // #pluginsModal has only 'Close', so an exact "Cancel" button is the
+    // confirm dialog. Cancel it — never actually restart.
+    await app.locator('#pluginsModal button', { hasText: 'Restart Cockpit' }).click();
+    const cancel = app.locator('.modal.show button').filter({ hasText: /^Cancel$/ }).first();
+    await cancel.waitFor({ timeout: 5000 });
+    await cancel.click();
+    console.log('OK restart: confirm shown and cancelled (no restart)');
   }
   await browser.close(); process.exit(0);
 } catch (e) { await page.screenshot({ path: SHOT }).catch(() => {}); fail('exception: ' + e.message); }
