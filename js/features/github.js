@@ -278,21 +278,23 @@ window.ExplorerGithub = {
         }
         this._runSelfUpdateInstall(zip, info.version);
     },
-    async _downloadReleaseZip(repo, tag) {
+    async _downloadReleaseZip(repo, tag, dir = 'explorer') {
+        const glob = dir + '-*.zip';
+        const assetRe = new RegExp('^' + dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-.*\\.zip$', 'i');
         const tmp = (await cockpit.spawn(['mktemp', '-d'], { err: 'message' })).trim();
         const ghOk = await GIT.ghAvailable().catch(() => false);
         if (ghOk) {
             await cockpit.spawn(['env', 'GH_PROMPT_DISABLED=1', 'gh', 'release', 'download', tag, '-R', repo,
-                '--pattern', 'explorer-*.zip', '--dir', tmp, '--clobber'], { err: 'message' });
+                '--pattern', glob, '--dir', tmp, '--clobber'], { err: 'message' });
         } else {
             const meta = await cockpit.spawn(['sh', '-c', 'curl -fsSL ' + Util.shq('https://api.github.com/repos/' + repo + '/releases/tags/' + tag)], { err: 'message' });
             const j = JSON.parse(meta);
-            const asset = (j.assets || []).find(a => /^explorer-.*\.zip$/.test(a.name));
-            if (!asset) throw new Error('release ' + tag + ' has no explorer-*.zip asset');
+            const asset = (j.assets || []).find(a => assetRe.test(a.name));
+            if (!asset) throw new Error('release ' + tag + ' has no ' + glob + ' asset');
             await cockpit.spawn(['sh', '-c', 'curl -fsSL -o ' + Util.shq(tmp + '/' + asset.name) + ' ' + Util.shq(asset.browser_download_url)], { err: 'message' });
         }
-        const found = (await cockpit.spawn(['sh', '-c', 'ls -1 ' + Util.shq(tmp) + '/explorer-*.zip 2>/dev/null | head -1'], { err: 'message' })).trim();
-        if (!found) throw new Error('no explorer-*.zip was downloaded');
+        const found = (await cockpit.spawn(['sh', '-c', 'ls -1 ' + Util.shq(tmp) + '/' + glob + ' 2>/dev/null | head -1'], { err: 'message' })).trim();
+        if (!found) throw new Error('no ' + glob + ' was downloaded');
         return found;
     },
     // Run the built-in "explorer-self-update" action against a downloaded zip.
