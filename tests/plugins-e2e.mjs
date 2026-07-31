@@ -38,5 +38,29 @@ try {
     if (!(await app.locator('#pluginsModal tbody tr', { hasText: label }).count())) fail(`missing row: ${label}`);
   if ((await app.locator('#pluginsModal tbody tr .badge').count()) !== 4) fail('each row should show a status badge');
   console.log('OK shell: Plugin Manager modal — title, controls, 4 rows + badges');
+  // Check for updates → real versions populate for installed plugins.
+  await app.locator('#pluginsModal button', { hasText: 'Check for updates' }).click();
+  // Explorer is installed; wait until its row shows a version (not the checking dash).
+  const expRow = app.locator('#pluginsModal tbody tr', { hasText: 'Explorer' });
+  await expRow.locator('.badge', { hasText: /Up to date|Update|Unknown/ }).first().waitFor({ timeout: 20000 });
+  const expText = await expRow.innerText();
+  if (!/\d+\.\d+\.\d+/.test(expText)) fail('Explorer row has no version after check: ' + expText);
+  // Every row resolved a repo of the form owner/name.
+  for (const label of ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest']) {
+    const t = await app.locator('#pluginsModal tbody tr', { hasText: label }).innerText();
+    if (!/ismetozalp\/(explorer|ctop|iftv|manifest)/.test(t)) fail(`row ${label} missing resolved repo: ${t}`);
+  }
+  console.log('OK check: versions + repos populated for all four plugins');
+  // Force reinstall enables the Update button even on an up-to-date row.
+  const expUpdate = expRow.locator('button', { hasText: 'Update' });
+  if (await expUpdate.count()) {
+    const before = await expUpdate.first().isEnabled();
+    await app.locator('#pluginsModal label:has-text("Force reinstall") input').check();
+    await app.locator('#pluginsModal').waitFor();
+    const after = await expUpdate.first().isEnabled();
+    if (!after) fail('Force reinstall should enable the Update button on an up-to-date row');
+    await app.locator('#pluginsModal label:has-text("Force reinstall") input').uncheck();
+    console.log(`OK force: Update button enabled by Force reinstall (was ${before ? 'enabled' : 'disabled'} → enabled)`);
+  }
   await browser.close(); process.exit(0);
 } catch (e) { await page.screenshot({ path: SHOT }).catch(() => {}); fail('exception: ' + e.message); }

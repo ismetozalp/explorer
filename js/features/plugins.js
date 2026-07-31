@@ -47,6 +47,49 @@ window.ExplorerPlugins = {
             (row.status === 'update' || (!!force && (row.status === 'uptodate' || row.status === 'unknown')));
     },
 
+    _versionsFilePath() { return this.homePath + '/.config/cockpit/explorer/plugin-versions.json'; },
+
+    async _readVersionsFile() {
+        try { const t = await FS.readText(this._versionsFilePath()); return t ? (JSON.parse(t) || {}) : {}; }
+        catch (e) { return {}; }
+    },
+
+    _pluginSettingsPath(desc) { return this.homePath + '/' + desc.settings.rel; },
+
+    // First existing of the per-user then the system cockpit dir.
+    async _resolvePluginInstallDir(desc) {
+        const bases = [this.homePath + '/.local/share/cockpit', '/usr/share/cockpit'];
+        for (const base of bases) {
+            const dir = base + '/' + desc.dir;
+            try { const st = await FS.statOne(dir); if (st) return { installed: true, base, dir }; }
+            catch (e) { /* not here */ }
+        }
+        return { installed: false, base: '/usr/share/cockpit', dir: '/usr/share/cockpit/' + desc.dir };
+    },
+
+    // VERSION file, else the recorded fallback (IF TV has no VERSION file).
+    async _readPluginVersion(desc, dir, versions) {
+        try { const t = await FS.readText(dir + '/VERSION'); if (t && t.trim()) return t.trim(); }
+        catch (e) { /* no VERSION */ }
+        if (versions && versions[desc.key]) return versions[desc.key];
+        return null;
+    },
+
+    // Repo from the plugin's own settings file (yaml/json), else static default.
+    async _readPluginRepo(desc) {
+        if (!desc.settings) return desc.defaultRepo;
+        try {
+            const txt = await FS.readText(this._pluginSettingsPath(desc));
+            if (txt) {
+                const obj = desc.settings.fmt === 'json'
+                    ? JSON.parse(txt)
+                    : (window.jsyaml ? jsyaml.load(txt) : null);
+                return this._resolvePluginRepo(desc, obj);
+            }
+        } catch (e) { /* fall through to default */ }
+        return desc.defaultRepo;
+    },
+
     openPluginUpdater() {
         this.pluginUpd.rows = this._pluginDescriptors().map(d => ({
             key: d.key, label: d.label, dir: d.dir, repo: d.defaultRepo,
@@ -66,8 +109,27 @@ window.ExplorerPlugins = {
         this.pluginUpd.open = false;
     },
 
-    // Filled in Task 4. Stub keeps the modal functional meanwhile.
     async checkAllPlugins() {
+        if (this.pluginUpd.checking) return;
+        this.pluginUpd.checking = true;
+        const versions = await this._readVersionsFile();
+        const descs = this._pluginDescriptors();
+        for (const row of this.pluginUpd.rows) {
+            const desc = descs.find(d => d.key === row.key);
+            row.status = 'checking'; row.message = '';
+            try {
+                const loc = await this._resolvePluginInstallDir(desc);
+                row.installed = loc.installed; row.base = loc.base;
+                row.current = loc.installed ? await this._readPluginVersion(desc, loc.dir, versions) : null;
+                row.repo = await this._readPluginRepo(desc);
+                const rel = await this._fetchLatestRelease(row.repo);
+                if (!rel || !rel.version) { row.latest = null; row.tag = null; row.status = 'error'; row.message = 'no releases at ' + row.repo; continue; }
+                row.latest = rel.version; row.tag = rel.tag;
+                row.status = loc.installed ? this._pluginStatus(row.current, row.latest) : 'notinstalled';
+            } catch (e) {
+                row.status = 'error'; row.message = e.message || String(e);
+            }
+        }
         this.pluginUpd.checking = false;
     },
 };
