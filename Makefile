@@ -72,22 +72,6 @@ zip:
 publish: zip
 	@command -v gh >/dev/null 2>&1 || { echo "gh CLI not found — install it first."; exit 1; }
 	@gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated — run: gh auth login"; exit 1; }
-	@if gh release view "$(TAG)" >/dev/null 2>&1; then \
-	  echo "Release $(TAG) already exists — uploading asset (clobber)"; \
-	  gh release upload "$(TAG)" "explorer-$(VERSION).zip" --clobber; \
-	else \
-	  echo "Creating release $(TAG)"; \
-	  gh release create "$(TAG)" "explorer-$(VERSION).zip" --title "explorer $(VERSION)" --notes "Release $(VERSION)"; \
-	fi
-	@echo "Published $(TAG) (explorer-$(VERSION).zip)"
-
-# Build the zip and publish it as a GitHub release tagged $(TAG) (= v$(VERSION)),
-# uploading explorer-$(VERSION).zip as the release asset. The repo is detected
-# from the git "origin" remote by the gh CLI. Commit & push first so the tag
-# points at your latest commit.
-publish: zip
-	@command -v gh >/dev/null 2>&1 || { echo "gh CLI not found — install it first."; exit 1; }
-	@gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated — run: gh auth login"; exit 1; }
 	@notes="$$(mktemp)"; trap 'rm -f "$$notes"' EXIT; \
 	printf '%s\n' "$$RELEASE_NOTES" > "$$notes"; \
 	if gh release view "$(TAG)" >/dev/null 2>&1; then \
