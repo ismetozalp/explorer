@@ -105,6 +105,31 @@ try {
     }
   } catch (e) { console.log('E2E note real-drag skipped: ' + e.message); }
 
+  // ---- Sub-tab reordering ----
+  if (await app.locator('.term-subtab-list[x-sort]').count()) ok('.term-subtab-list has x-sort (in DOM)'); else fail('.term-subtab-list x-sort missing');
+  // Open the integrated terminal split and add a 2nd terminal.
+  await app.locator('button[title*="integrated terminal" i]').first().click();
+  await app.locator('.term-subtab').first().waitFor({ timeout: 8000 });
+  await app.locator('.term-subtab-add').first().click();
+  await page.waitForTimeout(500);
+  const termOrder = () => app.evaluate(() => {
+    const c = Alpine.$data(document.querySelector('[x-data]'));
+    const tab = c.tabs.find(t => t.id === c.activeTabId);
+    return (tab.terminals || []).map(t => t.id);
+  });
+  const tBefore = await termOrder();
+  if (tBefore.length >= 2) {
+    await app.evaluate((firstId) => {
+      const c = Alpine.$data(document.querySelector('[x-data]'));
+      const tab = c.tabs.find(t => t.id === c.activeTabId);
+      c.moveTerminal(tab, firstId, tab.terminals.length - 1);
+    }, tBefore[0]);
+    await page.waitForTimeout(300);
+    const tAfter = await termOrder();
+    if (tAfter[0] !== tBefore[0] && tAfter[tAfter.length - 1] === tBefore[0]) ok('moveTerminal reordered sub-tabs');
+    else fail('moveTerminal did not reorder: ' + JSON.stringify({ tBefore, tAfter }));
+  } else fail('could not open 2 sub-tabs (' + tBefore.length + ')');
+
   console.log(bad === 0 ? 'tab-reorder-e2e (main): OK' : (bad + ' FAILURES'));
   await browser.close(); process.exit(bad === 0 ? 0 : 1);
 } catch (e) { console.log('E2E ERR', e.message); await browser.close().catch(() => {}); process.exit(2); }

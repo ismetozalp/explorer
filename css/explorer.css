@@ -962,6 +962,11 @@ pre.preview-code {
     scrollbar-width: thin;
     min-height: 30px;
 }
+.term-subtab-list {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
 .term-subtab {
     display: inline-flex;
     align-items: center;

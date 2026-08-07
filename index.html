@@ -384,16 +384,19 @@
              :style="tab.dual ? `height:${tab.splitHeight || 260}px` : `width:${tab.splitWidth || 480}px`">
             <div class="term-stack">
                 <div class="term-tabbar">
+                    <div class="term-subtab-list" x-sort="moveTerminal(tab, $item, $position)">
                     <template x-for="t in (tab.terminals || [])" :key="t.id">
                         <div class="term-subtab"
                              :class="{ active: tab.activeTermId === t.id }"
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
-                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)">
+                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)"
+                             x-sort:item="t.id">
                             <span class="term-subtab-label" x-text="termLabel(t)"></span>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal (middle-click also)">×</button>
                         </div>
                     </template>
+                    </div>
                     <button class="term-subtab-add" @click="addTerminalToTab(tab, activePane(tab).path)" title="New terminal at current folder">+</button>
                     <span class="term-tabbar-spacer"></span>
                     <div class="term-tabbar-actions">
@@ -447,16 +450,19 @@
         <div class="terminal-tab-body">
             <div class="term-stack" :class="'term-stack--' + termKindOf(tab)">
                 <div class="term-tabbar">
+                    <div class="term-subtab-list" x-sort="moveTerminal(tab, $item, $position)">
                     <template x-for="t in (tab.terminals || [])" :key="t.id">
                         <div class="term-subtab"
                              :class="{ active: tab.activeTermId === t.id }"
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
-                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)">
+                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)"
+                             x-sort:item="t.id">
                             <span class="term-subtab-label" x-text="termLabel(t)"></span>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal">×</button>
                         </div>
                     </template>
+                    </div>
                     <button class="term-subtab-add" @click="addPaneToTab(tab)"
                             :title="termKindOf(tab) === 'tmux' ? 'New tmux session' : 'New terminal here'">+</button>
                     <span class="term-tabbar-spacer"></span>
