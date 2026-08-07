@@ -12,6 +12,7 @@ const TABS_YML = os.homedir() + '/.config/cockpit/explorer/tabs.yml';
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--ignore-certificate-errors'] });
 const page = await (await browser.newContext({ ignoreHTTPSErrors: true })).newPage();
 let bad = 0;
+let app = null, YML = null, original = null, errored = false;
 const ok = (m) => console.log('E2E ok  ', m);
 const fail = (m) => { bad++; console.log('E2E FAIL', m); };
 try {
@@ -21,13 +22,18 @@ try {
     await page.fill('#login-user-input', USER); await page.fill('#login-password-input', PASS);
     await page.click('#login-button'); await page.waitForSelector('#content, iframe', { timeout: 20000 });
   }
-  let app = null;
   for (const u of [`${URL}/explorer`, `${URL}/explorer/index`]) {
     await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
     const fr = await page.waitForSelector('iframe[src*="explorer"]', { timeout: 8000 }).catch(() => null);
     if (fr) { app = await fr.contentFrame(); if (app) break; }
   }
   await app.locator('.toolbar').filter({ visible: true }).first().waitFor({ timeout: 20000 });
+
+  // Back up the user's real tabs.yml (in-browser, via cockpit.file — node fs
+  // can't write under ~/.config, it's sandbox-blocked) so this test never
+  // leaves persisted test tabs behind. Restored just before exit, below.
+  YML = await app.evaluate(() => Alpine.$data(document.querySelector('[x-data]')).homePath + '/.config/cockpit/explorer/tabs.yml');
+  original = await app.evaluate(async (p) => { try { return await cockpit.file(p).read(); } catch (e) { return null; } }, YML);
 
   // Wiring present
   if (await app.locator('.tab-list[x-sort]').count()) ok('.tab-list has x-sort'); else fail('.tab-list x-sort missing');
@@ -107,10 +113,21 @@ try {
 
   // ---- Sub-tab reordering ----
   if (await app.locator('.term-subtab-list[x-sort]').count()) ok('.term-subtab-list has x-sort (in DOM)'); else fail('.term-subtab-list x-sort missing');
-  // Open the integrated terminal split and add a 2nd terminal.
-  await app.locator('button[title*="integrated terminal" i]').first().click();
-  await app.locator('.term-subtab').first().waitFor({ timeout: 8000 });
-  await app.locator('.term-subtab-add').first().click();
+  // The "▤ Term" button only exists on dir tabs, and only the ACTIVE tab's
+  // .tab-pane is visible (others stay in the DOM via x-show) — make a dir
+  // tab active so a visible button actually exists, avoiding a hidden-tab
+  // locator match.
+  await app.evaluate(() => {
+    const c = Alpine.$data(document.querySelector('[x-data]'));
+    const d = [...c.tabs].reverse().find(t => t.kind === 'dir');
+    if (d) c.activeTabId = d.id;
+  });
+  await page.waitForTimeout(200);
+  // Open the integrated terminal split and add a 2nd terminal. Scope every
+  // locator to the visible pane so a hidden tab's elements can't match.
+  await app.locator('button[title*="integrated terminal" i]:visible').first().click();
+  await app.locator('.term-subtab:visible').first().waitFor({ timeout: 8000 });
+  await app.locator('.term-subtab-add:visible').first().click();
   await page.waitForTimeout(500);
   const termOrder = () => app.evaluate(() => {
     const c = Alpine.$data(document.querySelector('[x-data]'));
@@ -131,5 +148,14 @@ try {
   } else fail('could not open 2 sub-tabs (' + tBefore.length + ')');
 
   console.log(bad === 0 ? 'tab-reorder-e2e (main): OK' : (bad + ' FAILURES'));
-  await browser.close(); process.exit(bad === 0 ? 0 : 1);
-} catch (e) { console.log('E2E ERR', e.message); await browser.close().catch(() => {}); process.exit(2); }
+} catch (e) {
+  console.log('E2E ERR', e.message);
+  errored = true;
+}
+
+// Always restore the user's real tabs.yml before exiting, regardless of pass/fail/error.
+if (app && YML) {
+  await app.evaluate(async ({ p, original }) => { try { await cockpit.file(p).replace(original); } catch (e) {} }, { p: YML, original }).catch(() => {});
+}
+await browser.close().catch(() => {});
+process.exit(errored ? 2 : (bad === 0 ? 0 : 1));
