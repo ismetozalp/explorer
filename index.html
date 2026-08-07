@@ -15,20 +15,21 @@
 
 <!-- ============== TAB BAR ============== -->
 <div class="tab-bar">
+    <div class="tab-list" x-sort="moveTab($item, $position)">
     <template x-for="(tab, idx) in tabs" :key="tab.id">
         <div class="tab"
              :class="{ active: tab.id === activeTabId }"
              @click="activateTab(tab.id)"
              @contextmenu.prevent="openTabMenu($event, tab.id)"
              @auxclick="$event.button === 1 && closeTab(tab.id)"
-             x-sort:item="tab.id"
-             draggable="true">
+             x-sort:item="tab.id">
             <span class="tab-label" x-text="tabLabel(tab)"></span>
             <span class="tab-admin-badge" x-show="tab.kind === 'dir' && tab.listAdminPath === tab.path" title="Listing as administrator">root</span>
             <span class="tab-git-badge" x-show="tab.gitInfo && tab.gitInfo.branch" :title="'git: ' + tab.gitInfo?.branch + (tab.gitInfo?.dirty ? ' (dirty)' : '')">⎇</span>
             <button class="tab-close" @click.stop="closeTab(tab.id)" title="Close">×</button>
         </div>
     </template>
+    </div>
     <button class="tab-new" @click="newTab()" title="New folder tab (Ctrl+T)">+</button>
     <button class="tab-new tab-new-term" @click="newTerminalTab()" title="New terminal tab">+▤</button>
     <div class="tab-bar-spacer"></div>

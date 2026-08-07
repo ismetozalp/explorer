@@ -51,6 +51,11 @@ body {
     user-select: none;
 }
 
+.tab-list {
+    display: flex;
+    align-items: stretch;
+}
+
 .tab {
     display: flex;
     align-items: center;
