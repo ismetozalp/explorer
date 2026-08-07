@@ -127,6 +127,30 @@ window.ExplorerTabs = {
         }
     },
 
+    // Reorder a main tab to a new index (@alpinejs/sort handler:
+    // id = the x-sort:item value, position = the item's new index).
+    moveTab(id, position) {
+        const from = this.tabs.findIndex(t => t.id === id);
+        if (from < 0) return;
+        const [t] = this.tabs.splice(from, 1);
+        const pos = Math.max(0, Math.min(position, this.tabs.length));
+        this.tabs.splice(pos, 0, t);
+        this._persistTabs();
+    },
+
+    // Reorder a terminal/tmux sub-tab within its owning tab. Re-acquires the
+    // reactive tab proxy from this.tabs so the splice triggers Alpine re-render.
+    moveTerminal(tabRef, id, position) {
+        const tab = (tabRef && this.tabs.find(t => t.id === tabRef.id)) || tabRef;
+        if (!tab || !tab.terminals) return;
+        const from = tab.terminals.findIndex(x => x.id === id);
+        if (from < 0) return;
+        const [term] = tab.terminals.splice(from, 1);
+        const pos = Math.max(0, Math.min(position, tab.terminals.length));
+        tab.terminals.splice(pos, 0, term);
+        this._persistTabs();
+    },
+
     newTab(path) {
         const raw = this._buildTab(path || this.homePath);
         this.tabs.push(raw);
