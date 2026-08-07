@@ -18,6 +18,14 @@ bridge.
 > **⬇️ And another:** [**Manifest**](https://github.com/ismetozalp/manifest) (`ismetozalp/manifest`) —
 > a download manager for the Cockpit console (torrents, magnets, HTTP/FTP/Metalink via a
 > per-user `aria2c`); it deep-links its downloads straight into Explorer.
+>
+> **💾 And another:** [**Hangar**](https://github.com/ismetozalp/hangar) (`ismetozalp/hangar`) —
+> scheduled, deduplicated, encrypted backups for the Cockpit console (restic-based) with
+> automatic retention thinning, a point-in-time file browser, and bare-metal disaster recovery.
+>
+> **🖥️ And another:** [**Pilot**](https://github.com/ismetozalp/pilot) (`ismetozalp/pilot`) —
+> installs and manages a self-hosted [RustDesk](https://rustdesk.com/) remote-desktop server
+> (`hbbs`/`hbbr` plus an API control plane) from the Cockpit console.
 
 **Highlights**
 
