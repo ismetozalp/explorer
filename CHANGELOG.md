@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.4.0
+
+- **New: reorder tabs and sub-tabs by drag-and-drop.** Main tabs in the top bar,
+  and terminal/tmux sub-tabs inside a tab, can now be dragged into a new order
+  (powered by Alpine's sort plugin — a click still activates a tab, a drag
+  reorders it). The order is **persisted for the tabs that are already saved** —
+  directory tabs and tmux sessions come back in your chosen order next launch;
+  plain-shell terminals and output tabs stay session-only (they aren't restored
+  across a reload regardless).
+
 ## 2.3.1
 
 - **Fixed: an empty terminal pane appeared when toggling Split (dual pane) and
