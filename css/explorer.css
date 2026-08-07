@@ -54,6 +54,7 @@ body {
 .tab-list {
     display: flex;
     align-items: stretch;
+    min-width: 0;
 }
 
 .tab {

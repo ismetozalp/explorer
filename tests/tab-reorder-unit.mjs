@@ -73,4 +73,40 @@ const ids = arr => arr.map(x => x.id);
   assert.strictEqual(self._persistCalls, 0, 'no persist on no-op');
 }
 
+// ---- serialization order (offline replica of _persistTabs() extraction) ----
+// Confirms reordering via moveTab/moveTerminal changes the exact array
+// values _persistTabs() would serialize, not just internal `this.tabs` order.
+{
+  const self = makeThis([
+    { id: 'd1', kind: 'dir', path: '/a' },
+    { id: 'd2', kind: 'dir', path: '/b' },
+    { id: 'd3', kind: 'dir', path: '/c' },
+  ]);
+  const dirPathsBefore = self.tabs.filter(t => t.kind === 'dir').map(t => t.path);
+  assert.deepStrictEqual(dirPathsBefore, ['/a', '/b', '/c'], 'dir paths start in insertion order');
+
+  self.moveTab('d1', 2);
+
+  const dirPathsAfter = self.tabs.filter(t => t.kind === 'dir').map(t => t.path);
+  assert.deepStrictEqual(dirPathsAfter, ['/b', '/c', '/a'], 'dir path serialization order tracks moveTab reorder');
+}
+{
+  const tab = {
+    id: 'T', kind: 'terminal', termKind: 'tmux', activeTermId: 's1',
+    terminals: [{ id: 's1', tmux: 'alpha' }, { id: 's2', tmux: 'beta' }, { id: 's3', tmux: 'gamma' }],
+  };
+  const self = makeThis([tab]);
+  assert.strictEqual(self.termKindOf(tab), 'tmux', 'termKindOf reports tmux for termKind:"tmux" tab');
+
+  const tmuxNamesOf = () => Array.from(new Set(self.tabs
+    .filter(t => t.kind === 'terminal' && self.termKindOf(t) === 'tmux')
+    .flatMap(t => (t.terminals || []).filter(x => x.tmux).map(x => x.tmux))));
+
+  assert.deepStrictEqual(tmuxNamesOf(), ['alpha', 'beta', 'gamma'], 'tmux names start in insertion order');
+
+  self.moveTerminal(tab, 's1', 2);
+
+  assert.deepStrictEqual(tmuxNamesOf(), ['beta', 'gamma', 'alpha'], 'tmux name serialization order tracks moveTerminal reorder');
+}
+
 console.log('tab-reorder-unit: OK');
