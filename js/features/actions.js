@@ -705,7 +705,7 @@ window.ExplorerActions = {
         let inPrompt = false;
         let promptLines = [];
         let queue = Promise.resolve();              // serialize line handling (dialogs are async)
-        const enqueue = (fn) => { queue = queue.then(fn).catch(e => rtab.outputLines.push('[explorer] ' + (e.message || e))); };
+        const enqueue = (fn) => { queue = queue.then(fn).catch(e => rtab.outputLines.push('[explorer] ' + (e.message || e) + '\n')); };
         const decode = (d) => (typeof d === 'string' ? d : new TextDecoder().decode(d));
 
         const handleLine = async (line) => {
@@ -803,16 +803,16 @@ window.ExplorerActions = {
                 // The protocol exchanges a single line over stdin, so a
                 // multi-line answer is base64-encoded; the script decodes it.
                 const oneLine = answer.replace(/\s+/g, ' ').trim();
-                this._pushOutputLine(rtab, '‹ ' + (oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine) + '  (multi-line)');
+                this._pushOutputLine(rtab, '‹ ' + (oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine) + '  (multi-line)' + '\n');
                 try { channel.send(this._b64Utf8(answer) + '\n'); }
-                catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e)); }
+                catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e) + '\n'); }
                 return;
             }
         }
 
-        this._pushOutputLine(rtab, '‹ ' + answer);             // transcript of what we sent
+        this._pushOutputLine(rtab, '‹ ' + answer + '\n');             // transcript of what we sent
         try { channel.send(answer + '\n'); }
-        catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e)); }
+        catch (e) { this._pushOutputLine(rtab, '[explorer] could not send input: ' + (e.message || e) + '\n'); }
     },
     // UTF-8-safe base64 encode (btoa only handles Latin-1).
     _b64Utf8(str) {
