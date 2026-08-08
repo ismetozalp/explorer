@@ -30,7 +30,7 @@ assert.strictEqual(ds.length, 6);
 // don't share a [[Prototype]] with this realm's Array/RegExp, so `.map`'s
 // result and `instanceof` would spuriously disagree with same-realm literals.)
 assert.deepStrictEqual(Array.from(ds, d => d.key), ['explorer', 'ctop', 'iftv', 'manifest', 'hangar', 'pilot']);
-assert.deepStrictEqual(Array.from(ds, d => d.label), ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest', 'Hangar', 'Pilot']);
+assert.deepStrictEqual(Array.from(ds, d => d.label), ['Explorer', 'Cockpit Top', 'InFlightTV (iftv)', 'Manifest', 'Hangar', 'Pilot']);
 assert.deepStrictEqual(Array.from(ds, d => d.dir), ['explorer', 'ctop', 'inflighttv', 'manifest', 'hangar', 'pilot']);
 
 // Descriptor invariants: repo shape, asset regex, settings shape

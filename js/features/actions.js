@@ -389,24 +389,51 @@ window.ExplorerActions = {
         }
     },
 
-    // Reorder actions within the current scope. The context menu lists actions
-    // in array order (see applicableActions), so moving a row up/down changes the
-    // menu order immediately (in-memory); the new order is written to disk on
-    // Save, like every other edit. Keeps the selected action selected as it moves.
+    // Is this action a "global" (toolbar) action? Used to split the manager list
+    // into the Global Actions / Other Actions sections.
+    _isGlobalAction(a) { return (a && (a.appliesTo || '')) === 'global'; },
+
+    // The current scope's actions filtered to one section, each tagged with its
+    // real index in the flat array (so select/move/delete still address the right
+    // element) plus first/last flags within the section (so the ↑/↓ buttons
+    // disable at the section's own ends, not the whole list's).
+    _sectionedActions(global) {
+        const arr = this.customActions[this.actionsMgr.scope] || [];
+        const rows = [];
+        for (let i = 0; i < arr.length; i++) {
+            if (this._isGlobalAction(arr[i]) === global) rows.push({ a: arr[i], i });
+        }
+        rows.forEach((r, k) => { r.first = k === 0; r.last = k === rows.length - 1; });
+        return rows;
+    },
+    globalActions() { return this._sectionedActions(true); },
+    otherActions() { return this._sectionedActions(false); },
+
+    // Reorder actions within the current scope. The context menu / toolbar list
+    // actions in array order (see applicableActions), so moving a row up/down
+    // changes that order immediately (in-memory); the new order is written to
+    // disk on Save, like every other edit. Keeps the selected action selected as
+    // it moves. Section-aware: the move swaps with the nearest neighbour *in the
+    // same section* (Global vs Other), so an item never hops across the divide —
+    // any other-section items sitting between them keep their relative order.
     moveActionAt(i, dir) {
         const scope = this.actionsMgr.scope;
         const arr = this.customActions[scope];
-        const j = i + dir;
-        if (i == null || i < 0 || i >= arr.length || j < 0 || j >= arr.length) return;
+        if (i == null || i < 0 || i >= arr.length) return;
+        const global = this._isGlobalAction(arr[i]);
+        let j = i + dir;
+        while (j >= 0 && j < arr.length && this._isGlobalAction(arr[j]) !== global) j += dir;
+        if (j < 0 || j >= arr.length) return;
         // In code view, commit the pending edit first so a swap can't drop it.
         if (this.actionsMgr.mode === 'code') {
             if (!this._commitActionCode()) { this.toast('Fix the JSON/YAML errors first', 'danger'); return; }
         }
-        // Move via splice (the array-mutation convention used elsewhere, and a
-        // reactive op Alpine's x-for reliably reconciles) rather than bare index
-        // assignment. j = i ± 1, so this is an adjacent swap.
-        const [moved] = arr.splice(i, 1);
-        arr.splice(j, 0, moved);
+        // Swap arr[i] and arr[j] via splice-replace (the reactive array-mutation
+        // convention used elsewhere) — j may be non-adjacent when the other
+        // section sits between them, so this is a swap, not an adjacent shift.
+        const a = arr[i], b = arr[j];
+        arr.splice(j, 1, a);
+        arr.splice(i, 1, b);
         const cur = this.actionsMgr.editingIdx;
         if (cur === i) this.actionsMgr.editingIdx = j;
         else if (cur === j) this.actionsMgr.editingIdx = i;

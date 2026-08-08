@@ -13,7 +13,7 @@ window.ExplorerPlugins = {
             { key: 'ctop', label: 'Cockpit Top', dir: 'ctop',
               settings: null,
               defaultRepo: 'ismetozalp/ctop', assetRe: /^ctop-.*\.zip$/i },
-            { key: 'iftv', label: 'IF TV', dir: 'inflighttv',
+            { key: 'iftv', label: 'InFlightTV (iftv)', dir: 'inflighttv',
               settings: { rel: '.config/cockpit/inflighttv/settings.json', fmt: 'json', repoKey: 'updateRepo' },
               defaultRepo: 'ismetozalp/iftv', assetRe: /^inflighttv-.*\.zip$/i },
             { key: 'manifest', label: 'Manifest', dir: 'manifest',

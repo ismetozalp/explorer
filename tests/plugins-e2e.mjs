@@ -33,11 +33,11 @@ try {
   const rows = app.locator('#pluginsModal tbody tr');
   await rows.first().waitFor({ timeout: 5000 });
   const n = await rows.count();
-  if (n !== 4) fail(`expected 4 plugin rows, got ${n}`);
-  for (const label of ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest'])
+  if (n !== 6) fail(`expected 6 plugin rows, got ${n}`);
+  for (const label of ['Explorer', 'Cockpit Top', 'InFlightTV (iftv)', 'Manifest', 'Hangar', 'Pilot'])
     if (!(await app.locator('#pluginsModal tbody tr', { hasText: label }).count())) fail(`missing row: ${label}`);
-  if ((await app.locator('#pluginsModal tbody tr .badge').count()) !== 4) fail('each row should show a status badge');
-  console.log('OK shell: Plugin Manager modal — title, controls, 4 rows + badges');
+  if ((await app.locator('#pluginsModal tbody tr .badge').count()) !== 6) fail('each row should show a status badge');
+  console.log('OK shell: Plugin Manager modal — title, controls, 6 rows + badges');
   // Check for updates → real versions populate for installed plugins.
   await app.locator('#pluginsModal button', { hasText: 'Check for updates' }).click();
   // Explorer is installed; wait until its row shows a version (not the checking dash).
@@ -46,11 +46,11 @@ try {
   const expText = await expRow.innerText();
   if (!/\d+\.\d+\.\d+/.test(expText)) fail('Explorer row has no version after check: ' + expText);
   // Every row resolved a repo of the form owner/name.
-  for (const label of ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest']) {
+  for (const label of ['Explorer', 'Cockpit Top', 'InFlightTV (iftv)', 'Manifest', 'Hangar', 'Pilot']) {
     const t = await app.locator('#pluginsModal tbody tr', { hasText: label }).innerText();
-    if (!/ismetozalp\/(explorer|ctop|iftv|manifest)/.test(t)) fail(`row ${label} missing resolved repo: ${t}`);
+    if (!/ismetozalp\/(explorer|ctop|iftv|manifest|hangar|pilot)/.test(t)) fail(`row ${label} missing resolved repo: ${t}`);
   }
-  console.log('OK check: versions + repos populated for all four plugins');
+  console.log('OK check: versions + repos populated for all six plugins');
   // Force reinstall enables the Update button even on an up-to-date row.
   const expUpdate = expRow.locator('button', { hasText: 'Update' });
   if (await expUpdate.count()) {

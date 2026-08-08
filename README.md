@@ -1217,10 +1217,14 @@ admin password via Cockpit's superuser bridge).
 
 Each scope (User / System) is edited one action at a time. Select an
 action in the list on the left, then switch how you edit **that action**
-with the **Form** / **JSON / YAML** toggle at the top of the dialog. Each
-row also has **↑ / ↓** buttons to reorder actions within its scope — the
-order in the list is the order they appear in the right-click menu (applied
-immediately, saved to disk when you press **Save**).
+with the **Form** / **JSON / YAML** toggle at the top of the dialog. The
+list is grouped into **Global Actions** (toolbar actions) and **Other
+Actions** (file / directory actions), and it scrolls on its own — as does
+the editor on the right — so long lists and long forms stay side by side.
+Each row also has **↑ / ↓** buttons to reorder actions **within its
+section** — the order in the list is the order they appear in the toolbar
+or right-click menu (applied immediately, saved to disk when you press
+**Save**).
 
 - **Form** — the point-and-click editor (label, command, applies-to,
   regex, output, privilege, etc.).
