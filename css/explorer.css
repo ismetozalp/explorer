@@ -1338,7 +1338,25 @@ pre.preview-code {
 .actions-list .btn-link { text-decoration: none; font-size: 14px; line-height: 1; }
 .actions-list .action-move { padding: 2px 5px; font-size: 15px; }
 .actions-list .action-move:disabled { opacity: .3; }
-.modal-dialog.actions-dialog-code .actions-list { max-height: 100%; overflow-y: auto; }
+
+/* Fixed-height dialog with independently scrolling panes (both Form and code
+   modes, both User and System tabs). The nav-tabs, mode toolbar and "+ New
+   action" button stay pinned; only the action list and the editor scroll. */
+#actionsModal .modal-content { height: 90vh; }
+#actionsModal .modal-body { display: flex; flex-direction: column; overflow: hidden; }
+#actionsModal .actions-row { flex: 1 1 auto; min-height: 0; }
+#actionsModal .actions-row > [class^="col-"] { height: 100%; }
+#actionsModal .actions-left { display: flex; flex-direction: column; }
+#actionsModal .actions-list-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#actionsModal .actions-right { overflow-y: auto; }
+.actions-section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+    color: var(--ex-muted, #8b93a0);
+    margin: 4px 2px;
+}
 
 /* ===== User/system badges on custom-action menu items ===== */
 .ctx-action-item {

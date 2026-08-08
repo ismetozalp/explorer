@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.4.2
+
+- **Plugin Manager:** the IF TV row is now labelled **InFlightTV (iftv)**.
+- **Custom actions manager:** the action list on the left is now split into
+  **Global Actions** (toolbar) and **Other Actions** (file / directory), in both
+  the User and System tabs. The list and the editor each scroll independently
+  within a fixed-height dialog, so long lists and long forms stay side by side.
+  The **↑ / ↓** reorder buttons now move an action **within its own section**,
+  never across the Global/Other divide.
+
 ## 2.4.1
 
 - **Plugin Manager now covers Hangar and Pilot.** The two newest plugins join
