@@ -26,46 +26,53 @@
                 <div class="row actions-row">
                     <div class="col-4 actions-left">
                         <div class="actions-list-scroll">
-                            <!-- Global (toolbar) actions -->
-                            <div class="actions-section-label">Global Actions</div>
-                            <ul class="list-group actions-list mb-2">
-                                <template x-for="row in globalActions()" :key="row.a.id">
-                                    <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
-                                        :class="{ active: actionsMgr.editingIdx === row.i }"
-                                        @click="selectAction(row.i)">
-                                        <span class="me-2" style="min-width:0; overflow:hidden;">
-                                            <span x-text="row.a.label"></span>
-                                            <small class="text-muted d-block text-truncate" x-text="appliesToLabel(row.a.appliesTo) + (row.a.pattern ? ' · /' + row.a.pattern + '/' : '')"></small>
-                                        </span>
-                                        <span class="action-row-controls d-flex align-items-center flex-shrink-0">
-                                            <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionUp(row.i)" :disabled="row.first" title="Move up (menu order)" aria-label="Move action up">↑</button>
-                                            <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionDown(row.i)" :disabled="row.last" title="Move down (menu order)" aria-label="Move action down">↓</button>
-                                            <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(row.i)" title="Delete this action">✕</button>
-                                        </span>
-                                    </li>
-                                </template>
-                                <li class="list-group-item text-muted" x-show="!globalActions().length">No global actions.</li>
-                            </ul>
-                            <!-- File / directory (context-menu) actions -->
-                            <div class="actions-section-label">Other Actions</div>
-                            <ul class="list-group actions-list">
-                                <template x-for="row in otherActions()" :key="row.a.id">
-                                    <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
-                                        :class="{ active: actionsMgr.editingIdx === row.i }"
-                                        @click="selectAction(row.i)">
-                                        <span class="me-2" style="min-width:0; overflow:hidden;">
-                                            <span x-text="row.a.label"></span>
-                                            <small class="text-muted d-block text-truncate" x-text="appliesToLabel(row.a.appliesTo) + (row.a.pattern ? ' · /' + row.a.pattern + '/' : '')"></small>
-                                        </span>
-                                        <span class="action-row-controls d-flex align-items-center flex-shrink-0">
-                                            <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionUp(row.i)" :disabled="row.first" title="Move up (menu order)" aria-label="Move action up">↑</button>
-                                            <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionDown(row.i)" :disabled="row.last" title="Move down (menu order)" aria-label="Move action down">↓</button>
-                                            <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(row.i)" title="Delete this action">✕</button>
-                                        </span>
-                                    </li>
-                                </template>
-                                <li class="list-group-item text-muted" x-show="!otherActions().length">No actions yet.</li>
-                            </ul>
+                            <!-- Global (toolbar) actions — section hidden when empty -->
+                            <template x-if="mgrGlobalActions().length">
+                                <div>
+                                    <div class="actions-section-label">Global Actions</div>
+                                    <ul class="list-group actions-list mb-2">
+                                        <template x-for="row in mgrGlobalActions()" :key="row.a.id">
+                                            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
+                                                :class="{ active: actionsMgr.editingIdx === row.i }"
+                                                @click="selectAction(row.i)">
+                                                <span class="me-2" style="min-width:0; overflow:hidden;">
+                                                    <span x-text="row.a.label"></span>
+                                                    <small class="text-muted d-block text-truncate" x-text="appliesToLabel(row.a.appliesTo) + (row.a.pattern ? ' · /' + row.a.pattern + '/' : '')"></small>
+                                                </span>
+                                                <span class="action-row-controls d-flex align-items-center flex-shrink-0">
+                                                    <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionUp(row.i)" :disabled="row.first" title="Move up (menu order)" aria-label="Move action up">↑</button>
+                                                    <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionDown(row.i)" :disabled="row.last" title="Move down (menu order)" aria-label="Move action down">↓</button>
+                                                    <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(row.i)" title="Delete this action">✕</button>
+                                                </span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                            <!-- File / directory (context-menu) actions — section hidden when empty -->
+                            <template x-if="mgrOtherActions().length">
+                                <div>
+                                    <div class="actions-section-label">Other Actions</div>
+                                    <ul class="list-group actions-list">
+                                        <template x-for="row in mgrOtherActions()" :key="row.a.id">
+                                            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
+                                                :class="{ active: actionsMgr.editingIdx === row.i }"
+                                                @click="selectAction(row.i)">
+                                                <span class="me-2" style="min-width:0; overflow:hidden;">
+                                                    <span x-text="row.a.label"></span>
+                                                    <small class="text-muted d-block text-truncate" x-text="appliesToLabel(row.a.appliesTo) + (row.a.pattern ? ' · /' + row.a.pattern + '/' : '')"></small>
+                                                </span>
+                                                <span class="action-row-controls d-flex align-items-center flex-shrink-0">
+                                                    <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionUp(row.i)" :disabled="row.first" title="Move up (menu order)" aria-label="Move action up">↑</button>
+                                                    <button class="btn btn-sm btn-link text-secondary p-0 action-move" @click.stop="moveActionDown(row.i)" :disabled="row.last" title="Move down (menu order)" aria-label="Move action down">↓</button>
+                                                    <button class="btn btn-sm btn-link text-danger p-0 ms-1" @click.stop="removeActionAt(row.i)" title="Delete this action">✕</button>
+                                                </span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                            <div class="text-muted p-2" x-show="!customActions[actionsMgr.scope].length">No actions yet.</div>
                         </div>
                         <button class="btn btn-sm btn-outline-primary mt-2 w-100" @click="addCustomAction()">+ New action</button>
                     </div>
