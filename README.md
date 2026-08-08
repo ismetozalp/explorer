@@ -1049,10 +1049,10 @@ it's clear the listing is elevated.
 
 ![Plugin Manager](screenshots/plugins-updater.svg)
 
-The **⬆ Plugins** button in the top toolbar opens the **Plugin Manager**, which manages your four
-plugins together — **Explorer, Cockpit Top, IF TV, Manifest**. It shows each
+The **⬆ Plugins** button in the top toolbar opens the **Plugin Manager**, which manages your six
+plugins together — **Explorer, Cockpit Top, IF TV, Manifest, Hangar, Pilot**. It shows each
 plugin's installed version and the latest GitHub release, reading the update repo
-from each plugin's own settings file where it has one (Cockpit Top uses a built-in
+from each plugin's own settings file where it has one (Cockpit Top and Hangar use a built-in
 default). **Update** a single plugin or **Update all** at once; a **Force
 reinstall** toggle updates even up-to-date plugins (and IF TV, whose installed
 version isn't tracked on disk). A not-installed plugin can be installed — tick

@@ -1,6 +1,6 @@
-// Cockpit-plugin updater/installer. Lists the user's four plugins (Explorer,
-// Cockpit Top, IF TV, Manifest), compares installed vs latest GitHub release,
-// and updates/installs them. Reactive state lives in app.js (pluginUpd);
+// Cockpit-plugin updater/installer. Lists the user's plugins (Explorer,
+// Cockpit Top, IF TV, Manifest, Hangar, Pilot), compares installed vs latest
+// GitHub release, and updates/installs them. Reactive state lives in app.js (pluginUpd);
 // descriptors + logic live here.
 window.ExplorerPlugins = {
     // Static registry. Kept in a method (not reactive state) so the RegExps
@@ -19,6 +19,15 @@ window.ExplorerPlugins = {
             { key: 'manifest', label: 'Manifest', dir: 'manifest',
               settings: { rel: '.config/cockpit/manifest/settings.yml', fmt: 'yaml', repoKey: 'update.repo' },
               defaultRepo: 'ismetozalp/manifest', assetRe: /^manifest-.*\.zip$/i },
+            // Hangar keeps its update repo in /etc/hangar/config.json (system path,
+            // superuser) which the home-relative reader can't reach — so, like
+            // Cockpit Top, use the static default repo.
+            { key: 'hangar', label: 'Hangar', dir: 'hangar',
+              settings: null,
+              defaultRepo: 'ismetozalp/hangar', assetRe: /^hangar-.*\.zip$/i },
+            { key: 'pilot', label: 'Pilot', dir: 'pilot',
+              settings: { rel: '.config/cockpit/pilot/settings.json', fmt: 'json', repoKey: 'update.repo' },
+              defaultRepo: 'ismetozalp/pilot', assetRe: /^pilot-.*\.zip$/i },
         ];
     },
 
