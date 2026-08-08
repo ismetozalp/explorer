@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
-  <rect width="900" height="520" fill="#1b1d21"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="592" viewBox="0 0 900 592" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="592" fill="#1b1d21"/>
 
   <!-- faint toolbar strip behind the modal -->
   <g opacity="0.4" font-size="12">
@@ -10,7 +10,7 @@
   </g>
 
   <!-- modal panel -->
-  <rect x="60" y="30" width="780" height="460" rx="10" fill="#292d31" stroke="#4a4e53"/>
+  <rect x="60" y="30" width="780" height="532" rx="10" fill="#292d31" stroke="#4a4e53"/>
 
   <!-- title bar -->
   <text x="84" y="62" fill="#f0f0f0" font-size="20" font-weight="bold">Plugin Manager</text>
@@ -38,7 +38,7 @@
   <g font-size="13">
     <text x="118" y="187" fill="#e8e8e8">Explorer</text>
     <text x="236" y="186" fill="#9aa0a8" font-size="12">ismetozalp/explorer</text>
-    <text x="400" y="186" fill="#cfd3d8" font-size="12">2.3.0</text>
+    <text x="400" y="186" fill="#cfd3d8" font-size="12">2.4.1</text>
   </g>
   <rect x="536" y="172" width="104" height="20" rx="10" fill="#198754"/>
   <text x="546" y="186" fill="#fff" font-size="11">✓ Up to date</text>
@@ -78,28 +78,51 @@
   <rect x="536" y="280" width="104" height="20" rx="10" fill="#198754"/>
   <text x="546" y="294" fill="#fff" font-size="11">✓ Up to date</text>
 
-  <line x1="84" y1="308" x2="816" y2="308" stroke="#3d4147"/>
+  <!-- row 5: Hangar — up to date (highlighted) -->
+  <rect x="84" y="308" width="732" height="36" fill="#2b3138"/>
+  <g font-size="13">
+    <text x="118" y="331" fill="#e8e8e8">Hangar</text>
+    <text x="236" y="330" fill="#9aa0a8" font-size="12">ismetozalp/hangar</text>
+    <text x="400" y="330" fill="#cfd3d8" font-size="12">1.0.0</text>
+  </g>
+  <rect x="536" y="316" width="104" height="20" rx="10" fill="#198754"/>
+  <text x="546" y="330" fill="#fff" font-size="11">✓ Up to date</text>
+
+  <!-- row 6: Pilot — update available -->
+  <g font-size="13">
+    <text x="118" y="367" fill="#e8e8e8">Pilot</text>
+    <text x="236" y="366" fill="#9aa0a8" font-size="12">ismetozalp/pilot</text>
+    <text x="400" y="366" fill="#cfd3d8" font-size="12">1.0.0 → 1.0.1</text>
+  </g>
+  <rect x="536" y="352" width="74" height="20" rx="10" fill="#0d6efd"/>
+  <text x="546" y="366" fill="#fff" font-size="11">↑ Update</text>
+  <rect x="750" y="350" width="54" height="24" rx="4" fill="#0d6efd"/>
+  <text x="759" y="366" fill="#fff" font-size="10">Update</text>
+
+  <line x1="84" y1="380" x2="816" y2="380" stroke="#3d4147"/>
 
   <!-- log pane -->
-  <text x="84" y="328" fill="#8b93a0" font-size="12">Log</text>
-  <rect x="84" y="336" width="732" height="90" rx="6" fill="#1b1d21" stroke="#3d4147"/>
+  <text x="84" y="400" fill="#8b93a0" font-size="12">Log</text>
+  <rect x="84" y="408" width="732" height="106" rx="6" fill="#1b1d21" stroke="#3d4147"/>
   <g font-family="Menlo,Consolas,monospace" font-size="11">
-    <text x="96" y="354" fill="#9aa0a8">Checking ismetozalp/explorer... up to date (2.3.0)</text>
-    <text x="96" y="370" fill="#9aa0a8">Checking ismetozalp/ctop... update available (1.4.0 → 1.5.0)</text>
-    <text x="96" y="386" fill="#9aa0a8">Checking ismetozalp/iftv... not installed</text>
-    <text x="96" y="402" fill="#7fd18a">Checking ismetozalp/manifest... up to date (1.2.0)</text>
+    <text x="96" y="426" fill="#9aa0a8">Checking ismetozalp/explorer... up to date (2.4.1)</text>
+    <text x="96" y="442" fill="#9aa0a8">Checking ismetozalp/ctop... update available (1.4.0 → 1.5.0)</text>
+    <text x="96" y="458" fill="#9aa0a8">Checking ismetozalp/iftv... not installed</text>
+    <text x="96" y="474" fill="#9aa0a8">Checking ismetozalp/manifest... up to date (1.2.0)</text>
+    <text x="96" y="490" fill="#9aa0a8">Checking ismetozalp/hangar... up to date (1.0.0)</text>
+    <text x="96" y="506" fill="#7fd18a">Checking ismetozalp/pilot... update available (1.0.0 → 1.0.1)</text>
   </g>
 
   <!-- footer buttons -->
-  <rect x="340" y="446" width="150" height="30" rx="6" fill="#0d6efd"/>
-  <text x="352" y="466" fill="#fff" font-size="12">Install selected (1)</text>
+  <rect x="340" y="518" width="150" height="30" rx="6" fill="#0d6efd"/>
+  <text x="352" y="538" fill="#fff" font-size="12">Install selected (1)</text>
 
-  <rect x="500" y="446" width="100" height="30" rx="6" fill="#31363c" stroke="#4a4e53"/>
-  <text x="515" y="466" fill="#cfd3d8" font-size="12">Update all</text>
+  <rect x="500" y="518" width="100" height="30" rx="6" fill="#31363c" stroke="#4a4e53"/>
+  <text x="515" y="538" fill="#cfd3d8" font-size="12">Update all</text>
 
-  <rect x="610" y="446" width="136" height="30" rx="6" fill="#3a2a2a" stroke="#7a4a4a"/>
-  <text x="622" y="466" fill="#f2a5a5" font-size="12">Restart Cockpit</text>
+  <rect x="610" y="518" width="136" height="30" rx="6" fill="#3a2a2a" stroke="#7a4a4a"/>
+  <text x="622" y="538" fill="#f2a5a5" font-size="12">Restart Cockpit</text>
 
-  <rect x="756" y="446" width="60" height="30" rx="6" fill="#31363c" stroke="#4a4e53"/>
-  <text x="770" y="466" fill="#cfd3d8" font-size="12">Close</text>
+  <rect x="756" y="518" width="60" height="30" rx="6" fill="#31363c" stroke="#4a4e53"/>
+  <text x="770" y="538" fill="#cfd3d8" font-size="12">Close</text>
 </svg>

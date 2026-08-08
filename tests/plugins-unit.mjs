@@ -22,22 +22,23 @@ const self = Object.assign(Object.create(P), {
   },
 });
 
-// _pluginDescriptors: exactly the four known plugins, in order
+// _pluginDescriptors: exactly the six known plugins, in order
 const ds = self._pluginDescriptors();
-assert.strictEqual(ds.length, 4);
+assert.strictEqual(ds.length, 6);
 // (`Array.from` rather than `.map`, and toString-tag rather than `instanceof`,
 // because the descriptors come from a vm sandbox: cross-realm arrays/regexes
 // don't share a [[Prototype]] with this realm's Array/RegExp, so `.map`'s
 // result and `instanceof` would spuriously disagree with same-realm literals.)
-assert.deepStrictEqual(Array.from(ds, d => d.key), ['explorer', 'ctop', 'iftv', 'manifest']);
-assert.deepStrictEqual(Array.from(ds, d => d.label), ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest']);
-assert.deepStrictEqual(Array.from(ds, d => d.dir), ['explorer', 'ctop', 'inflighttv', 'manifest']);
+assert.deepStrictEqual(Array.from(ds, d => d.key), ['explorer', 'ctop', 'iftv', 'manifest', 'hangar', 'pilot']);
+assert.deepStrictEqual(Array.from(ds, d => d.label), ['Explorer', 'Cockpit Top', 'IF TV', 'Manifest', 'Hangar', 'Pilot']);
+assert.deepStrictEqual(Array.from(ds, d => d.dir), ['explorer', 'ctop', 'inflighttv', 'manifest', 'hangar', 'pilot']);
 
 // Descriptor invariants: repo shape, asset regex, settings shape
 for (const d of ds) {
     assert.ok(/^ismetozalp\/[a-z]+$/.test(d.defaultRepo), `${d.key} default repo shape: ${d.defaultRepo}`);
     assert.ok(Object.prototype.toString.call(d.assetRe) === '[object RegExp]', `${d.key} assetRe is a RegExp`);
-    if (d.settings === null) { assert.strictEqual(d.key, 'ctop'); }
+    // ctop and hangar keep no home-relative settings file → static default repo.
+    if (d.settings === null) { assert.ok(['ctop', 'hangar'].includes(d.key), `${d.key} may be settings-less`); }
     else {
         assert.ok(['yaml', 'json'].includes(d.settings.fmt), `${d.key} fmt`);
         assert.ok(typeof d.settings.rel === 'string' && d.settings.rel.includes('.config/cockpit/'), `${d.key} rel`);
@@ -49,7 +50,7 @@ assert.strictEqual(ds.find(d => d.key === 'manifest').settings.repoKey, 'update.
 assert.strictEqual(ds.find(d => d.key === 'explorer').settings.repoKey, 'updateRepo');
 
 // assetRe cross-matrix: each regex matches ITS zip and rejects the others'
-const zip = { explorer: 'explorer-2.2.7.zip', ctop: 'ctop-1.1.4.zip', iftv: 'inflighttv-1.0.13.zip', manifest: 'manifest-2.0.0.zip' };
+const zip = { explorer: 'explorer-2.2.7.zip', ctop: 'ctop-1.1.4.zip', iftv: 'inflighttv-1.0.13.zip', manifest: 'manifest-2.0.0.zip', hangar: 'hangar-1.0.0.zip', pilot: 'pilot-1.0.0.zip' };
 for (const d of ds) {
     assert.ok(d.assetRe.test(zip[d.key]), `${d.key} matches ${zip[d.key]}`);
     for (const other of Object.keys(zip)) if (other !== d.key)
@@ -79,6 +80,11 @@ assert.strictEqual(self._resolvePluginRepo(D('manifest'), { update: { repo: '  '
 assert.strictEqual(self._resolvePluginRepo(D('iftv'), { updateRepo: 42 }), 'ismetozalp/iftv');
 assert.strictEqual(self._resolvePluginRepo(D('explorer'), {}), 'ismetozalp/explorer');
 assert.strictEqual(self._resolvePluginRepo(D('explorer'), null), 'ismetozalp/explorer');
+// pilot reads update.repo (nested JSON); hangar has no home-relative settings → always default
+assert.strictEqual(self._resolvePluginRepo(D('pilot'), { update: { repo: 'ismetozalp/pilot', checkOnStartup: true } }), 'ismetozalp/pilot');
+assert.strictEqual(self._resolvePluginRepo(D('pilot'), { update: { repo: 'fork/pilot' } }), 'fork/pilot');
+assert.strictEqual(self._resolvePluginRepo(D('pilot'), { update: { repo: '' } }), 'ismetozalp/pilot');
+assert.strictEqual(self._resolvePluginRepo(D('hangar'), { updateRepo: 'fork/hangar' }), 'ismetozalp/hangar'); // settings-less → default
 
 // _pluginStatus: unknown/error/update/uptodate incl. v-prefix + multi-digit
 assert.strictEqual(self._pluginStatus(null, '1.0.0'), 'unknown');

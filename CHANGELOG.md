@@ -2,6 +2,14 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.4.1
+
+- **Plugin Manager now covers Hangar and Pilot.** The two newest plugins join
+  Explorer, Cockpit Top, IF TV and Manifest in the **⬆ Plugins** panel, so all
+  six can be checked, updated, installed and force-reinstalled from one place.
+  Pilot reads its update repo from its own settings file; Hangar uses the
+  built-in default (its settings live in `/etc/hangar`).
+
 ## 2.4.0
 
 - **New: reorder tabs and sub-tabs by drag-and-drop.** Main tabs in the top bar,
