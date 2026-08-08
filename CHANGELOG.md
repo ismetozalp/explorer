@@ -11,6 +11,8 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   list and the editor each scroll independently within a fixed-height dialog, so
   long lists and long forms stay side by side. The **↑ / ↓** reorder buttons now
   move an action **within its own section**, never across the Global/Other divide.
+- **Interactive actions:** fixed prompt-transcript and message lines running
+  together in the interactive output pane — every line now ends properly.
 
 ## 2.4.1
 
