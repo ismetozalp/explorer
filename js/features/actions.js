@@ -406,8 +406,10 @@ window.ExplorerActions = {
         rows.forEach((r, k) => { r.first = k === 0; r.last = k === rows.length - 1; });
         return rows;
     },
-    globalActions() { return this._sectionedActions(true); },
-    otherActions() { return this._sectionedActions(false); },
+    // NB: named mgr* to avoid clashing with globalActions() below (the toolbar's
+    // cross-source list) — duplicate object keys would silently shadow these.
+    mgrGlobalActions() { return this._sectionedActions(true); },
+    mgrOtherActions() { return this._sectionedActions(false); },
 
     // Reorder actions within the current scope. The context menu / toolbar list
     // actions in array order (see applicableActions), so moving a row up/down
