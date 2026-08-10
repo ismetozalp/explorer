@@ -1,6 +1,6 @@
 <!-- Settings, Global actions, Self-update, Run command — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
 <div class="modal fade" id="settingsModal" tabindex="-1" x-data x-init="settingsModalEl = $el">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Settings</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
@@ -57,7 +57,7 @@
 
 <!-- ============== GLOBAL ACTIONS (toolbar) MODAL ============== -->
 <div class="modal fade" id="globalActionsModal" tabindex="-1" x-data x-init="globalActionsModalEl = $el">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Run an action</h5>
@@ -65,7 +65,7 @@
             </div>
             <div class="modal-body">
                 <template x-if="globalActions().length">
-                    <table class="table table-sm table-dark align-middle mb-0">
+                    <table class="table table-sm table-dark align-middle mb-0 mobile-card-table">
                         <thead>
                             <tr><th style="width:30%">Action</th><th>Command</th><th style="width:80px"></th></tr>
                         </thead>
@@ -102,7 +102,7 @@
 
 <!-- ============== SELF-UPDATE MODAL ============== -->
 <div class="modal fade" id="updateModal" tabindex="-1" x-data x-init="updateModalEl = $el">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Update available</h5>
@@ -136,7 +136,7 @@
 
 <!-- ============== RUN COMMAND MODAL ============== -->
 <div class="modal fade" id="runCmdModal" tabindex="-1" x-data x-init="runCmdModalEl = $el">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Run command</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">

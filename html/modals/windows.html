@@ -2,7 +2,7 @@
 <div class="modal fade" id="windowHost" tabindex="-1" x-data
      x-init="windowHostEl = $el; $el.addEventListener('hidden.bs.modal', () => hostVisible = false)"
      data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered" :class="hostMaximized ? 'modal-fullscreen' : 'modal-xl'">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down" :class="hostMaximized ? 'modal-fullscreen' : 'modal-xl'">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title d-flex align-items-center" style="gap:.4rem; min-width:0;">

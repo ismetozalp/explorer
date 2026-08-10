@@ -1,6 +1,6 @@
 <!-- Confirm, Prompt, Directory picker — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
 <div class="modal fade" id="confirmModal" tabindex="-1" x-data x-init="confirmModalEl = $el; $el.addEventListener('hidden.bs.modal', () => { if (confirmDlg.resolve) { const r = confirmDlg.resolve; const v = (confirmDlg.result !== undefined) ? confirmDlg.result : (confirmDlg.buttons ? null : false); confirmDlg.resolve = null; r(v); } })">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title" x-text="confirmDlg.title"></h5></div>
             <div class="modal-body"><div x-text="confirmDlg.message" style="white-space:pre-wrap"></div></div>
@@ -25,7 +25,7 @@
 
 <!-- Prompt modal -->
 <div class="modal fade" id="promptModal" tabindex="-1" x-data x-init="promptModalEl = $el">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title" x-text="promptDlg.title"></h5></div>
             <div class="modal-body">
@@ -46,7 +46,7 @@
 <div class="modal fade" id="dirPickerModal" tabindex="-1" x-data
      x-init="dirPickerEl = $el; $el.addEventListener('hidden.bs.modal', () => { if (dirPicker.resolve) { const r = dirPicker.resolve; dirPicker.resolve = null; r(null); } })"
      data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" x-text="dirPicker.title"></h5>
