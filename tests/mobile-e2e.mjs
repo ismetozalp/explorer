@@ -81,6 +81,29 @@ try {
     const n = await app.locator('.toolbar-more-item', { hasText: label }).count();
     assert(n >= 1, `⋯ menu exposes "${label}"`);
   }
+  // Hit-test: a real phone user must be able to TAP a menu item. Playwright's
+  // isVisible()/click() will scroll an overflow:hidden container to reach a
+  // clipped element — which a phone cannot. So compute the item's centre and
+  // assert document.elementFromPoint at that point IS the item (or a descendant
+  // of the same .toolbar-more-item), and that the centre lies within the
+  // viewport. This FAILS on the pre-fix absolute/clipped panel, PASSES once the
+  // panel is position:fixed and escapes the .tab-bar clip.
+  const pluginsItem = app.locator('.toolbar-more-item', { hasText: 'Plugins' }).first();
+  const pib = await pluginsItem.boundingBox();
+  assert(!!pib, '⋯ "Plugins" item has a bounding box');
+  if (pib) {
+    const cx = Math.round(pib.x + pib.width / 2);
+    const cy = Math.round(pib.y + pib.height / 2);
+    const inViewport = cx >= 0 && cx <= innerWidth && cy >= 0 && cy <= (await app.evaluate(() => window.innerHeight));
+    assert(inViewport, '⋯ "Plugins" item centre is within the viewport');
+    const hit = await app.evaluate(([x, y]) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return { ok: false, tag: 'null' };
+      const item = el.closest('.toolbar-more-item');
+      return { ok: !!item, tag: el.tagName + (el.className ? '.' + String(el.className).split(' ').join('.') : '') };
+    }, [cx, cy]);
+    assert(hit.ok, `⋯ "Plugins" item is hit-testable at its centre (elementFromPoint → ${hit.tag})`);
+  }
   // Close the panel before interacting elsewhere.
   await moreBtn.click();
   await app.locator('.toolbar-more-panel').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});

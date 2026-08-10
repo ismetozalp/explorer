@@ -1763,7 +1763,9 @@ html, body { max-width: 100%; }
 /* "⋯ More" toolbar dropdown (phone only; unguarded since it only renders when ui.phone) */
 .toolbar-more { position: relative; display: flex; align-items: stretch; }
 .toolbar-more-panel {
-    position: absolute; top: 100%; right: 0; z-index: 1100;
+    /* fixed (not absolute) so it escapes the .tab-bar overflow clip on phones;
+       anchored just under the tab bar at top-right, where the ⋯ button sits. */
+    position: fixed; top: 36px; right: 4px; z-index: 1100;
     min-width: 190px; padding: 4px;
     background: var(--ex-bg-alt); border: 1px solid var(--ex-border);
     border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.35);
