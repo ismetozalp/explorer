@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 2.5.0
+
+- **Mobile-friendly on phones.** Explorer now fits and works on a phone-sized
+  screen (e.g. iPhone). The top toolbar collapses its secondary actions into a
+  **⋯ More** menu; dialogs go full-screen; the global-actions list, Plugin
+  Manager and Actions manager reflow into single-column layouts so buttons
+  (like **Run**) are always on-screen and tappable. Desktop and tablet layouts
+  are unchanged.
+
 ## 2.4.2
 
 - **Plugin Manager:** the IF TV row is now labelled **InFlightTV (iftv)**.

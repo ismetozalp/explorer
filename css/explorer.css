@@ -254,6 +254,8 @@ body {
 @media (hover: none), (pointer: coarse) {
     .row-menu-btn { opacity: .75; padding: 8px 10px; font-size: 20px; }
     .col-menu { width: 46px; }
+    .tab-bar-btn, .toolbar .btn, .modal-footer .btn { min-height: 40px; }
+    .toolbar-more-item { min-height: 44px; }
 }
 
 .file-list tbody tr { cursor: default; }
