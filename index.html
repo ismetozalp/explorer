@@ -95,7 +95,6 @@
             <span>⋯</span>
         </button>
         <div class="toolbar-more-panel" x-show="ui.moreOpen" x-cloak>
-            <button class="toolbar-more-item" x-show="tmux.available" @click="ui.moreOpen=false; toggleTmuxPanel($event)">▤ tmux</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openMounts()">⛁ Mounts</button>
             <button class="toolbar-more-item" x-show="grub.available" @click="ui.moreOpen=false; openGrub()">⏻ GRUB</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openActionsManager()">⚙ Actions</button>
