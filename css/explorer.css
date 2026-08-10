@@ -1715,3 +1715,18 @@ html, body { max-width: 100%; }
     .toolbar { flex-wrap: wrap; row-gap: 4px; }
     .tab-bar { overflow-x: auto; }
 }
+
+/* "⋯ More" toolbar dropdown (phone only; unguarded since it only renders when ui.phone) */
+.toolbar-more { position: relative; display: flex; align-items: stretch; }
+.toolbar-more-panel {
+    position: absolute; top: 100%; right: 0; z-index: 1100;
+    min-width: 190px; padding: 4px;
+    background: var(--ex-bg-alt); border: 1px solid var(--ex-border);
+    border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+    display: flex; flex-direction: column;
+}
+.toolbar-more-item {
+    background: none; border: 0; text-align: left; color: var(--ex-text);
+    padding: 10px 12px; font-size: 14px; border-radius: 4px; white-space: nowrap;
+}
+.toolbar-more-item:hover, .toolbar-more-item:active { background: var(--ex-bg-tab); }
