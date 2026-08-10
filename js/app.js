@@ -25,6 +25,7 @@ Alpine.data('explorer', () => ({
     tabs: [],
     activeTabId: null,
     homePath: '/root',
+    ui: { phone: false },
 
     settings: structuredClone(ExRT.const.DEFAULT_SETTINGS),
 
@@ -177,6 +178,17 @@ Alpine.data('explorer', () => ({
     // ───── Init ──────────────────────────────────────────────────────────────
     async init() {
         this.homePath = await FS.homeDir();
+
+        // Phone breakpoint drives the toolbar's ⋯ More collapse. CSS media
+        // queries (max-width:640px) do the purely-visual reflow; this keeps the
+        // JS-driven toolbar in sync with the same 640px threshold.
+        try {
+            const mq = window.matchMedia('(max-width: 640px)');
+            this.ui.phone = mq.matches;
+            const onMq = (e) => { this.ui.phone = e.matches; };
+            (mq.addEventListener ? mq.addEventListener('change', onMq)
+                                 : mq.addListener(onMq));
+        } catch (e) { this.ui.phone = false; }
 
         // Stacked modals: Bootstrap doesn't bump z-index for a modal opened on
         // top of another, and rapid open/close can leave an orphaned backdrop
