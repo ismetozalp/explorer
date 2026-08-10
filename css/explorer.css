@@ -1713,7 +1713,12 @@ html, body { max-width: 100%; }
     body { overflow-x: hidden; }
     /* Toolbar buttons wrap/scroll rather than forcing page width. */
     .toolbar { flex-wrap: wrap; row-gap: 4px; }
-    .tab-bar { overflow-x: auto; }
+    /* Phone: pin the toolbar action buttons; only the tab list scrolls, so a
+       long tab title can never cover ▶ Run / ＋ / ⋯. */
+    .tab-bar { overflow-x: hidden; }
+    .tab-list { flex: 1 1 auto; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-bar-spacer { display: none; }
+    .tab-new, .tab-new-term, .tab-bar-btn, .toolbar-more { flex: 0 0 auto; }
 
     /* Wide modal tables → stacked cards: each row becomes a block, each cell a
        full-width line, action buttons stretch so they're always on-screen. */
