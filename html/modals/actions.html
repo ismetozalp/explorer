@@ -1,6 +1,6 @@
 <!-- Custom actions manager — partial injected by js/boot.js (2.1 split). Do not add a wrapper element. -->
 <div class="modal fade" id="actionsModal" tabindex="-1" x-data x-init="actionsModalEl = $el; $el.addEventListener('hidden.bs.modal', () => _disposeActionsMonaco())">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" :class="{ 'actions-dialog-code': actionsMgr.mode === 'code' }">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down" :class="{ 'actions-dialog-code': actionsMgr.mode === 'code' }">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Custom actions</h5>

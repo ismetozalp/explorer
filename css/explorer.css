@@ -1714,6 +1714,23 @@ html, body { max-width: 100%; }
     /* Toolbar buttons wrap/scroll rather than forcing page width. */
     .toolbar { flex-wrap: wrap; row-gap: 4px; }
     .tab-bar { overflow-x: auto; }
+
+    /* Wide modal tables → stacked cards: each row becomes a block, each cell a
+       full-width line, action buttons stretch so they're always on-screen. */
+    .mobile-card-table thead { display: none; }
+    .mobile-card-table, .mobile-card-table tbody, .mobile-card-table tr, .mobile-card-table td {
+        display: block; width: 100%;
+    }
+    .mobile-card-table tr {
+        border: 1px solid var(--ex-border); border-radius: 6px;
+        margin-bottom: 8px; padding: 6px 8px;
+    }
+    .mobile-card-table td { border: 0 !important; padding: 3px 0; max-width: 100% !important; }
+    .mobile-card-table td code { white-space: normal; word-break: break-all; max-width: 100% !important; }
+    .mobile-card-table td .btn { width: 100%; }
+    /* Breadcrumbs: scroll instead of forcing page width. */
+    .path-bar, .breadcrumbs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .breadcrumbs { flex-wrap: nowrap; white-space: nowrap; }
 }
 
 /* "⋯ More" toolbar dropdown (phone only; unguarded since it only renders when ui.phone) */
