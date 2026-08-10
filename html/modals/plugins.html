@@ -16,7 +16,7 @@
         </div>
       </div>
       <div class="modal-body">
-        <table class="table table-sm align-middle plugins-table">
+        <table class="table table-sm align-middle plugins-table mobile-card-table">
           <thead><tr>
             <th style="width:2rem"></th><th>Plugin</th><th>Repo</th><th>Version</th><th>Status</th><th class="text-end">Action</th>
           </tr></thead>
@@ -27,13 +27,13 @@
                   <input type="checkbox" class="form-check-input" x-show="row.status === 'notinstalled'"
                          x-model="row.selected">
                 </td>
-                <td x-text="row.label"></td>
-                <td class="text-muted small" x-text="row.repo"></td>
-                <td class="small">
+                <td data-label="Plugin" x-text="row.label"></td>
+                <td data-label="Repo" class="text-muted small" x-text="row.repo"></td>
+                <td data-label="Version" class="small">
                   <span x-text="row.current || '—'"></span>
                   <span x-show="row.latest && row.current !== row.latest"> → <span x-text="row.latest"></span></span>
                 </td>
-                <td>
+                <td data-label="Status">
                   <span class="badge" :class="{
                     'bg-success': row.status==='uptodate', 'bg-primary': row.status==='update',
                     'bg-warning text-dark': row.status==='unknown', 'bg-secondary': row.status==='notinstalled' || row.status==='checking',
@@ -41,7 +41,7 @@
                     x-text="({uptodate:'✓ Up to date',update:'↑ Update',unknown:'? Unknown',notinstalled:'— Not installed',checking:'…',error:'⚠ Error'})[row.status]"></span>
                   <span class="text-danger small ms-1" x-show="row.message" x-text="row.message"></span>
                 </td>
-                <td class="text-end">
+                <td data-label="Action" class="text-end">
                   <button class="btn btn-sm btn-primary" x-show="row.installed"
                           :disabled="row.busy || pluginUpd.updating || !_pluginEligible(row, pluginUpd.force)"
                           @click="updatePlugin(row)">

@@ -1736,6 +1736,26 @@ html, body { max-width: 100%; }
     /* Breadcrumbs: scroll instead of forcing page width. */
     .path-bar, .breadcrumbs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .breadcrumbs { flex-wrap: nowrap; white-space: nowrap; }
+
+    /* Labelled cards for the Plugin Manager (values aren't self-describing). */
+    .mobile-card-table td[data-label]::before {
+        content: attr(data-label) ": ";
+        font-weight: 600; color: var(--ex-text-muted); margin-right: 4px;
+    }
+    .plugins-table.mobile-card-table td.text-end { text-align: left !important; }
+
+    /* Actions manager: stack list over editor instead of side-by-side. */
+    #actionsModal .actions-row > .actions-left,
+    #actionsModal .actions-row > .actions-right {
+        flex: 0 0 100%; max-width: 100%; width: 100%; height: auto;
+    }
+    #actionsModal .actions-list-scroll { max-height: 38vh; }
+    #actionsModal .actions-right { max-height: none; }
+    #actionsModal .modal-content { height: 100%; }   /* full-screen dialog */
+
+    /* Mounts (and other wide tables not converted to cards): scroll, don't clip. */
+    #mountsModal .modal-body, .mounts-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #mountsModal table { min-width: 640px; }
 }
 
 /* "⋯ More" toolbar dropdown (phone only; unguarded since it only renders when ui.phone) */
