@@ -1705,3 +1705,13 @@ pre.preview-code {
     padding: 0.15rem 0.55rem;
     font-weight: 600;
 }
+
+/* ===================== Mobile / phone (≤640px) ===================== */
+/* Never let the whole app scroll sideways; wide content scrolls its own box. */
+html, body { max-width: 100%; }
+@media (max-width: 640px) {
+    body { overflow-x: hidden; }
+    /* Toolbar buttons wrap/scroll rather than forcing page width. */
+    .toolbar { flex-wrap: wrap; row-gap: 4px; }
+    .tab-bar { overflow-x: auto; }
+}
