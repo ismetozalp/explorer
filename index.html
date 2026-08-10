@@ -34,7 +34,7 @@
     <button class="tab-new" @click="newTab()" title="New folder tab (Ctrl+T)">+</button>
     <button class="tab-new tab-new-term" @click="newTerminalTab()" title="New terminal tab">+▤</button>
     <div class="tab-bar-spacer"></div>
-    <span class="explorer-version-badge" x-show="pluginVersion"
+    <span class="explorer-version-badge" x-show="pluginVersion && !ui.phone"
           :class="{ 'update-available': updateState.available }"
           style="cursor:pointer"
           @click="updateState.available ? startSelfUpdate() : checkForUpdate(true)"
@@ -44,7 +44,7 @@
         <span>▶ Run</span>
     </button>
     <!-- tmux session manager (only when tmux is installed) -->
-    <div class="tmux-wrap" x-show="tmux.available" @click.outside="tmux.open = false">
+    <div class="tmux-wrap" x-show="tmux.available && !ui.phone" @click.outside="tmux.open = false">
         <button class="btn btn-sm btn-link tab-bar-btn" @click="toggleTmuxPanel($event)" :class="{ 'tmux-btn-active': tmux.open }" title="tmux sessions">
             <span>▤ tmux</span>
         </button>
@@ -74,21 +74,38 @@
             </div>
         </div>
     </div>
-    <button class="btn btn-sm btn-link tab-bar-btn" @click="openMounts()" title="Mounts / fstab editor">
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openMounts()" x-show="!ui.phone" title="Mounts / fstab editor">
         <span>⛁ Mounts</span>
     </button>
-    <button class="btn btn-sm btn-link tab-bar-btn" @click="openGrub()" x-show="grub.available" x-cloak title="Edit /etc/default/grub and regenerate the boot config">
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openGrub()" x-show="grub.available && !ui.phone" x-cloak title="Edit /etc/default/grub and regenerate the boot config">
         <span>⏻ GRUB</span>
     </button>
-    <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" title="Manage custom actions">
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openActionsManager()" x-show="!ui.phone" title="Manage custom actions">
         <span>⚙ Actions</span>
     </button>
-    <button class="btn btn-sm btn-link tab-bar-btn" @click="openPluginUpdater()" title="Plugin Manager — update or install your Cockpit plugins">
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openPluginUpdater()" x-show="!ui.phone" title="Plugin Manager — update or install your Cockpit plugins">
         <span>⬆ Plugins</span>
     </button>
-    <button class="btn btn-sm btn-link tab-bar-btn" @click="openSettings()" title="Settings">
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openSettings()" x-show="!ui.phone" title="Settings">
         <span>⚙</span>
     </button>
+    <!-- Phone: collapse secondary toolbar actions into one menu -->
+    <div class="toolbar-more" x-show="ui.phone" x-cloak @click.outside="ui.moreOpen = false">
+        <button class="btn btn-sm btn-link tab-bar-btn" @click="ui.moreOpen = !ui.moreOpen" title="More">
+            <span>⋯</span>
+        </button>
+        <div class="toolbar-more-panel" x-show="ui.moreOpen" x-cloak>
+            <button class="toolbar-more-item" x-show="tmux.available" @click="ui.moreOpen=false; toggleTmuxPanel($event)">▤ tmux</button>
+            <button class="toolbar-more-item" @click="ui.moreOpen=false; openMounts()">⛁ Mounts</button>
+            <button class="toolbar-more-item" x-show="grub.available" @click="ui.moreOpen=false; openGrub()">⏻ GRUB</button>
+            <button class="toolbar-more-item" @click="ui.moreOpen=false; openActionsManager()">⚙ Actions</button>
+            <button class="toolbar-more-item" @click="ui.moreOpen=false; openPluginUpdater()">⬆ Plugins</button>
+            <button class="toolbar-more-item" @click="ui.moreOpen=false; openSettings()">⚙ Settings</button>
+            <button class="toolbar-more-item" x-show="pluginVersion"
+                    @click="ui.moreOpen=false; updateState.available ? startSelfUpdate() : checkForUpdate(true)"
+                    x-text="(updateState.available ? '↑ ' : '') + 'Explorer v' + pluginVersion"></button>
+        </div>
+    </div>
 </div>
 
 <!-- ============== TABS CONTENT ============== -->

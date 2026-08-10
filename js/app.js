@@ -25,7 +25,7 @@ Alpine.data('explorer', () => ({
     tabs: [],
     activeTabId: null,
     homePath: '/root',
-    ui: { phone: false },
+    ui: { phone: false, moreOpen: false },
 
     settings: structuredClone(ExRT.const.DEFAULT_SETTINGS),
 
