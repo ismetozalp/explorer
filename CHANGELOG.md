@@ -2,6 +2,22 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.0.0
+
+- **Preview is now a viewer.** Page through a folder's previewable files with
+  **◀ / ▶** (or the arrow keys) without leaving the window, and **maximize** the
+  window (it stays above the status bar).
+- **Video that plays.** Formats the browser can't decode (mkv, avi, HEVC, …) are
+  transcoded on the fly with **ffmpeg** and streamed into the player; ordinary
+  mp4/webm still play natively. A badge shows when it's **transcoding** (green)
+  vs **remuxing** (gray). If ffmpeg isn't installed, Explorer detects your distro
+  and offers a one-click install (with the manual command shown). Local files
+  only — this is not an IPTV/streaming feature.
+- **Rendered documents.** Markdown renders (toggle to source), and **.docx** and
+  **spreadsheets** (.xlsx/.xls/.ods/.csv) render in a sandboxed frame.
+- **New dependency (optional):** `ffmpeg` on the server — only needed for
+  non-native video. See the README.
+
 ## 2.5.0
 
 - **Mobile-friendly on phones.** Explorer now fits and works on a phone-sized
