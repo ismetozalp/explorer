@@ -173,6 +173,28 @@ window.Util = (function () {
         const ext = (file.name || '').toLowerCase().split('.').pop();
         return ['mp3','wav','ogg','flac','m4a','aac','opus'].includes(ext);
     }
+    function isMarkdown(file) {
+        const ext = (file && file.name || '').toLowerCase().split('.').pop();
+        return file && file.type === 'f' && ['md', 'markdown'].includes(ext);
+    }
+    function isDocx(file) {
+        return file && file.type === 'f' && (file.name || '').toLowerCase().endsWith('.docx');
+    }
+    function isSpreadsheet(file) {
+        const ext = (file && file.name || '').toLowerCase().split('.').pop();
+        return file && file.type === 'f' && ['xlsx', 'xls', 'ods', 'csv', 'xlsb'].includes(ext);
+    }
+    // Browser <video> can decode these containers/codecs directly (no ffmpeg).
+    function isVideoNative(file) {
+        const ext = (file && file.name || '').toLowerCase().split('.').pop();
+        return file && file.type === 'f' && ['mp4', 'm4v', 'webm', 'ogv'].includes(ext);
+    }
+    // Anything the preview window can show.
+    function isPreviewable(file) {
+        if (!file || file.type !== 'f') return false;
+        return isTextLike(file) || isImage(file) || isPdf(file) || isVideo(file)
+            || isAudio(file) || isMarkdown(file) || isDocx(file) || isSpreadsheet(file);
+    }
 
     function archiveFormat(name) {
         const n = (name || '').toLowerCase();
@@ -249,6 +271,7 @@ window.Util = (function () {
     return {
         humanSize, formatDate, joinPath, dirname, basename, normalizePath, shq, pathSegments,
         langFromExt, isTextLike, looksBinary, isImage, isPdf, isVideo, isAudio, isArchive, archiveFormat,
+        isMarkdown, isDocx, isSpreadsheet, isVideoNative, isPreviewable,
         fileIcon, typeLabel, uid, fillTemplate, fillText
     };
 })();
