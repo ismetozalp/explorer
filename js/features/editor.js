@@ -129,6 +129,26 @@ window.ExplorerEditor = {
             } catch (e) { set({ kind: 'binary', reason: 'Could not render spreadsheet: ' + (e.message || e) }); }
             return;
         }
+        if (Util.isVideo(file)) {
+            const ff = await this._vpProbeFfmpeg();
+            const nativeLimit = 60 * 1024 * 1024;
+            const canNative = Util.isVideoNative(file) && (file.size <= nativeLimit || !ff.ffmpeg);
+            if (canNative) {
+                try {
+                    const blob = await FS.readBinaryAsBlob(file.path, ropts);
+                    set({ kind: 'video', mode: 'native', url: URL.createObjectURL(blob) });
+                } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
+                return;
+            }
+            if (!ff.ffmpeg) {
+                let os = ''; try { os = await FS.readText('/etc/os-release'); } catch (e) {}
+                set({ kind: 'video', mode: 'ffmpeg-missing', installCmd: this._pkgInstallCommand(os) });
+                return;
+            }
+            set({ kind: 'video', mode: 'hls', transcodeState: 'remuxing' });
+            this.startPreviewVideo(id, file);
+            return;
+        }
         if (Util.isTextLike(file)) {
             if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
@@ -140,14 +160,13 @@ window.ExplorerEditor = {
                     set({ kind: 'text', content: txt || '', lang });
                 }
             } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
-        } else if (Util.isImage(file) || Util.isPdf(file) || Util.isVideo(file) || Util.isAudio(file)) {
+        } else if (Util.isImage(file) || Util.isPdf(file) || Util.isAudio(file)) {
             try {
                 const blob = await FS.readBinaryAsBlob(file.path, ropts);
                 const url = URL.createObjectURL(blob);
                 let kind = 'binary';
                 if (Util.isImage(file)) kind = 'image';
                 else if (Util.isPdf(file)) kind = 'pdf';
-                else if (Util.isVideo(file)) kind = 'video';
                 else if (Util.isAudio(file)) kind = 'audio';
                 set({ kind, url });
             } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
@@ -524,6 +543,7 @@ window.ExplorerEditor = {
     _removeWindow(id) {
         const w = this._win(id);
         if (!w) return;
+        if (this._teardownPreviewVideo) this._teardownPreviewVideo(id); // stop any hls/ffmpeg (Task 5)
         const idx = this.windows.findIndex(x => x.id === id);
         const wasActive = (this.activeWinId === id);
         if (idx >= 0) this.windows.splice(idx, 1);
