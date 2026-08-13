@@ -71,12 +71,20 @@
                 </template>
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video' && activeWin().pv.mode === 'hls'">
                     <div class="preview-video-wrap">
-                        <video id="previewVideo" controls class="preview-media"></video>
-                        <!-- activeWin() && guards: a nested reactive expression here can still
-                             fire once after the enclosing x-if unmounts (e.g. right as the window
-                             closes and activeWinId goes null) — observed live, not hypothetical. -->
+                        <!-- activeWin() && guards throughout: a nested reactive expression here
+                             can still fire once after the enclosing x-if unmounts (e.g. right as
+                             the window closes and activeWinId goes null) — observed live, not
+                             hypothetical. -->
+                        <video id="previewVideo" controls class="preview-media" x-show="!(activeWin() && activeWin().pv.reason)"></video>
+                        <!-- Fixed-round-1: ffmpeg/hls.js failures (transcodeState:'error') are
+                             otherwise invisible — badge would hang on "Transcoding" forever with
+                             no error text. -->
+                        <div class="preview-fallback" x-show="activeWin() && activeWin().pv.reason">
+                            <p>This video could not be played.</p>
+                            <p x-text="activeWin() && activeWin().pv.reason"></p>
+                        </div>
                         <span class="transcode-badge" :class="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? 'is-active' : 'is-idle'"
-                              x-show="activeWin() && activeWin().pv.transcodeState !== 'done'"
+                              x-show="activeWin() && (activeWin().pv.transcodeState === 'transcoding' || activeWin().pv.transcodeState === 'remuxing')"
                               x-text="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? '⚙ Transcoding' : 'Remuxing'"></span>
                     </div>
                 </template>

@@ -96,13 +96,44 @@ window.ExplorerVideo = {
     // `readFile` to null → onError(404) → hls.js's own retry budget for that
     // is short (observed: it does not keep retrying long enough for ffmpeg to
     // catch up), so we wait here instead of racing it.
-    async _vpWaitForPlaylist(path, timeoutMs) {
+    // `stopCheck`, if given, is polled too — returning false bails out
+    // immediately (used to stop polling the instant a session is torn down
+    // or superseded, instead of spawning `test` every 200ms for up to
+    // timeoutMs after there's no one left who cares about the answer).
+    async _vpWaitForPlaylist(path, timeoutMs, stopCheck) {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
+            if (stopCheck && !stopCheck()) return false;
             try { await cockpit.spawn(['test', '-s', path], { err: 'ignore' }); return true; } catch (e) {}
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         return false;
+    },
+    // Kill a bare {proc, dir} pair without touching video._sessions — used
+    // when a session has already been superseded (a newer startPreviewVideo
+    // call for the same window won the race) so we must free THIS process's
+    // resources without deleting the newer, still-live registration.
+    async _vpKillProcAndDir(proc, dir) {
+        try { proc && proc.close && proc.close('cancelled'); } catch (e) {}
+        if (dir) { try { await cockpit.spawn(['rm', '-rf', dir]); } catch (e) {} }
+    },
+    // Fixed-round-1: unified "this attempt is done, one way or another"
+    // cleanup, called from every non-success exit of startPreviewVideo (not
+    // just the happy path). `token` is the session id this particular call
+    // registered; if it's still the one in video._sessions[winId] we own the
+    // pv state and do a full teardown (kills ffmpeg, deletes the on-disk
+    // session dir, clears the session). If a newer start already superseded
+    // us (rapid ◀/▶ before this one finished waiting), we must NOT touch the
+    // newer session or its pv — just kill our own stray process + directory.
+    async _vpEndSession(winId, token, proc, dir, reason) {
+        const s = this.video._sessions[winId];
+        if (s && s.token === token) {
+            const ww = this._win(winId);
+            if (reason && ww && ww.pv) { ww.pv.reason = reason; ww.pv.transcodeState = 'error'; }
+            await this._teardownPreviewVideo(winId);
+        } else {
+            await this._vpKillProcAndDir(proc, dir);
+        }
     },
     // Spawn ffmpeg → HLS in a fresh session dir and attach hls.js to <video id="previewVideo">.
     async startPreviewVideo(winId, file) {
@@ -118,27 +149,41 @@ window.ExplorerVideo = {
         // Reflect state in the badge.
         if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; }
         const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], { err: 'message' });
-        proc.then(() => { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; })
-            .catch(() => { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'ffmpeg failed'; } });
+        // Register the session IMMEDIATELY (before any further await) — every
+        // exit path below (ensureHls throwing, the playlist wait timing out,
+        // being superseded while waiting, hls.js unsupported, or the happy
+        // path) can now find this proc+dir via video._sessions[winId] and is
+        // responsible for freeing it. `token` (=id) is compared by
+        // isCurrent()/_vpEndSession() so a later startPreviewVideo() call for
+        // this same window supersedes — and tears down — this one instead of
+        // both ffmpeg processes surviving.
+        this.video._sessions[winId] = { hls: null, proc, dir, token: id };
+        const isCurrent = () => { const s = this.video._sessions[winId]; return !!(s && s.token === id); };
+        proc.then(() => {
+            if (isCurrent()) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
+            else { this._vpKillProcAndDir(proc, dir); } // superseded: ffmpeg exited clean, but its dir is now orphaned — nobody else will ever rm it
+        }).catch((e) => { this._vpEndSession(winId, id, proc, dir, 'ffmpeg failed' + (e && e.message ? ': ' + e.message : '')); });
         const readFile = async (p) => { const h = cockpit.file(p, { binary: true }); try { return await h.read(); } catch (e) { return null; } finally { h.close(); } };
         const Loader = this._vpLoaderClass(readFile, (u) => this._vpResolveInDir(dir, u));
         // hls.js is lazy-loaded (no eager <script> tag) — must resolve before
         // touching window.Hls, both for the isSupported() check and `new Hls(...)`.
-        try { await this._ensureHls(); } catch (e) { const ww = this._win(winId); if (ww && ww.pv) ww.pv.reason = 'Could not load the video player (hls.js failed to load).'; return; }
+        try { await this._ensureHls(); }
+        catch (e) { await this._vpEndSession(winId, id, proc, dir, 'Could not load the video player (hls.js failed to load).'); return; }
         // Don't hand hls.js a source until ffmpeg has actually produced the
         // manifest + first segment (see _vpWaitForPlaylist).
-        const ready = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000);
-        const stillCurrent = () => { const ww = this._win(winId); return !!(ww && ww.pv && ww.pv.mode === 'hls' && !this.video._sessions[winId]); };
-        if (!ready) { if (stillCurrent()) { const ww = this._win(winId); ww.pv.reason = 'ffmpeg did not produce a playable stream in time.'; } return; }
-        if (!stillCurrent()) return; // window closed / navigated away while we waited
+        const ready = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000, isCurrent);
+        if (!ready) { await this._vpEndSession(winId, id, proc, dir, 'ffmpeg did not produce a playable stream in time.'); return; }
+        if (!isCurrent()) { await this._vpKillProcAndDir(proc, dir); return; } // superseded while waiting
         // hls.js attaches on the next tick once the <video> element exists.
         this.$nextTick(() => {
+            if (!isCurrent()) { this._vpKillProcAndDir(proc, dir); return; } // superseded during the tick
             const el = document.getElementById('previewVideo');
-            if (!window.Hls || !window.Hls.isSupported() || !el) { const ww = this._win(winId); if (ww && ww.pv) ww.pv.reason = 'This browser cannot play the converted stream.'; return; }
+            if (!window.Hls || !window.Hls.isSupported() || !el) { this._vpEndSession(winId, id, proc, dir, 'This browser cannot play the converted stream.'); return; }
             const hls = new window.Hls({ pLoader: Loader, fLoader: Loader });
             hls.loadSource(this._vpSourceUrl(id));
             hls.attachMedia(el);
-            this.video._sessions[winId] = { hls, proc, dir };
+            const s = this.video._sessions[winId];
+            if (s && s.token === id) s.hls = hls; // still current: let teardown destroy() it later
         });
     },
     async _teardownPreviewVideo(winId) {
@@ -146,8 +191,7 @@ window.ExplorerVideo = {
         if (!s) return;
         delete this.video._sessions[winId];
         try { s.hls && s.hls.destroy(); } catch (e) {}
-        try { s.proc && s.proc.close && s.proc.close('cancelled'); } catch (e) {}
-        if (s.dir) { try { await cockpit.spawn(['rm', '-rf', s.dir]); } catch (e) {} }
+        await this._vpKillProcAndDir(s.proc, s.dir);
     },
     async reapOrphanPreviews() {
         const home = this.homePath || await FS.homeDir();
