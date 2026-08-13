@@ -12,6 +12,7 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerTerminal,  // js/features/terminal.js
     ...window.ExplorerUpload,  // js/features/upload.js
     ...window.ExplorerEditor,  // js/features/editor.js
+    ...window.ExplorerVideo,   // js/features/videoplayer.js
     ...window.ExplorerDeepLink,  // js/features/deeplink.js
     ...window.ExplorerPlugins,   // js/features/plugins.js
     ...window.ExplorerTabs,      // js/core/tabs.js
