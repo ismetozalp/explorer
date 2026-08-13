@@ -199,4 +199,29 @@ window.ExplorerVideo = {
         try { await cockpit.spawn(['pkill', '-9', '-f', root]); } catch (e) {}
         try { await cockpit.spawn(['rm', '-rf', root]); } catch (e) {}
     },
+
+    // ── turn-key ffmpeg install (Task 6) ────────────────────────────────
+    // Confirm-gated superuser run of the distro-detected install command
+    // (see _pkgInstallCommand), streaming output into video.installLog. On
+    // success, forces a fresh _vpProbeFfmpeg() and retries the preview.
+    async installFfmpeg(winId) {
+        const w = this._win(winId); if (!w || !w.pv) return;
+        const cmd = w.pv.installCmd;
+        if (!cmd) { this.toast('No package-manager command detected', 'danger'); return; }
+        const ok = await this.askConfirm('Install ffmpeg?', 'This runs, as administrator:\n\n' + cmd + '\n\nContinue?', 'Install');
+        if (!ok) return;
+        this.video.installLog = '$ ' + cmd + '\n';
+        try {
+            const proc = cockpit.spawn(['sh', '-c', cmd], { superuser: 'require', err: 'out' });
+            proc.stream((data) => { this.video.installLog += data; });
+            await proc;
+            this.video.ffmpeg = null;                       // force a fresh probe
+            const ff = await this._vpProbeFfmpeg();
+            if (ff.ffmpeg) { this.video.installLog += '\nffmpeg installed — starting playback.\n'; await this._loadPreviewInto(winId, w._file); }
+            else this.video.installLog += '\nInstall finished but ffmpeg still not found. Check the output above.\n';
+        } catch (e) {
+            this.video.installLog += '\nInstall failed: ' + (e.message || e) + '\n';
+            this.toast('ffmpeg install failed', 'danger');
+        }
+    },
 };

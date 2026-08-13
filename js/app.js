@@ -57,7 +57,7 @@ Alpine.data('explorer', () => ({
     _winSeq: 1,
 
     // Server-side video playback (ffmpeg→HLS, see js/features/videoplayer.js).
-    video: { ffmpeg: null, _sessions: {} },   // ffmpeg: {ffmpeg,ffprobe} once probed; _sessions keyed by window id
+    video: { ffmpeg: null, _sessions: {}, installLog: '' },   // ffmpeg: {ffmpeg,ffprobe} once probed; _sessions keyed by window id; installLog: live output of installFfmpeg
     // Windows-style window-control glyphs.
     winIconMinimize: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 8 H9" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>',
     winIconMaximize: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.75" y="0.75" width="8.5" height="8.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>',
