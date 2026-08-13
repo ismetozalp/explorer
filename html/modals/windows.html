@@ -21,6 +21,16 @@
                             @click="copyPreviewContent()"
                             title="Copy file contents to clipboard" aria-label="Copy file contents to clipboard"
                             x-text="(activeWin() && copiedWinId === activeWin().id) ? 'Copied ✓' : 'Copy'"></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1 win-nav-btn"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().nav"
+                            :disabled="!activeWin() || !previewCanStep(activeWin().id, -1)"
+                            @click="previewStep(activeWin().id, -1)" title="Previous (←)" aria-label="Previous file">◀</button>
+                    <span class="small text-muted me-1" x-show="activeWin() && activeWin().kind === 'preview' && activeWin().nav"
+                          x-text="activeWin() && activeWin().nav ? (activeWin().nav.idx + 1) + ' / ' + activeWin().nav.list.length : ''"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2 win-nav-btn"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().nav"
+                            :disabled="!activeWin() || !previewCanStep(activeWin().id, 1)"
+                            @click="previewStep(activeWin().id, 1)" title="Next (→)" aria-label="Next file">▶</button>
                     <button type="button" class="win-btn" @click="minimizeHost()" title="Minimize" x-html="winIconMinimize"></button>
                     <button type="button" class="win-btn" @click="hostMaximized = !hostMaximized" :title="hostMaximized ? 'Restore' : 'Maximize'" x-html="hostMaximized ? winIconRestore : winIconMaximize"></button>
                     <button type="button" class="win-btn win-btn-close" @click="closeActiveWindow()" title="Close" x-html="winIconClose"></button>

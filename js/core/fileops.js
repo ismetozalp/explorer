@@ -11,9 +11,9 @@ window.ExplorerFileOps = {
                 const stat = await FS.statOne(target);
                 if (stat && stat.type === 'd') { await this.navigate(tab, target); return; }
             }
-            this.openPreview(file);
+            this.openPreview(file, { siblings: (this.activePane(tab) || {}).files || [] });
         } else {
-            this.openPreview(file);
+            this.openPreview(file, { siblings: (this.activePane(tab) || {}).files || [] });
         }
     },
 
