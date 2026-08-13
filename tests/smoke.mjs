@@ -8,6 +8,8 @@
 // Without COCKPIT_PASS it stops at the login page and screenshots it.
 import { chromium } from 'playwright';
 import os from 'os';
+import path from 'path';
+import fs from 'fs';
 
 const URL  = process.env.COCKPIT_URL  || 'https://localhost:9090';
 const USER = process.env.COCKPIT_USER || os.userInfo().username;
@@ -80,10 +82,53 @@ try {
         settingsOK = true;   // modal opened AND closed
     } catch (e) { errors.push({ kind: 'interaction', text: 'settings open/close failed: ' + e.message }); }
 
+    // Preview surface (richer-preview, 3.0): a fast, dependency-free sanity
+    // pass — no ffmpeg/office fixtures needed, just a plain text file. Opens
+    // it the normal way (double-click), and checks the controls that every
+    // preview window relies on: content renders, ◀/▶ stay hidden when the
+    // folder has only one previewable file, and Maximize is present.
+    let previewOK = false;
+    const fixDir = path.join(os.homedir(), '.cache', 'explorer-preview-smoke');
+    try {
+        await app.evaluate(async (dir) => {
+            await FS.mkdir(dir);
+            await FS.writeText(dir + '/hello.txt', 'hello from the preview smoke test\n');
+        }, fixDir);
+        await app.evaluate(async (dir) => {
+            const a = window.Alpine.$data(document.body);
+            await a.navigate(a.currentPane(), dir);
+        }, fixDir);
+        await app.locator('.file-list tbody tr').first().waitFor({ timeout: 10000 });
+        await app.locator(`tr[data-path="${fixDir}/hello.txt"]`).dblclick();
+        await app.locator('#windowHost.show').waitFor({ timeout: 10000 });
+        await app.locator('.preview-code-wrap').waitFor({ timeout: 10000 });
+        const content = await app.locator('.preview-code-wrap .preview-code').innerText();
+        if (!content.includes('hello from the preview smoke test')) throw new Error('preview did not show file contents: ' + content);
+        if (await app.locator('.win-nav-btn').first().isVisible()) throw new Error('◀/▶ should be hidden with a single previewable file');
+        if (!(await app.locator('.win-btn[title="Maximize"]').count())) throw new Error('Maximize control missing');
+        await app.locator('.win-btn-close').click();
+        previewOK = true;
+    } catch (e) {
+        errors.push({ kind: 'interaction', text: 'preview smoke failed: ' + e.message });
+    } finally {
+        // Explorer persists open tabs (incl. current path) server-side at
+        // ~/.config/cockpit/explorer/tabs.yml (on by default), debounced
+        // 400ms. Navigate back to homePath and outwait the debounce BEFORE
+        // deleting fixDir, or the next session restores to a deleted path.
+        await app.evaluate(async () => {
+            const a = window.Alpine.$data(document.body);
+            if (a.activeWinId) a.closeActiveWindow();
+            await a.navigate(a.currentPane(), a.homePath);
+        }).catch(() => {});
+        await page.waitForTimeout(600);
+        await app.evaluate(async (dir) => { try { await FS.remove([dir]); } catch (e) {} }, fixDir).catch(() => {});
+        try { fs.rmSync(fixDir, { recursive: true, force: true }); } catch (e) {}
+    }
+
     await page.screenshot({ path: SHOT }).catch(() => {});
-    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && !settingsOK));
-    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}. Screenshot: ${SHOT}`);
-    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && (!settingsOK || !previewOK)));
+    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, preview=${previewOK}. Screenshot: ${SHOT}`);
+    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
     await page.screenshot({ path: SHOT }).catch(() => {});
     done(3, `ERROR driving the browser: ${e.message}. Screenshot: ${SHOT}`);

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="520" fill="#1b1d21"/>
+  <rect width="900" height="520" fill="#000" opacity="0.45"/>
+
+  <!-- modal -->
+  <rect x="70" y="34" width="760" height="452" rx="8" fill="#292d31" stroke="#444649"/>
+  <rect x="70" y="34" width="760" height="44" rx="8" fill="#23262b"/>
+  <rect x="70" y="68" width="760" height="10" fill="#23262b"/>
+  <text x="92" y="62" fill="#f0f0f0" font-size="14" font-weight="bold">campus-tour.mkv</text>
+
+  <!-- header controls: nav + minimize/maximize/close -->
+  <g font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="13">
+    <rect x="470" y="46" width="24" height="20" rx="4" fill="#33373c" stroke="#4a4e54"/>
+    <text x="482" y="61" fill="#c7ccd2" text-anchor="middle">◀</text>
+    <text x="536" y="61" fill="#a6a6a6" text-anchor="middle">2 / 7</text>
+    <rect x="566" y="46" width="24" height="20" rx="4" fill="#33373c" stroke="#4a4e54"/>
+    <text x="578" y="61" fill="#f0f0f0" text-anchor="middle">▶</text>
+  </g>
+  <text x="770" y="63" fill="#a6a6a6" font-size="15">–  ▢  ×</text>
+  <line x1="70" y1="78" x2="830" y2="78" stroke="#444649"/>
+
+  <!-- video surface -->
+  <rect x="70" y="78" width="760" height="408" fill="#000"/>
+
+  <!-- play button -->
+  <circle cx="450" cy="282" r="42" fill="#000" opacity="0.35" stroke="#666"/>
+  <path d="M436 262 L436 302 L470 282 Z" fill="#eee"/>
+
+  <!-- scrub bar -->
+  <rect x="100" y="440" width="700" height="4" rx="2" fill="#48494b"/>
+  <rect x="100" y="440" width="252" height="4" rx="2" fill="#8fa8ff"/>
+  <circle cx="352" cy="442" r="6" fill="#dfe6ff"/>
+  <text x="100" y="466" fill="#c7ccd2" font-size="11.5">01:12</text>
+  <text x="778" y="466" fill="#c7ccd2" font-size="11.5" text-anchor="end">03:04</text>
+
+  <!-- transcode badge (green = actively transcoding) -->
+  <rect x="700" y="94" width="112" height="24" rx="12" fill="#16a34a" stroke="rgba(0,0,0,.2)"/>
+  <text x="756" y="110" fill="#fff" font-size="11.5" font-weight="bold" text-anchor="middle">⚙ Transcoding</text>
+
+  <!-- callout -->
+  <rect x="94" y="150" width="266" height="112" rx="7" fill="#23262b" stroke="#3d4147"/>
+  <text x="110" y="176" fill="#f0f0f0" font-size="12.5" font-weight="bold">Video that plays (3.0)</text>
+  <text x="110" y="198" fill="#c7ccd2" font-size="11.5">Formats the browser can't decode are</text>
+  <text x="110" y="214" fill="#c7ccd2" font-size="11.5">transcoded on the fly with ffmpeg.</text>
+  <text x="110" y="230" fill="#c7ccd2" font-size="11.5">◀ / ▶ (or arrow keys) step through the</text>
+  <text x="110" y="246" fill="#c7ccd2" font-size="11.5">folder's other previewable files.</text>
+</svg>

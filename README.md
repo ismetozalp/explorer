@@ -310,6 +310,7 @@ any normal Linux server but worth confirming:
 | a shell (`bash`) | integrated terminals (PTY via Cockpit's stream channel) |
 | `git`            | local repo status, clone, commit, push, fetch, pull|
 | `gh` (optional)  | GitHub integration — the plugin installs this on demand|
+| `ffmpeg` (optional) | transcoding video the browser can't decode natively for preview — see *Dependencies* under *File preview* below|
 
 The integrated terminal spawns your configured shell (default
 `/bin/bash`, override in Settings) over Cockpit's PTY stream channel —
@@ -488,9 +489,54 @@ handles:
   never grabs them. A **Copy** button in the window header copies the whole
   file's contents to the clipboard.
 - Images, PDF (browser iframe), video, audio.
+- **Markdown** renders (with a **Rendered ⇄ Source** toggle in the window
+  header), **.docx** renders via a converter, and **spreadsheets**
+  (`.xlsx`/`.xls`/`.ods`/`.csv`/`.xlsb`) render as a table with a sheet
+  picker when there's more than one sheet — all in a sandboxed frame (no
+  scripts run). Files over the preview size limit fall back to the
+  "too large" panel instead of rendering.
 - Binary fallback explains why the file can't be previewed.
 
 ![Code preview with line numbers](screenshots/preview-code.svg)
+
+**Paging through a folder (3.0):** when you open a file from a folder that
+has more than one previewable file, **◀ / ▶** buttons (and the **plain
+arrow keys** — `Alt`+arrow still moves between panes/history) appear in
+the window header along with an **n / N** counter, so you can page through
+every previewable file in that folder without leaving the preview window.
+The buttons disable at the first/last file. **Maximize** now keeps the
+window above Explorer's 24px status bar instead of covering it.
+
+**Video that plays (3.0):** `.mp4`/`.webm` play natively in the browser.
+Anything the browser can't decode directly — `.mkv`, `.avi`, HEVC `.mov`,
+`.wmv`, `.flv`, `.ts`, … — is transcoded on the server with **ffmpeg** into
+an HLS stream and played back with `hls.js`; a theme-aware badge shows
+**⚙ Transcoding** (green) while ffmpeg is actively re-encoding, or
+**Remuxing** (gray) when it's just repackaging the existing stream. The
+badge clears when playback is ready, and any ffmpeg/`hls.js` failure
+surfaces as text instead of a dead player. This only plays local files —
+it is not an IPTV/streaming feature.
+
+![Video preview with transcoding badge and file navigation](screenshots/preview-video.svg)
+![Rendered document preview](screenshots/preview-doc.svg)
+
+**Dependencies:** rendering Markdown/.docx/spreadsheets and playing native
+`.mp4`/`.webm` need nothing beyond the browser. Playing everything else
+needs **ffmpeg** on the server (optional — only used for non-native
+video). Install it with your distro's package manager:
+
+```
+apt-get install ffmpeg      # Debian / Ubuntu / Mint
+dnf install ffmpeg           # Fedora / RHEL / CentOS / Rocky / Alma
+pacman -S ffmpeg              # Arch / Manjaro
+zypper install ffmpeg        # openSUSE / SLES
+apk add ffmpeg                # Alpine
+```
+
+If ffmpeg isn't found when you preview a non-native video, Explorer
+detects your distro, shows the exact command above, and offers a
+one-click **Install ffmpeg** button (runs as administrator and streams
+its log) — no need to leave the browser or use a terminal.
 
 Close the preview with **Esc** or the **×**. Text in a text/code preview is
 selectable, and **Ctrl/⌘+C** copies the selection (the browser's native copy
