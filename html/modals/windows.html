@@ -22,7 +22,7 @@
                             title="Copy file contents to clipboard" aria-label="Copy file contents to clipboard"
                             x-text="(activeWin() && copiedWinId === activeWin().id) ? 'Copied ✓' : 'Copy'"></button>
                     <button type="button" class="btn btn-sm btn-outline-secondary me-2"
-                            x-show="activeWin() && activeWin().kind === 'preview' && (activeWin().pv.kind === 'markdown' || (activeWin().pv.kind === 'text' && activeWin().pv.lang === 'markdown'))"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.srcdoc && (activeWin().pv.kind === 'markdown' || (activeWin().pv.kind === 'text' && activeWin().pv.lang === 'markdown'))"
                             @click="toggleMarkdownMode(activeWin().id)"
                             x-text="activeWin() && activeWin().pv.kind === 'markdown' ? 'Source' : 'Rendered'"></button>
                     <select class="form-select form-select-sm me-2" style="width:auto"

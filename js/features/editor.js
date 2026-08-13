@@ -96,7 +96,10 @@ window.ExplorerEditor = {
                 const txt = await FS.readText(file.path, ropts);
                 await this._ensureMarked();
                 const html = this._renderMarkdown(txt);
-                if (html == null) set({ kind: 'text', content: txt || '', lang: 'markdown' });
+                // mdMode:'source' so this fallback state is coherent with the toggle
+                // logic below (no srcdoc exists to render, so it must read as
+                // already-in-source-mode, not "undefined").
+                if (html == null) set({ kind: 'text', content: txt || '', lang: 'markdown', mdMode: 'source' });
                 // content (not just md) so toggleMarkdownMode's 'text' state — which
                 // reuses the existing text-preview template bound to pv.content — has
                 // something to show.
@@ -105,6 +108,7 @@ window.ExplorerEditor = {
             return;
         }
         if (Util.isDocx(file)) {
+            if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
                 const buf = await (await FS.readBinaryAsBlob(file.path, ropts)).arrayBuffer();
                 await this._ensureMammoth();
@@ -114,6 +118,7 @@ window.ExplorerEditor = {
             return;
         }
         if (Util.isSpreadsheet(file)) {
+            if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
                 const buf = await (await FS.readBinaryAsBlob(file.path, ropts)).arrayBuffer();
                 await this._ensureXlsx();
@@ -165,6 +170,10 @@ window.ExplorerEditor = {
     toggleMarkdownMode(id) {
         const w = this._win(id);
         if (!w || !w.pv) return;
+        // No rendered doc to switch to (marked failed/unavailable — the
+        // html==null fallback in _loadPreviewInto) — stay put rather than flip
+        // to 'markdown' with an undefined srcdoc, which would blank the iframe.
+        if (!w.pv.srcdoc) return;
         w.pv.mdMode = w.pv.mdMode === 'source' ? 'rendered' : 'source';
         w.pv.kind = w.pv.mdMode === 'source' ? 'text' : 'markdown';
     },
