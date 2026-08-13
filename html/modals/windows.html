@@ -21,6 +21,17 @@
                             @click="copyPreviewContent()"
                             title="Copy file contents to clipboard" aria-label="Copy file contents to clipboard"
                             x-text="(activeWin() && copiedWinId === activeWin().id) ? 'Copied ✓' : 'Copy'"></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                            x-show="activeWin() && activeWin().kind === 'preview' && (activeWin().pv.kind === 'markdown' || (activeWin().pv.kind === 'text' && activeWin().pv.lang === 'markdown'))"
+                            @click="toggleMarkdownMode(activeWin().id)"
+                            x-text="activeWin() && activeWin().pv.kind === 'markdown' ? 'Source' : 'Rendered'"></button>
+                    <select class="form-select form-select-sm me-2" style="width:auto"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'sheet' && activeWin().pv.sheets.length > 1"
+                            @change="_selectSheet(activeWin().id, parseInt($event.target.value))">
+                        <template x-for="(s, i) in (activeWin() && activeWin().pv.sheets) || []" :key="s">
+                            <option :value="i" x-text="s" :selected="i === activeWin().pv.sheetIdx"></option>
+                        </template>
+                    </select>
                     <button type="button" class="btn btn-sm btn-outline-secondary me-1 win-nav-btn"
                             x-show="activeWin() && activeWin().kind === 'preview' && activeWin().nav"
                             :disabled="!activeWin() || !previewCanStep(activeWin().id, -1)"
@@ -67,6 +78,9 @@
                         <p x-text="activeWin().pv.reason"></p>
                         <button class="btn btn-sm btn-warning" x-show="activeWin().pv.permissionDenied" @click="retryPreviewAsAdmin(activeWin().id)">Retry as administrator</button>
                     </div>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && ['markdown','docx','sheet'].includes(activeWin().pv.kind)">
+                    <iframe class="preview-doc" sandbox :srcdoc="activeWin().pv.srcdoc"></iframe>
                 </template>
                 <div class="loading-overlay" x-show="activeWin() && activeWin().loading">Loading…</div>
             </div>

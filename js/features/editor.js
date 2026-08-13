@@ -90,6 +90,40 @@ window.ExplorerEditor = {
         const limit = (this.settings.previewLimitMB || 10) * 1024 * 1024;
         const ropts = admin ? { admin: true } : undefined;
         const set = (pv) => { const w = this._win(id); if (w) { w.pv = Object.assign({ permissionDenied: false }, pv); w.loading = false; } };
+        if (Util.isMarkdown(file)) {
+            if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}).` }); return; }
+            try {
+                const txt = await FS.readText(file.path, ropts);
+                await this._ensureMarked();
+                const html = this._renderMarkdown(txt);
+                if (html == null) set({ kind: 'text', content: txt || '', lang: 'markdown' });
+                // content (not just md) so toggleMarkdownMode's 'text' state — which
+                // reuses the existing text-preview template bound to pv.content — has
+                // something to show.
+                else set({ kind: 'markdown', md: txt || '', content: txt || '', mdMode: 'rendered', lang: 'markdown', srcdoc: this._docIframeShell(html) });
+            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
+            return;
+        }
+        if (Util.isDocx(file)) {
+            try {
+                const buf = await (await FS.readBinaryAsBlob(file.path, ropts)).arrayBuffer();
+                await this._ensureMammoth();
+                const res = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+                set({ kind: 'docx', srcdoc: this._docIframeShell(res.value || '<p>(empty document)</p>') });
+            } catch (e) { set({ kind: 'binary', reason: 'Could not render .docx: ' + (e.message || e) }); }
+            return;
+        }
+        if (Util.isSpreadsheet(file)) {
+            try {
+                const buf = await (await FS.readBinaryAsBlob(file.path, ropts)).arrayBuffer();
+                await this._ensureXlsx();
+                const wb = XLSX.read(buf, { type: 'array' });
+                const sheets = wb.SheetNames.slice();
+                const html = sheets.length ? XLSX.utils.sheet_to_html(wb.Sheets[sheets[0]]) : '<p>(no sheets)</p>';
+                set({ kind: 'sheet', _wb: wb, sheets, sheetIdx: 0, srcdoc: this._docIframeShell(html) });
+            } catch (e) { set({ kind: 'binary', reason: 'Could not render spreadsheet: ' + (e.message || e) }); }
+            return;
+        }
         if (Util.isTextLike(file)) {
             if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
@@ -115,6 +149,34 @@ window.ExplorerEditor = {
         } else {
             set({ kind: 'binary', reason: 'No preview available for this file type.' });
         }
+    },
+
+    _docIframeShell(bodyHtml) {
+        // Sandboxed, no scripts. Minimal base styling; inherits nothing from the app.
+        const css = 'body{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;margin:16px;color:#111;background:#fff}'
+            + 'table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:2px 6px}'
+            + 'img{max-width:100%}pre{white-space:pre-wrap}';
+        return '<!doctype html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + bodyHtml + '</body></html>';
+    },
+    _renderMarkdown(text) {
+        try { return (window.marked ? (marked.parse ? marked.parse(text) : marked(text)) : null); }
+        catch (e) { return null; }
+    },
+    toggleMarkdownMode(id) {
+        const w = this._win(id);
+        if (!w || !w.pv) return;
+        w.pv.mdMode = w.pv.mdMode === 'source' ? 'rendered' : 'source';
+        w.pv.kind = w.pv.mdMode === 'source' ? 'text' : 'markdown';
+    },
+    _selectSheet(id, i) {
+        const w = this._win(id);
+        if (!w || !w.pv || !w.pv._wb) return;
+        const name = w.pv.sheets[i];
+        w.pv.sheetIdx = i;
+        try {
+            const html = XLSX.utils.sheet_to_html(w.pv._wb.Sheets[name]);
+            w.pv.srcdoc = this._docIframeShell(html);
+        } catch (e) { w.pv.srcdoc = this._docIframeShell('<p>Could not render sheet.</p>'); }
     },
 
     // Text preview not backed by a file (e.g. custom-action output).
@@ -175,6 +237,8 @@ window.ExplorerEditor = {
     async _ensureQuill()    { await this._ensureScript('js/quill.js', 'Quill'); },
     async _ensureMarked()   { await this._ensureScript('js/marked.js', 'marked'); },
     async _ensureTurndown() { await this._ensureScript('js/turndown.js', 'TurndownService'); },
+    async _ensureMammoth()  { await this._ensureScript('js/mammoth.browser.min.js', 'mammoth'); },
+    async _ensureXlsx()     { await this._ensureScript('js/xlsx.full.min.js', 'XLSX'); },
 
     // Map file extension/name to a Monaco language id.
     _monacoLang(name) {
