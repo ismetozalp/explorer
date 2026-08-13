@@ -66,8 +66,36 @@
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'pdf'">
                     <iframe :src="activeWin().pv.url" class="preview-iframe"></iframe>
                 </template>
-                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video'">
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video' && activeWin().pv.mode === 'native'">
                     <video :src="activeWin().pv.url" controls class="preview-media"></video>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video' && activeWin().pv.mode === 'hls'">
+                    <div class="preview-video-wrap">
+                        <video id="previewVideo" controls class="preview-media"></video>
+                        <!-- activeWin() && guards: a nested reactive expression here can still
+                             fire once after the enclosing x-if unmounts (e.g. right as the window
+                             closes and activeWinId goes null) — observed live, not hypothetical. -->
+                        <span class="transcode-badge" :class="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? 'is-active' : 'is-idle'"
+                              x-show="activeWin() && activeWin().pv.transcodeState !== 'done'"
+                              x-text="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? '⚙ Transcoding' : 'Remuxing'"></span>
+                    </div>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video' && activeWin().pv.mode === 'ffmpeg-missing'">
+                    <div class="preview-fallback">
+                        <p><strong>ffmpeg is required</strong> to play this video format (the browser can't decode it directly).</p>
+                        <!-- activeWin() && guards: see note above the transcode badge. -->
+                        <template x-if="activeWin() && activeWin().pv.installCmd">
+                            <div>
+                                <p>Install it on this server:</p>
+                                <pre class="p-2 border rounded"><code x-text="activeWin() && activeWin().pv.installCmd"></code></pre>
+                                <button class="btn btn-sm btn-primary" @click="installFfmpeg(activeWin().id)">Install ffmpeg</button>
+                            </div>
+                        </template>
+                        <template x-if="activeWin() && !activeWin().pv.installCmd">
+                            <p class="text-muted">Couldn't detect your package manager — install <code>ffmpeg</code> using your distro's tools, then reopen.</p>
+                        </template>
+                        <div class="mt-2 small text-muted" x-show="video.installLog" x-text="video.installLog" style="white-space:pre-wrap"></div>
+                    </div>
                 </template>
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'audio'">
                     <audio :src="activeWin().pv.url" controls class="preview-media"></audio>

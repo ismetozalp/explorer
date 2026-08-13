@@ -76,4 +76,83 @@ window.ExplorerVideo = {
     },
     // ── lazy hls.js loader (mirrors _ensureMarked/_ensureMammoth/_ensureXlsx in editor.js) ──
     async _ensureHls() { await this._ensureScript('js/hls.min.js', 'Hls'); },
+
+    // ── stateful wiring (Task 5) ─────────────────────────────────────────
+    async _vpProbeFfmpeg() {
+        if (this.video.ffmpeg) return this.video.ffmpeg;
+        const check = async (bin) => { try { await cockpit.spawn(['command', '-v', bin], { err: 'ignore' }); return true; } catch (e) { return false; } };
+        this.video.ffmpeg = { ffmpeg: await check('ffmpeg'), ffprobe: await check('ffprobe') };
+        return this.video.ffmpeg;
+    },
+    async _vpProbeStreams(path) {
+        try {
+            const out = await cockpit.spawn(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name', '-of', 'json', path], { err: 'message' });
+            const j = JSON.parse(out); return j.streams || [];
+        } catch (e) { return []; }
+    },
+    // Poll (cheap `test -s`, no content read) until ffmpeg has flushed the
+    // playlist + first segment, or timeoutMs elapses. hls.js calls our pLoader
+    // the instant loadSource() runs; a not-yet-existent manifest resolves
+    // `readFile` to null → onError(404) → hls.js's own retry budget for that
+    // is short (observed: it does not keep retrying long enough for ffmpeg to
+    // catch up), so we wait here instead of racing it.
+    async _vpWaitForPlaylist(path, timeoutMs) {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            try { await cockpit.spawn(['test', '-s', path], { err: 'ignore' }); return true; } catch (e) {}
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        return false;
+    },
+    // Spawn ffmpeg → HLS in a fresh session dir and attach hls.js to <video id="previewVideo">.
+    async startPreviewVideo(winId, file) {
+        const w = this._win(winId); if (!w) return;
+        await this._teardownPreviewVideo(winId);
+        const home = this.homePath || await FS.homeDir();
+        const root = this._vpCacheRoot(home);
+        const id = Util.uid();
+        const dir = this._vpSessionDir(root, id);
+        await FS.mkdir(dir);
+        const ff = await this._vpProbeFfmpeg();
+        const codec = (ff.ffprobe ? this._vpProbeDecision(await this._vpProbeStreams(file.path)) : 'x264');
+        // Reflect state in the badge.
+        if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; }
+        const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], { err: 'message' });
+        proc.then(() => { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; })
+            .catch(() => { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'ffmpeg failed'; } });
+        const readFile = async (p) => { const h = cockpit.file(p, { binary: true }); try { return await h.read(); } catch (e) { return null; } finally { h.close(); } };
+        const Loader = this._vpLoaderClass(readFile, (u) => this._vpResolveInDir(dir, u));
+        // hls.js is lazy-loaded (no eager <script> tag) — must resolve before
+        // touching window.Hls, both for the isSupported() check and `new Hls(...)`.
+        try { await this._ensureHls(); } catch (e) { const ww = this._win(winId); if (ww && ww.pv) ww.pv.reason = 'Could not load the video player (hls.js failed to load).'; return; }
+        // Don't hand hls.js a source until ffmpeg has actually produced the
+        // manifest + first segment (see _vpWaitForPlaylist).
+        const ready = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000);
+        const stillCurrent = () => { const ww = this._win(winId); return !!(ww && ww.pv && ww.pv.mode === 'hls' && !this.video._sessions[winId]); };
+        if (!ready) { if (stillCurrent()) { const ww = this._win(winId); ww.pv.reason = 'ffmpeg did not produce a playable stream in time.'; } return; }
+        if (!stillCurrent()) return; // window closed / navigated away while we waited
+        // hls.js attaches on the next tick once the <video> element exists.
+        this.$nextTick(() => {
+            const el = document.getElementById('previewVideo');
+            if (!window.Hls || !window.Hls.isSupported() || !el) { const ww = this._win(winId); if (ww && ww.pv) ww.pv.reason = 'This browser cannot play the converted stream.'; return; }
+            const hls = new window.Hls({ pLoader: Loader, fLoader: Loader });
+            hls.loadSource(this._vpSourceUrl(id));
+            hls.attachMedia(el);
+            this.video._sessions[winId] = { hls, proc, dir };
+        });
+    },
+    async _teardownPreviewVideo(winId) {
+        const s = this.video._sessions[winId];
+        if (!s) return;
+        delete this.video._sessions[winId];
+        try { s.hls && s.hls.destroy(); } catch (e) {}
+        try { s.proc && s.proc.close && s.proc.close('cancelled'); } catch (e) {}
+        if (s.dir) { try { await cockpit.spawn(['rm', '-rf', s.dir]); } catch (e) {} }
+    },
+    async reapOrphanPreviews() {
+        const home = this.homePath || await FS.homeDir();
+        const root = this._vpCacheRoot(home);
+        try { await cockpit.spawn(['pkill', '-9', '-f', root]); } catch (e) {}
+        try { await cockpit.spawn(['rm', '-rf', root]); } catch (e) {}
+    },
 };
