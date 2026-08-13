@@ -105,6 +105,14 @@ window.ExplorerSettings = {
             if (top === this.dirPickerEl && this.dirPicker.open) { ev.preventDefault(); this._dpCancel(); return; }
         }
 
+        // Preview ◀/▶ with arrow keys when a preview window is focused.
+        if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')
+            && this.hostVisible && this.activeWin() && this.activeWin().kind === 'preview' && this.activeWin().nav) {
+            const t = ev.target;
+            const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+            if (!typing) { ev.preventDefault(); this.previewStep(this.activeWin().id, ev.key === 'ArrowRight' ? 1 : -1); return; }
+        }
+
         if (inField) return;
 
         if (ev.key === 'F5') { ev.preventDefault(); if (pane) this.reload(pane); return; }

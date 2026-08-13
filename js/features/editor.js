@@ -33,13 +33,42 @@ window.ExplorerEditor = {
         if (existing) { this.activateWindow(existing.id, !opts.minimized); return; }
 
         const id = this._newWinId();
+        const nav = (opts.siblings && opts.siblings.length)
+            ? (() => {
+                const list = opts.siblings.filter(Util.isPreviewable);
+                const idx = list.findIndex(s => s.path === file.path);
+                return idx >= 0 && list.length > 1 ? { list, idx } : null;
+            })()
+            : null;
         this.windows.push({
             id, kind: 'preview', path: file.path, _file: file,
             title: this._winTitle(file.path, 'preview'),
             pv: { kind: null, content: '', lang: '', url: null, reason: '', permissionDenied: false },
-            loading: true,
+            loading: true, nav,
         });
         this.activateWindow(id, !opts.minimized);
+        await this._loadPreviewInto(id, file);
+    },
+
+    previewCanStep(id, dir) {
+        const w = this._win(id);
+        if (!w || !w.nav) return false;
+        const next = w.nav.idx + dir;
+        return next >= 0 && next < w.nav.list.length;
+    },
+    async previewStep(id, dir) {
+        const w = this._win(id);
+        if (!w || !w.nav) return;
+        const next = w.nav.idx + dir;
+        if (next < 0 || next >= w.nav.list.length) return;      // clamp
+        if (this._teardownPreviewVideo) this._teardownPreviewVideo(id); // stop any hls/ffmpeg (Task 5)
+        w.nav.idx = next;
+        const file = w.nav.list[next];
+        w._file = file;
+        w.path = file.path;
+        w.title = this._winTitle(file.path, 'preview');
+        w.pv = { kind: null, content: '', lang: '', url: null, reason: '', permissionDenied: false };
+        w.loading = true;
         await this._loadPreviewInto(id, file);
     },
 

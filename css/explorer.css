@@ -1776,3 +1776,7 @@ html, body { max-width: 100%; }
     padding: 10px 12px; font-size: 14px; border-radius: 4px; white-space: nowrap;
 }
 .toolbar-more-item:hover, .toolbar-more-item:active { background: var(--ex-bg-tab); }
+
+/* Maximized preview/editor window stays above the bottom status bar (.status-bar
+   is flex: 0 0 24px — css/explorer.css:302). */
+#windowHost .modal-dialog.modal-fullscreen .modal-content { max-height: calc(100vh - 24px); }
