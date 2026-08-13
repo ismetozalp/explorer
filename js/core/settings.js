@@ -105,8 +105,10 @@ window.ExplorerSettings = {
             if (top === this.dirPickerEl && this.dirPicker.open) { ev.preventDefault(); this._dpCancel(); return; }
         }
 
-        // Preview ◀/▶ with arrow keys when a preview window is focused.
+        // Preview ◀/▶ with arrow keys when a preview window is focused. Plain
+        // arrows only — Alt+←/→ must keep reaching goBack/goForward below.
         if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')
+            && !ev.altKey && !ev.ctrlKey && !ev.metaKey
             && this.hostVisible && this.activeWin() && this.activeWin().kind === 'preview' && this.activeWin().nav) {
             const t = ev.target;
             const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
