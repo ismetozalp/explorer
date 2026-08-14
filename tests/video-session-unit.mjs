@@ -58,13 +58,35 @@ const FAKE_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:12.0,\nseg_00000.ts\n#
 const UNDER_BUFFERED_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:5.0,\nseg_00000.ts\n';
 let catQueue = null;
 let onFfmpeg = null;    // test hook: called with every ffmpeg argv as it spawns
+let catDelayMs = 0;     // make a playlist read slow, to abort a request mid-read
+
+// Fix-round-2: index.m3u8 is modelled as a real FILE with real contents —
+// `{start, count}` = the run that wrote it and how many segments it has
+// listed — instead of one constant string. This matters because ffmpeg does
+// NOT truncate the playlist when a restarted run spawns: verified against
+// ffmpeg 7.1.5 by sampling the file every 100ms across a restart, it still
+// held the KILLED run's 185 entries (first entry seg_00000.ts) 100ms in, and
+// only became the new run's (1 entry, seg_00900.ts) at ~700ms. A fake that
+// always returns a playlist "belonging" to whichever run is current hides
+// every bug in that window.
+let diskPlaylist = { start: 0, count: 3 };
+const renderPlaylist = () => {
+    if (!diskPlaylist) return '';
+    let t = '#EXTM3U\n#EXT-X-VERSION:3\n';
+    for (let i = 0; i < diskPlaylist.count; i++) t += '#EXTINF:12.0,\nseg_' + String(diskPlaylist.start + i).padStart(5, '0') + '.ts\n';
+    return t;
+};
+// The default state must be byte-identical to the old constant, so every
+// pre-existing block keeps exercising exactly what it did before.
+assert.strictEqual(renderPlaylist(), FAKE_PLAYLIST);
 const cockpit = {
     spawn(argv) {
         spawns.push(argv);
         if (argv[0] === 'ffmpeg') { const p = makeProc(argv); procs.push(p); if (onFfmpeg) onFfmpeg(argv); return p; }
         if (argv[0] === 'cat') {
-            const text = (catQueue && catQueue.length) ? catQueue.shift() : FAKE_PLAYLIST;
-            const p = Promise.resolve(text); p.close = () => {}; return p;
+            const text = (catQueue && catQueue.length) ? catQueue.shift() : renderPlaylist();
+            const p = catDelayMs ? new Promise((r) => setTimeout(() => r(text), catDelayMs)) : Promise.resolve(text);
+            p.close = () => {}; return p;
         }
         // rm -rf <dir> / sh -c … all succeed immediately.
         const p = Promise.resolve('');
@@ -432,7 +454,7 @@ function makeApp() {
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
     ExRT.video.hb = null; activeIntervals.clear();
-    produced.clear();
+    produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpSegPollMs = 5;                  // keep the poll loop fast; logic is unchanged
     // mpeg4 video → _vpProbeDecision says x264 → the transcode (seekable) path.
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: DURATION });
@@ -441,7 +463,10 @@ function makeApp() {
     onFfmpeg = (argv) => {
         const i = argv.indexOf('-start_number');
         const start = i === -1 ? 0 : parseInt(argv[i + 1], 10);
-        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); }, 10);
+        // ffmpeg lists a segment only when it CLOSES it, and rewrites its
+        // playlist then — until that moment the previous run's file is still
+        // on disk (see the diskPlaylist note above).
+        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); diskPlaylist = { start, count: 3 }; }, 10);
     };
 
     await app.startPreviewVideo('w1', { path: '/v/a.avi' });
@@ -549,7 +574,7 @@ function makeApp() {
     assert.ok(spawns.some((a) => a[0] === 'rm' && a[1] === '-rf' && a[2] === sess.dir), 'teardown must remove the session dir');
     assert.strictEqual(ExRT.video.hb, null);
     console.log('OK seek: synthetic VOD playlist (' + listed + ' segments), 1 coalesced restart at -ss ' + T + '/-start_number ' + SEEK_INDEX + ', dir kept, old ffmpeg killed, teardown clean');
-    onFfmpeg = null; produced.clear();
+    onFfmpeg = null; produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -566,14 +591,17 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpSegPollMs = 5;
     app._vpSegWaitMs = 4000;
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
     onFfmpeg = (argv) => {
         const i = argv.indexOf('-start_number');
         const start = i === -1 ? 0 : parseInt(argv[i + 1], 10);
-        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); }, 10);
+        // ffmpeg lists a segment only when it CLOSES it, and rewrites its
+        // playlist then — until that moment the previous run's file is still
+        // on disk (see the diskPlaylist note above).
+        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); diskPlaylist = { start, count: 3 }; }, 10);
     };
     await app.startPreviewVideo('w1', { path: '/v/a.avi' });
     const sess = ExRT.video.sessions.get('w1');
@@ -591,7 +619,18 @@ function makeApp() {
     const runsWhileParked = spawns.filter((a) => a[0] === 'ffmpeg').length;
     assert.strictEqual(runsWhileParked, 1, 'a read-ahead request inside the tolerance window must WAIT, not respawn ffmpeg');
 
+    // Fix-round-2: pin the LOOP-TOP abort check specifically. An aborted
+    // request must stop polling within about one poll interval — not keep
+    // reading the playlist for the rest of its 30s deadline (each iteration is
+    // a `cat` spawn, and it is the same loop that would go on to decide
+    // restarts). Counted in `cat` calls, which is what that loop costs.
+    const catsAtAbort = spawns.filter((a) => a[0] === 'cat').length;
     stale.abort();     // hls.js does this on seek
+    await wait(100);   // ~20 poll intervals at _vpSegPollMs = 5
+    const catsAfterAbort = spawns.filter((a) => a[0] === 'cat').length - catsAtAbort;
+    assert.ok(catsAfterAbort <= 2,
+        'an aborted request must stop polling immediately — it issued ' + catsAfterAbort + ' more playlist reads over 20 poll intervals');
+
     const seeked = await new Promise((resolve, reject) => {
         new Loader().load({ url: 'explorer-preview://sid1/seg_01200.ts', responseType: 'arraybuffer' }, {}, {
             onSuccess: (r) => resolve(r.data), onError: (e) => reject(new Error(JSON.stringify(e))),
@@ -606,9 +645,47 @@ function makeApp() {
         'exactly ONE restart, for the seek — an aborted request must never (re)start ffmpeg. Got runStarts ' + JSON.stringify(runStarts));
     assert.strictEqual(ExRT.video.sessions.get('w1').runStart, 1200, 'the encoder must be left where the live request wants it');
     assert.strictEqual(staleOutcome, null, 'an aborted request must not call back at all');
-    console.log('OK C1: aborted read-ahead caused 0 restarts; the seek caused exactly 1 (runStarts ' + JSON.stringify(runStarts) + ')');
+    console.log('OK C1: aborted read-ahead caused 0 restarts (' + catsAfterAbort + ' extra playlist reads after abort); the seek caused exactly 1 (runStarts ' + JSON.stringify(runStarts) + ')');
     await V._teardownPreviewVideo.call(app, 'w1');
-    onFfmpeg = null; produced.clear();
+    onFfmpeg = null; produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-2: pin the PRE-RESTART abort check specifically. The loop-top
+// check above cannot cover it: abort can land while the loop is already
+// awaiting its playlist read, and what happens next is a restart decision
+// made on behalf of a fragment nobody wants. Here the playlist read is slowed
+// so the abort lands exactly inside it.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 2000;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const s = ExRT.video.sessions.get('w1');
+    const runsBefore = spawns.filter((a) => a[0] === 'ffmpeg').length;
+
+    catDelayMs = 120;                       // the progress read now takes 120ms
+    const l = new (s.hls.config.pLoader)();
+    let called = null;
+    l.load({ url: 'explorer-preview://sid1/seg_01200.ts', responseType: 'arraybuffer' }, {}, {
+        onSuccess: () => { called = 'success'; }, onError: (e) => { called = e; },
+    });
+    await new Promise((r) => setTimeout(r, 40));    // the loop is inside the slow read
+    l.abort();
+    await new Promise((r) => setTimeout(r, 300));   // long past the read + a restart decision
+    catDelayMs = 0;
+
+    assert.strictEqual(spawns.filter((a) => a[0] === 'ffmpeg').length, runsBefore,
+        'a request aborted DURING its progress read must not go on to restart ffmpeg for a fragment nobody wants');
+    assert.strictEqual(called, null, 'and it must not call back');
+    assert.strictEqual(ExRT.video.sessions.get('w1').runStart, 0, 'the encoder must be left exactly where it was');
+    console.log('OK C1 (abort mid-read): no restart decision is taken after the abort');
+    await V._teardownPreviewVideo.call(app, 'w1');
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -624,7 +701,7 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     // Worst case on purpose: NOTHING is ever produced (no onFfmpeg hook), so
     // neither request can be satisfied and both keep re-deciding for their
     // whole deadline. That is the only way the two loops can actually fight —
@@ -656,7 +733,7 @@ function makeApp() {
     assert.strictEqual(seekRes.e.code, 404);
     console.log('OK C1 budget: un-aborted collision bounded to ' + runStarts2.length + ' ffmpeg runs ' + JSON.stringify(runStarts2) + ' over ' + app._vpSegWaitMs + 'ms of contention');
     await V._teardownPreviewVideo.call(app, 'w1');
-    onFfmpeg = null; produced.clear();
+    onFfmpeg = null; produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -669,7 +746,7 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
     await app.startPreviewVideo('w1', { path: '/v/a.avi' });
     const s = ExRT.video.sessions.get('w1');
@@ -680,15 +757,15 @@ function makeApp() {
     await app._vpRestartAt('w1', token, 1200);         // records {0,2}
     assert.strictEqual(s.runStart, 1200);
     assert.strictEqual(s.frontier, 1199, 'a fresh run has flushed nothing — its frontier must be reset with runStart');
+    diskPlaylist = { start: 1200, count: 3 };          // the run at 1200 publishes its first segments
     await app._vpRunFrontier(s);                       // → 1202
     await app._vpRestartAt('w1', token, 500);          // records {1200,1202}
-    // The run at 500 is killed before it flushes anything: its playlist is
-    // still empty when the next restart measures it, so there is nothing to
-    // record. (Pre-fix this pushed {500, <the previous run's frontier>} — a
-    // range covering ~700 segments that had never been written.)
-    catQueue = ['#EXTM3U\n#EXT-X-VERSION:3\n'];
+    // The run at 500 is killed before it flushes anything, so what is on disk
+    // when the next restart measures is still the 1200-run's playlist — which
+    // must credit the run at 500 with nothing. (Pre-fix this pushed
+    // {500, <whatever the last frontier read happened to say>} — a range
+    // covering hundreds of segments that had never been written.)
     await app._vpRestartAt('w1', token, 100);
-    catQueue = null;
 
     // Array.from: doneRuns is a vm-realm array (see the deepStrictEqual note at
     // the top of tests/videoplayer-unit.mjs).
@@ -714,7 +791,8 @@ function makeApp() {
     // Fix-round-1 (M5): the restart path must MERGE ranges, not append blindly,
     // or repeated seeking grows doneRuns without bound.
     s.doneRuns = [{ start: 0, end: 99 }];
-    s.runStart = 100;                       // its measured frontier will be 100+3-1 = 102
+    s.runStart = 100;
+    diskPlaylist = { start: 100, count: 3 };   // this run has published 100..102
     await app._vpRestartAt('w1', token, 900);
     assert.strictEqual(s.doneRuns.length, 1, 'an adjacent range must merge into the existing one, not be pushed alongside it');
     assert.strictEqual(s.doneRuns[0].start, 0);
@@ -735,6 +813,62 @@ function makeApp() {
     await V._teardownPreviewVideo.call(app, 'w1');
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-2 (C2, second door): ffmpeg does NOT truncate index.m3u8 when a
+// restarted run spawns — verified against ffmpeg 7.1.5, the killed run's
+// playlist stays on disk for ~700ms until the new run closes its first
+// segment. So "count the entries in the playlist" answers a question about
+// the WRONG run during that window, and a second seek landing inside it (the
+// real 2400s-then-5400s scenario) recorded a completed range for a run that
+// had flushed nothing. The completeness gate then vouched for the
+// half-written seg_01200.ts the killed run had left open, and served it.
+//
+// This is the same failure C2 named, reached without any stale `frontier`
+// field: the measurement itself is wrong. The fix makes the progress read
+// run-aware (count only entries contiguous from THIS run's -start_number).
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 150;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const s = ExRT.video.sessions.get('w1');
+    const token = s.token;
+
+    await app._vpRunFrontier(s);                     // initial run: 3 flushed → frontier 2
+    await app._vpRestartAt('w1', token, 1200);       // first seek
+    // The run at 1200 has spawned and opened seg_01200.ts, but has NOT closed
+    // it — so the file exists on disk half-written, and index.m3u8 still holds
+    // the initial run's three entries (seg_00000..seg_00002).
+    produced.add(1200);
+    assert.deepStrictEqual(Array.from(diskPlaylist ? [diskPlaylist.start, diskPlaylist.count] : []), [0, 3],
+        'the fake must still be showing the OLD run\'s playlist here — that is the whole point of this test');
+
+    await app._vpRestartAt('w1', token, 1350);       // second seek, inside that window
+
+    const ranges = Array.from(s.doneRuns, (r) => ({ start: r.start, end: r.end }));
+    assert.ok(!ranges.some((r) => 1200 >= r.start && 1200 <= r.end),
+        'the run at 1200 flushed NOTHING — no completed range may cover its segments. Got ' + JSON.stringify(ranges));
+    assert.strictEqual(V._vpSegKnownComplete.call(app, { index: 1200, runStart: s.runStart, frontier: s.frontier, doneRuns: s.doneRuns }), false,
+        'seg_01200.ts is half-written; the completeness gate must not vouch for it');
+
+    // End to end: the loader must NOT hand hls.js those bytes, even though the
+    // file is on disk (an MSE append of a truncated .ts is a decode error).
+    const res = await new Promise((resolve) => {
+        new (s.hls.config.pLoader)().load({ url: 'explorer-preview://sid1/seg_01200.ts', responseType: 'arraybuffer' }, {}, {
+            onSuccess: (r) => resolve({ ok: true, bytes: r.data.byteLength }), onError: (e) => resolve({ ok: false, e }),
+        });
+    });
+    assert.strictEqual(res.ok, false,
+        'the half-written segment left behind by a killed run must never be served — it was, which is the C2 failure mode');
+    console.log('OK C2 (stale playlist): a run that flushed nothing records no range ' + JSON.stringify(ranges) + '; its half-written segment is not served');
+    await V._teardownPreviewVideo.call(app, 'w1');
+}
+
 // Fix-round-1 (I1b): once the run that owns a range has EXITED, a segment
 // beyond its frontier can never appear — fail immediately instead of burning
 // the whole deadline (hls.js applies no timeout to a custom loader and retries
@@ -744,7 +878,7 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpSegPollMs = 5;
     app._vpSegWaitMs = 30000;      // the REAL deadline: the test must not depend on it
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 100.048980 });
@@ -776,7 +910,7 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpSegPollMs = 5;
     app._vpSegWaitMs = 60;                  // real timeout logic, test-scale deadline
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 600 });
@@ -800,7 +934,7 @@ function makeApp() {
     const app = makeApp();
     spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
     ExRT.video.sessions.clear(); ExRT.video.gen.clear();
-    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
     app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 600 });
     await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
     const s = ExRT.video.sessions.get('w1');

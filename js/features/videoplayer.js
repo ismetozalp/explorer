@@ -288,13 +288,39 @@ window.ExplorerVideo = {
         const f = Number.isFinite(frontier) ? frontier : runStart - 1;
         return index <= f + this._vpSegAheadTolerance ? 'wait' : 'restart';
     },
-    // PURE: how many segments has the current ffmpeg run flushed? ffmpeg appends
-    // one #EXTINF to its own playlist per completed segment, so counting them is
-    // a cheap, allocation-free progress read (one `cat`, no directory listing).
-    _vpCountSegments(text) {
-        if (!text) return 0;
-        const m = text.match(/#EXTINF:/g);
-        return m ? m.length : 0;
+    // PURE: how many segments has the run that started at `runStart` flushed?
+    //
+    // ffmpeg rewrites its playlist each time it CLOSES a segment, so counting
+    // entries is a cheap progress read (one `cat`, no directory listing) — but
+    // it must be counted PER RUN. Fix-round-2: a restarted run does NOT
+    // truncate index.m3u8 when it spawns; the killed run's playlist stays on
+    // disk until the new run closes its first segment. Verified against ffmpeg
+    // 7.1.5 by sampling the file every 100ms across a restart with
+    // `-start_number 900`: at +100ms it still held the previous run's 185
+    // entries starting at seg_00000.ts, and only became the new run's (1 entry,
+    // seg_00900.ts) at ~700ms. Counting entries blindly during that window
+    // credits the new run with the old one's output — enough, with a second
+    // seek landing inside it, to record a "completed" range for a run that had
+    // written nothing, and then to serve the half-written segment the killed
+    // run had left open.
+    //
+    // So: entries are matched by NAME, and only a run of indices contiguous
+    // from `runStart` counts. A playlist belonging to any other run (its first
+    // entry isn't runStart) contributes 0 — the honest answer, "this run has
+    // flushed nothing yet". Chosen over deleting index.m3u8 before each restart
+    // (the other obvious fix) because it is a pure function of the file's
+    // contents rather than a second piece of filesystem timing to get right: it
+    // stays correct no matter how long ffmpeg takes to publish, and it needs no
+    // separate handling for a playlist that is briefly absent.
+    _vpRunFlushed(text, runStart) {
+        if (!text || !Number.isFinite(runStart)) return 0;
+        const re = /^seg_(\d+)\.ts\s*$/gm;
+        let m, n = 0, expect = runStart;
+        while ((m = re.exec(text))) {
+            if (parseInt(m[1], 10) !== expect) break;   // another run's playlist, or a gap
+            expect++; n++;
+        }
+        return n;
     },
     // ── session paths (ported from InFlightTV session.ts) ──
     _vpCacheRoot(home) { return home + '/.cache/cockpit-explorer/preview'; },
@@ -664,7 +690,7 @@ window.ExplorerVideo = {
     async _vpRunFrontier(s) {
         let text = null;
         try { text = await cockpit.spawn(['cat', this._vpPlaylist(s.dir)], { err: 'ignore' }); } catch (e) {}
-        s.frontier = s.runStart + this._vpCountSegments(text) - 1;
+        s.frontier = s.runStart + this._vpRunFlushed(text, s.runStart) - 1;
         return s.frontier;
     },
     // Serve one segment to hls.js, producing it on demand if necessary. Returns

@@ -292,12 +292,48 @@ assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-use
     console.log('OK _vpSegKnownComplete: current run gated by its playlist frontier, earlier runs by their recorded ranges');
 }
 
-// (5) run-progress read (ffmpeg's own playlist is now only a progress counter)
-assert.strictEqual(V._vpCountSegments(null), 0);
-assert.strictEqual(V._vpCountSegments('#EXTM3U\n#EXT-X-VERSION:3\n'), 0);
-assert.strictEqual(V._vpCountSegments('#EXTM3U\n#EXTINF:4.004,\nseg_01200.ts\n#EXTINF:4.004,\nseg_01201.ts\n'), 2,
-    'the frontier is derived from this count — miscounting makes every request look like a seek');
-console.log('OK _vpCountSegments: counts flushed segments of the current run');
+// (5) run-progress read: how many segments has THIS run flushed?
+// Fix-round-2: ffmpeg does not truncate index.m3u8 when a restarted run
+// spawns (measured against ffmpeg 7.1.5: the killed run's playlist was still
+// on disk ~700ms in), so the count must be attributed by segment NAME, not
+// taken as "however many entries are in the file".
+{
+    const pl = (start, n) => {
+        let t = '#EXTM3U\n#EXT-X-VERSION:3\n';
+        for (let i = 0; i < n; i++) t += '#EXTINF:4.004,\nseg_' + String(start + i).padStart(5, '0') + '.ts\n';
+        return t;
+    };
+    assert.strictEqual(V._vpRunFlushed(null, 0), 0);
+    assert.strictEqual(V._vpRunFlushed('#EXTM3U\n#EXT-X-VERSION:3\n', 0), 0, 'a header with no segments is no progress');
+    assert.strictEqual(V._vpRunFlushed(pl(0, 3), 0), 3);
+    assert.strictEqual(V._vpRunFlushed(pl(1200, 2), 1200), 2, 'a restarted run\'s own playlist counts normally');
+    // The stale-playlist window: the file still belongs to the previous run.
+    assert.strictEqual(V._vpRunFlushed(pl(0, 185), 900), 0,
+        'a playlist written by a DIFFERENT run must count as zero progress — crediting it is what recorded completed ranges for runs that wrote nothing');
+    assert.strictEqual(V._vpRunFlushed(pl(0, 30), 41), 0,
+        'and it must not vouch for the half-written segment a killed run left behind at index 41');
+    assert.strictEqual(V._vpRunFlushed(pl(1200, 3), 600), 0, 'a stale playlist with HIGHER indices is just as wrong');
+    // A gap stops the count: only a contiguous run from runStart is progress.
+    assert.strictEqual(V._vpRunFlushed(pl(0, 2) + '#EXTINF:4.004,\nseg_00009.ts\n', 0), 2);
+    console.log('OK _vpRunFlushed: counts only entries contiguous from this run\'s start; another run\'s playlist counts 0');
+}
+
+// The same thing through _vpRunFrontier, with absolute values — this is the
+// transient half of the fix-round-2 finding: a backward restart at 41 while
+// the outgoing run's 30-entry playlist is still on disk used to compute a
+// frontier of 70, which vouched for seg_00041.ts all on its own (no doneRuns
+// involved).
+{
+    const saved = sandbox.cockpit;
+    let text = '#EXTM3U\n#EXT-X-VERSION:3\n';
+    for (let i = 0; i < 30; i++) text += '#EXTINF:4.004,\nseg_' + String(i).padStart(5, '0') + '.ts\n';
+    sandbox.cockpit = { spawn: async () => text };
+    const s = { dir: '/c/sid', runStart: 41 };
+    assert.strictEqual(await V._vpRunFrontier(s), 40,
+        'a run that has published nothing sits one below its start, however many entries the PREVIOUS run left in the file');
+    sandbox.cockpit = saved;
+    console.log('OK _vpRunFrontier: previous run\'s 30-entry playlist + runStart 41 → frontier 40 (was 70)');
+}
 
 // FIX B: playlist "enough buffered to start" decision
 assert.strictEqual(V._vpPlaylistBuffered('', 30), false, 'empty/no playlist is never buffered');
