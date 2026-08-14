@@ -525,11 +525,26 @@ total length and a fully seekable progress bar from the start, and you can
 drag to any point in the file — converting restarts at that point and
 playback resumes there. Parts that are already converted (including ones
 you skipped over) play straight from the cache without being converted
-again, and only one conversion ever runs per open video. Remuxed video
-(the gray **Remuxing** badge) keeps the earlier behaviour — its segments
-are cut on the source's own keyframes rather than a fixed grid, so its
-timeline fills in as it goes. This only plays local files —
-it is not an IPTV/streaming feature.
+again, and only one conversion ever runs per open video. This only plays
+local files — it is not an IPTV/streaming feature.
+
+**Remuxed video (3.1.1):** video that only needs repackaging (the gray
+**Remuxing** badge) also shows the file's real total length on the progress
+bar from the moment playback starts. Its pieces are cut on the source's own
+keyframes rather than a fixed grid, so unlike a transcode it can't restart
+the conversion at an arbitrary point: dragging **forward** past the part
+that has been repackaged so far takes you as far as it has got rather than
+to the exact spot you dropped the marker (repackaging typically runs many
+times faster than playback, so the whole file usually catches up within a
+few minutes). Dragging **backwards** into anything already repackaged is
+exact and instant.
+
+Repackaging is only used when the source's video can be handed to the
+browser untouched. Explorer checks that by decoding the first frames before
+it commits: if the decoder objects to the source — some files carry
+malformed data that a player will refuse even though the file itself is
+otherwise fine — it re-encodes instead (the green **⚙ Transcoding** badge),
+which is slower but always plays.
 
 ![Video preview with transcoding badge and file navigation](screenshots/preview-video.svg)
 ![Rendered document preview](screenshots/preview-doc.svg)

@@ -21,6 +21,68 @@ assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'h264'
 assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'hevc' }]), 'x264');
 assert.strictEqual(V._vpProbeDecision([]), 'x264'); // unknown → transcode
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3.1.1 — copy-safety gate. `-c:v copy` hands the SOURCE bitstream to the
+// browser's decoder, so "the container says h264" is not sufficient. Live
+// evidence: a user's h264 High@4.1 mkv with a malformed SEI NAL in its first
+// access unit remuxes cleanly and is then rejected by Chromium
+// (PIPELINE_ERROR_DECODE at ~0.2s, every time) — proven to be a bitstream
+// property, since copying the same video into a plain fragmented MP4 for a
+// bare <video src> fails identically while re-encoding it plays.
+// ─────────────────────────────────────────────────────────────────────────
+
+// The third argument is tri-state: unchecked must keep pre-3.1.1 behaviour.
+assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'h264' }], true), 'copy');
+assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'h264' }], false), 'x264',
+    'an h264 source the decoder complained about must be transcoded, not stream-copied');
+assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'h264' }], undefined), 'copy',
+    'not having run the check must not change the decision');
+// A non-h264 source is transcoded whatever the decode probe said — the gate
+// only ever removes `copy`, it can never introduce it.
+assert.strictEqual(V._vpProbeDecision([{ codec_type: 'video', codec_name: 'hevc' }], true), 'x264');
+
+// The probe argv must actually DECODE (frame entries), must stop after a
+// bounded number of frames, and must never be an open-ended read of a
+// multi-gigabyte file over a network mount.
+{
+    const a = V._vpDecodeProbeArgs('/m/a.mkv');
+    const ja = a.join(' ');
+    assert.strictEqual(a[0], 'ffprobe');
+    assert.strictEqual(a[a.length - 1], '/m/a.mkv');
+    assert.ok(/-show_entries frame=/.test(ja), 'must ask for FRAME entries — ffprobe only decodes when it has to');
+    assert.ok(ja.includes('-read_intervals %+#' + V._vpDecodeProbeFrames),
+        'must bound the decode to a frame count, not read the whole file');
+    assert.ok(Number.isFinite(V._vpDecodeProbeFrames) && V._vpDecodeProbeFrames > 0 && V._vpDecodeProbeFrames <= 300);
+    assert.ok(ja.includes('-select_streams v:0'), 'audio/subtitle streams are irrelevant to whether the VIDEO copy is safe');
+}
+
+// Complaint extraction works on what we ASKED FOR (frame rows), not on the
+// wording of ffmpeg's messages — so it survives a version/locale change.
+assert.strictEqual(V._vpDecodeComplaint(''), '');
+assert.strictEqual(V._vpDecodeComplaint(null), '');
+assert.strictEqual(V._vpDecodeComplaint('frame,I\nframe,P\nframe,B\n'), '');
+assert.strictEqual(V._vpDecodeComplaint('frame,I,\nframe,B,\n'), '',
+    'a trailing empty CSV field is still a frame row (real ffprobe emits both shapes)');
+assert.strictEqual(V._vpDecodeComplaint('frame,I\n[h264 @ 0x55] SEI type 5 size 732 truncated at 730\nframe,B\n'),
+    '[h264 @ 0x55] SEI type 5 size 732 truncated at 730');
+// Whitespace-only output is not a complaint (an empty run must stay `copy`).
+assert.strictEqual(V._vpDecodeComplaint('\n  \n\t\n'), '');
+// Anything that is not a frame row IS a complaint, even without a [tag].
+assert.strictEqual(V._vpDecodeComplaint('frame,I\nSomething went wrong\n'), 'Something went wrong');
+
+// 3.1.1 — MediaSource duration override. Remux path only: the transcode
+// path's synthetic playlist already declares the true duration, and forcing a
+// slightly different number there can put MediaSource.duration under the
+// buffered tail (which throws).
+assert.deepStrictEqual({ ...V._vpAttachOverrides('copy', 6081.184) }, { duration: 6081.184 });
+assert.strictEqual(V._vpAttachOverrides('x264', 6081.184), null,
+    'the transcode path builds its own full-duration playlist — do not also override');
+for (const bad of [null, undefined, 0, -1, NaN, Infinity, '6081']) {
+    assert.strictEqual(V._vpAttachOverrides('copy', bad), null,
+        'an unusable probed duration must leave hls.js alone rather than pin a bogus one: ' + String(bad));
+}
+
 // hls args (local file, no curl/url/live flags)
 const args = V._vpBuildHlsArgs({ inputPath: '/m/a.mkv', dir: '/c/s', videoCodec: 'copy' });
 const j = args.join(' ');

@@ -79,6 +79,10 @@ const renderPlaylist = () => {
 // The default state must be byte-identical to the old constant, so every
 // pre-existing block keeps exercising exactly what it did before.
 assert.strictEqual(renderPlaylist(), FAKE_PLAYLIST);
+// 3.1.1 copy-safety probe plumbing (see the ffprobe branch in spawn below):
+// what the decoding probe printed, and every such call it made.
+let decodeProbeOut = '';
+const decodeProbes = [];
 const cockpit = {
     spawn(argv) {
         spawns.push(argv);
@@ -87,6 +91,18 @@ const cockpit = {
             const text = (catQueue && catQueue.length) ? catQueue.shift() : renderPlaylist();
             const p = catDelayMs ? new Promise((r) => setTimeout(() => r(text), catDelayMs)) : Promise.resolve(text);
             p.close = () => {}; return p;
+        }
+        // 3.1.1 copy-safety probe: an ffprobe run that DECODES frames (it is
+        // the only ffprobe call carrying -read_intervals). `decodeProbeOut`
+        // is what it printed — cockpit merges stderr into the resolved output
+        // via err:'out', so a decoder complaint arrives here, not as a
+        // rejection. `null` makes the probe itself fail.
+        if (argv[0] === 'ffprobe' && argv.includes('-read_intervals')) {
+            decodeProbes.push(argv);
+            const p = decodeProbeOut === null ? Promise.reject(new Error('ffprobe failed')) : Promise.resolve(decodeProbeOut);
+            p.catch(() => {});
+            p.close = () => {};
+            return p;
         }
         // rm -rf <dir> / sh -c … all succeed immediately.
         const p = Promise.resolve('');
@@ -141,7 +157,16 @@ class FakeHls {
     // mixin passed in (pLoader/fLoader) and drive it like hls.js would.
     constructor(config) { this.config = config || {}; this.destroyed = false; this.src = null; this.media = null; hlsInstances.push(this); }
     loadSource(u) { this.src = u; }
-    attachMedia(el) { this.media = el; }
+    // Mirrors the real hls.js contract (see `attachMedia` in js/hls.min.js):
+    // the argument is either the media element itself or an attach-data object
+    // `{ media, overrides }`. 3.1.1 uses the object form on the remux path to
+    // pin MediaSource.duration to the probed length, so a stub that only ever
+    // stored its argument would silently record the wrapper as `.media`.
+    attachMedia(arg) {
+        const isData = arg && typeof arg === 'object' && 'media' in arg;
+        this.media = isData ? arg.media : arg;
+        this.overrides = isData ? arg.overrides : undefined;
+    }
     destroy() { this.destroyed = true; }
 }
 FakeHls.isSupported = () => true;
@@ -949,6 +974,110 @@ function makeApp() {
         'the remux path must keep reading ffmpeg\'s own playlist off disk, not a synthetic one');
     await V._teardownPreviewVideo.call(app, 'w1');
     console.log('OK remux path unchanged: no forced keyframes, no synthetic playlist');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3.1.1 — the copy-safety gate, end to end through startPreviewVideo.
+//
+// The bug: `-c:v copy` streams the SOURCE h264 bitstream to the browser, so a
+// source ffmpeg is happy to remux can still be one Chromium's decoder rejects
+// outright. Live-verified on a user's 2h37m h264 High@4.1 mkv whose first
+// access unit carries a malformed SEI NAL: ffmpeg remuxed all 2200 segments
+// without a single warning, and the player produced
+// PIPELINE_ERROR_DECODE ("Failed to send video packet for decoding") at
+// ~0.2s and never advanced — with a fatal hls.js bufferAppendError that also
+// froze the reported duration, i.e. BOTH reported symptoms from one defect.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; decodeProbes.length = 0; procs.length = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    if (ExRT.video.hb) ExRT.video.hb = null; activeIntervals.clear();
+    produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 9469.451 });
+    decodeProbeOut = 'frame,I\n[h264 @ 0x55] SEI type 5 size 732 truncated at 730\nframe,B\n';
+
+    await app.startPreviewVideo('w1', { path: '/v/broken.mkv' });
+    const s = ExRT.video.sessions.get('w1');
+    assert.strictEqual(decodeProbes.length, 1, 'an h264 source must be decode-probed exactly once before it is stream-copied');
+    assert.strictEqual(decodeProbes[0][decodeProbes[0].length - 1], '/v/broken.mkv', 'the probe must read the SOURCE file');
+    assert.strictEqual(s.codec, 'x264', 'a decoder complaint must route the file to the transcode path');
+    assert.ok(s.proc.argv.includes('-c:v') && s.proc.argv.includes('libx264'));
+    assert.ok(s.proc.argv.includes('-force_key_frames'),
+        'once transcoded, the file must also get the uniform-segment/seek machinery');
+    assert.ok(!s.proc.argv.includes('copy'));
+    // …and therefore the synthetic full-duration playlist, which is what makes
+    // the duration correct and every position seekable.
+    const pl = await new Promise((resolve) => {
+        new (s.hls.config.pLoader)().load({ url: 'explorer-preview://' + s.token + '/index.m3u8', responseType: '' }, {}, {
+            onSuccess: (r) => resolve(r.data), onError: () => resolve(null),
+        });
+    });
+    assert.ok(pl && pl.includes('#EXT-X-PLAYLIST-TYPE:VOD') && pl.includes('#EXT-X-ENDLIST'));
+    await V._teardownPreviewVideo.call(app, 'w1');
+    console.log('OK 3.1.1: an h264 source the decoder complains about is transcoded, not stream-copied');
+}
+
+// The mirror case: a clean h264 source still takes the fast remux path (this
+// gate must not turn every h264 file into a CPU-burning transcode), and the
+// remux path now pins MediaSource.duration to the probed length.
+{
+    const app = makeApp();
+    spawns.length = 0; decodeProbes.length = 0; procs.length = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear();
+    produced.clear(); diskPlaylist = { start: 0, count: 3 }; catDelayMs = 0;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 6081.184 });
+    decodeProbeOut = 'frame,I\nframe,P\nframe,B\n';
+
+    await app.startPreviewVideo('w1', { path: '/v/ok.mp4' });
+    const s = ExRT.video.sessions.get('w1');
+    assert.strictEqual(decodeProbes.length, 1);
+    assert.strictEqual(s.codec, 'copy', 'a clean h264 source must still be remuxed, not transcoded');
+    // The duration override (see _vpAttachOverrides): without it hls.js reads
+    // ffmpeg's still-growing live playlist and reports the converted-so-far
+    // length as the file's length — measured on a real 1h41m file as 0:39 for
+    // the first 20s, then 14:50 → 21:29 → …, correct only after ~155s.
+    assert.deepStrictEqual({ ...s.hls.overrides }, { duration: 6081.184 },
+        'the remux path must pin MediaSource.duration to the probed length');
+    assert.strictEqual(s.hls.media.tagName, 'VIDEO', 'the element itself must still reach hls.js');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    console.log('OK 3.1.1: a clean h264 source still remuxes, with the true duration pinned');
+}
+
+// A probe that cannot run at all must not be read as "safe": if we cannot
+// establish that copying works, we transcode (which always plays).
+{
+    const app = makeApp();
+    decodeProbes.length = 0; ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear();
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 600 });
+    decodeProbeOut = null;                       // the probe itself fails
+    await app.startPreviewVideo('w1', { path: '/v/a.mp4' });
+    assert.strictEqual(ExRT.video.sessions.get('w1').codec, 'x264',
+        'a copy-safety probe that failed must not be treated as a pass');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    decodeProbeOut = '';
+    console.log('OK 3.1.1: a failed copy-safety probe falls back to transcoding');
+}
+
+// Latency guard: the probe exists to un-choose `copy`, so it must not run for
+// a source that was never going to be copied anyway (every .avi in the
+// library would otherwise pay for an extra decode of a network file).
+{
+    const app = makeApp();
+    decodeProbes.length = 0; ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear();
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 600 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    assert.strictEqual(decodeProbes.length, 0, 'a non-h264 source must not be decode-probed — the answer cannot change anything');
+    assert.strictEqual(ExRT.video.sessions.get('w1').codec, 'x264');
+    // The transcode path must NOT get a duration override (its synthetic
+    // playlist already carries the true duration; a second, slightly
+    // different number can put MediaSource.duration under the buffered tail).
+    assert.strictEqual(ExRT.video.sessions.get('w1').hls.overrides, undefined);
+    await V._teardownPreviewVideo.call(app, 'w1');
+    console.log('OK 3.1.1: non-h264 sources skip the probe, and the transcode path gets no duration override');
 }
 
 // The registry must not live on Alpine-reactive component state.
