@@ -26,9 +26,58 @@ const args = V._vpBuildHlsArgs({ inputPath: '/m/a.mkv', dir: '/c/s', videoCodec:
 const j = args.join(' ');
 assert.ok(args.includes('-i') && args.includes('/m/a.mkv'));
 assert.ok(j.includes('-c:v copy') && j.includes('-c:a aac'));
+// Multichannel-audio regression guard: forced stereo downmix. Verified live
+// against the user's 5.1-AC3-source file that omitting this produces
+// 6-channel AAC, which Chromium's MSE rejects on every append (native
+// SourceBuffer 'error' events, readyState stuck at HAVE_NOTHING forever).
+assert.ok(j.includes('-ac 2'), 'must force a stereo downmix — multichannel AAC breaks MSE playback in Chromium');
 assert.ok(j.includes('-hls_list_size 0') && j.includes('-f hls'));
+// FIX A regression guard: `event`, not `vod` — verified live against the
+// user's real files that `vod` makes this ffmpeg build (7.1.5) buffer the
+// ENTIRE playlist in memory and never write index.m3u8 until the muxer
+// closes (full completion or a kill signal), which starves FIX B's
+// buffering wait for any file whose encode outlives the timeout. `event`
+// writes incrementally (same timing as no tag at all) and still gets
+// #EXT-X-ENDLIST once ffmpeg reaches EOF naturally. See the long comment on
+// _vpBuildHlsArgs for the full trail (including why plain `vod` also
+// wasn't buying anything: the vendored hls.js's `live` flag is driven only
+// by #EXT-X-ENDLIST, never by the PLAYLIST-TYPE value).
+assert.ok(j.includes('-hls_playlist_type event'), 'must tag the playlist so it is not read as an unbounded live feed, without breaking incremental writes');
+assert.ok(!j.includes('-hls_playlist_type vod'), 'must NOT use vod — verified to defer the whole playlist write until ffmpeg exits on this host');
 assert.ok(args[args.length - 1] === '/c/s/index.m3u8');
 assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-user_agent')); // no IPTV bits
+
+// FIX B: playlist "enough buffered to start" decision
+assert.strictEqual(V._vpPlaylistBuffered('', 30), false, 'empty/no playlist is never buffered');
+assert.strictEqual(V._vpPlaylistBuffered(null, 30), false);
+{
+    // 3 segments * 7.048711s ≈ 21.1s — below the 30s target.
+    const under = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:7.048711,\nseg_00000.ts\n#EXTINF:7.048711,\nseg_00001.ts\n#EXTINF:7.048711,\nseg_00002.ts\n';
+    assert.strictEqual(V._vpPlaylistBuffered(under, 30), false, 'sum below target must not be considered buffered');
+    // A 4th segment pushes the sum to ~28.2s — still under.
+    const stillUnder = under + '#EXTINF:7.048711,\nseg_00003.ts\n';
+    assert.strictEqual(V._vpPlaylistBuffered(stillUnder, 30), false);
+    // A 5th segment pushes the sum to ~35.2s — over the target.
+    const over = stillUnder + '#EXTINF:7.048711,\nseg_00004.ts\n';
+    assert.strictEqual(V._vpPlaylistBuffered(over, 30), true, 'sum at/above target must be considered buffered');
+    // #EXT-X-ENDLIST means ffmpeg is done — a short clip must attach even
+    // though its total content never reaches the 30s target.
+    const shortDone = '#EXTM3U\n#EXTINF:7.048711,\nseg_00000.ts\n#EXT-X-ENDLIST\n';
+    assert.strictEqual(V._vpPlaylistBuffered(shortDone, 30), true, 'ENDLIST must attach immediately regardless of the sum');
+    console.log('OK _vpPlaylistBuffered: under-target false, at/over-target true, ENDLIST always true');
+}
+
+// FIX D: duration formatter — H:MM:SS over an hour, M:SS under, '' when unusable
+assert.strictEqual(V._vpFormatDuration(5741), '1:35:41');   // Mortal Kombat, real probed length
+assert.strictEqual(V._vpFormatDuration(6239), '1:43:59');   // Invincible, real probed length
+assert.strictEqual(V._vpFormatDuration(59), '0:59');
+assert.strictEqual(V._vpFormatDuration(60), '1:00');
+assert.strictEqual(V._vpFormatDuration(0), '');
+assert.strictEqual(V._vpFormatDuration(-5), '');
+assert.strictEqual(V._vpFormatDuration(null), '');
+assert.strictEqual(V._vpFormatDuration(undefined), '');
+assert.strictEqual(V._vpFormatDuration(NaN), '');
+console.log('OK _vpFormatDuration: H:MM:SS / M:SS / empty-on-unusable');
 
 // session paths
 assert.strictEqual(V._vpCacheRoot('/home/u'), '/home/u/.cache/cockpit-explorer/preview');

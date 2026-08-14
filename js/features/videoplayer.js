@@ -12,15 +12,69 @@ window.ExplorerVideo = {
         return (v && v.codec_name === 'h264') ? 'copy' : 'x264';
     },
     // ffmpeg argv (no leading 'ffmpeg'): read the local file directly → HLS on disk.
+    // Without a playlist-type tag, ffmpeg writes a plain live-style playlist
+    // (no #EXT-X-PLAYLIST-TYPE, and no #EXT-X-ENDLIST until the whole encode
+    // finishes), which hls.js reads as a LIVE stream — reporting duration as
+    // only the segments written so far (the "length shows ~7 seconds" bug —
+    // that's literally the first segment's #EXTINF).
+    //
+    // FIX A originally shipped as `-hls_playlist_type vod` per an earlier
+    // diagnosis, but that was disproven while live-verifying against the
+    // user's real files on THIS host's ffmpeg (7.1.5): with `vod`, ffmpeg
+    // buffers the entire playlist in memory and does not write index.m3u8 to
+    // disk AT ALL until the muxer closes (full completion, or a termination
+    // signal that triggers ffmpeg's graceful-shutdown path) — confirmed by
+    // polling for the file every 500ms with no kill signal involved: it
+    // never appeared while ffmpeg kept writing hundreds of .ts segments.
+    // That starves FIX B's buffering wait for any file whose full encode
+    // outlives the wait's timeout — i.e. it reproduces "ffmpeg did not
+    // produce a playable stream in time" for exactly the transcode case this
+    // was meant to fix. It's also unnecessary: inspecting the vendored
+    // js/hls.min.js directly shows hls.js's `live` flag is driven ONLY by
+    // the presence of `#EXT-X-ENDLIST` in the parsed playlist — the
+    // PLAYLIST-TYPE tag's value is stored but never read for that decision
+    // — so `vod` bought nothing for the live/duration behavior it was meant
+    // to fix, while breaking incremental publishing.
+    //
+    // `event` is the flag that actually works here: verified empirically to
+    // write index.m3u8 incrementally (appears within ~1s, matching the
+    // untyped/default timing, and keeps growing segment-by-segment — for
+    // both a remux and a real transcode of the user's files, the wait
+    // target of 30s of buffered #EXTINF was reached in 1-3s of wall time),
+    // and it still appends #EXT-X-ENDLIST once ffmpeg reaches EOF naturally
+    // (verified with a truncated clip). It also isn't a no-op: the vendored
+    // hls.js explicitly excludes EVENT-type levels from its `waitForLive`
+    // gate (grep js/hls.min.js for `waitForLive`), which otherwise makes a
+    // still-"live" (no-ENDLIST) level keep waiting rather than starting.
+    //
+    // `-ac 2`: found live-verifying against the Mortal Kombat file, whose
+    // source audio is 6-channel AC3 5.1 (`ffprobe` confirmed channels:6,
+    // channel_layout:"5.1(side)"). Without an explicit channel count,
+    // ffmpeg's AAC encoder preserves the source layout, so `-c:a aac`
+    // produced 6-channel AAC — confirmed via ffprobe on an actual output
+    // segment. Chromium's MediaSource Extensions does not reliably accept
+    // multichannel AAC: hls.js hit a native `SourceBuffer 'error'` event on
+    // every single audio append, its media-error auto-recovery kept
+    // detaching/reattaching (observed 30+ cycles/10s, forever), and the
+    // <video> element's readyState never left HAVE_NOTHING — the exact
+    // "badge says Remuxing, playback never starts" symptom from the bug
+    // report, and unrelated to the live/duration issue FIX A/B address.
+    // Forcing a stereo downmix (`-ac 2`, applied regardless of source
+    // layout — cheap, and every source this maps through is either already
+    // stereo/mono or a multichannel mix not worth preserving through a
+    // lossy 128k preview transcode anyway) produces plain 2-channel AAC,
+    // confirmed via ffprobe and via a live end-to-end replay of this exact
+    // file (see the delivery report for the observed numbers).
     _vpBuildHlsArgs({ inputPath, dir, videoCodec }) {
         return [
             '-y', '-hide_banner',
             '-i', inputPath,
             '-map', '0:v:0?', '-map', '0:a:0?',
             ...this._vpVideoCodecArgs(videoCodec),
-            '-c:a', 'aac', '-b:a', '128k',
+            '-c:a', 'aac', '-ac', '2', '-b:a', '128k',
             '-f', 'hls',
             '-hls_time', '4',
+            '-hls_playlist_type', 'event',
             '-hls_list_size', '0',
             '-hls_flags', 'independent_segments',
             '-hls_segment_type', 'mpegts',
@@ -60,6 +114,35 @@ window.ExplorerVideo = {
             abort() { this._aborted = true; this.stats.aborted = true; }
             destroy() { this.abort(); this.context = null; }
         };
+    },
+    // Header helper (FIX C/D template guard): the badge + duration display now
+    // live in the modal title bar, outside the x-if that used to guarantee
+    // pv.kind === 'video' && pv.mode === 'hls' for every expression under it
+    // (see html/modals/windows.html). The title bar renders for EVERY window
+    // kind, so `activeWin().pv.transcodeState` unguarded would throw a
+    // TypeError the instant an editor window (no .pv at all) is active —
+    // Alpine re-evaluates :class/x-text bindings even while x-show hides the
+    // element (see the "activeWin() && guards throughout" comment already in
+    // that file). Centralizing the full guard chain here means every header
+    // expression can call this once instead of repeating (and risking
+    // drifting) a 5-clause guard.
+    _vpHeaderPv() {
+        const w = this.activeWin && this.activeWin();
+        if (!w || w.kind !== 'preview' || !w.pv || w.pv.kind !== 'video' || w.pv.mode !== 'hls') return null;
+        return w.pv;
+    },
+    // Format a duration in seconds as H:MM:SS (or M:SS under an hour) for the
+    // header display (FIX D). Anything that isn't a positive finite number
+    // (unprobed, ffprobe missing/failed, unparsable) renders as '' rather than
+    // NaN/0:00 — the caller x-shows on this being non-empty.
+    _vpFormatDuration(seconds) {
+        if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return '';
+        const total = Math.round(seconds);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+        return h > 0 ? (h + ':' + pad(m) + ':' + pad(s)) : (m + ':' + pad(s));
     },
     // ── package-manager detection (pure) ──
     _pkgInstallCommand(osReleaseText) {
@@ -105,27 +188,63 @@ window.ExplorerVideo = {
         this.video.ffmpeg = { ffmpeg: await check('ffmpeg'), ffprobe: await check('ffprobe') };
         return this.video.ffmpeg;
     },
+    // FIX D: also fetches format=duration alongside the stream entries (one
+    // ffprobe call, not two) so the header can show the file's real total
+    // length immediately — hls.js's own duration only grows as segments are
+    // written, which is what made a 5741s file briefly read as "7 seconds".
+    // Returns { streams, duration } — duration is a number of seconds, or
+    // null if ffprobe failed or the field couldn't be parsed (never NaN).
     async _vpProbeStreams(path) {
         try {
-            const out = await cockpit.spawn(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name', '-of', 'json', path], { err: 'message' });
-            const j = JSON.parse(out); return j.streams || [];
-        } catch (e) { return []; }
+            const out = await cockpit.spawn(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type,codec_name', '-of', 'json', path], { err: 'message' });
+            const j = JSON.parse(out);
+            const raw = j.format && j.format.duration;
+            const duration = raw != null ? parseFloat(raw) : NaN;
+            return { streams: j.streams || [], duration: Number.isFinite(duration) ? duration : null };
+        } catch (e) { return { streams: [], duration: null }; }
     },
-    // Poll (cheap `test -s`, no content read) until ffmpeg has flushed the
-    // playlist + first segment, or timeoutMs elapses. hls.js calls our pLoader
-    // the instant loadSource() runs; a not-yet-existent manifest resolves
-    // `readFile` to null → onError(404) → hls.js's own retry budget for that
-    // is short (observed: it does not keep retrying long enough for ffmpeg to
-    // catch up), so we wait here instead of racing it.
+    // FIX B: target amount of playlist content (summed #EXTINF, in seconds)
+    // to have on disk before handing the source to hls.js. Segments here run
+    // ffmpeg's `-hls_time 4` target (7-12s observed on the user's real
+    // files), so this is typically 3-5 segments. Named so it's easy to tune.
+    _vpStartBufferTargetSecs: 30,
+    // Pure decision (unit-tested directly, no cockpit involved): given raw
+    // m3u8 playlist text, has ffmpeg written enough for playback to start
+    // without immediately stalling at the edge? Either the encode is already
+    // finished (#EXT-X-ENDLIST present — a short clip must not wait for a
+    // buffer target it will never reach) or the summed #EXTINF durations
+    // reach targetSecs.
+    _vpPlaylistBuffered(text, targetSecs) {
+        if (!text) return false;
+        if (text.includes('#EXT-X-ENDLIST')) return true;
+        let total = 0;
+        const re = /#EXTINF:([0-9.]+)/g;
+        let m;
+        while ((m = re.exec(text))) total += parseFloat(m[1]) || 0;
+        return total >= targetSecs;
+    },
+    // Poll until ffmpeg has flushed enough playlist content to start playback
+    // (see _vpPlaylistBuffered / _vpStartBufferTargetSecs), or timeoutMs
+    // elapses as a backstop. Reads the playlist's actual text every tick
+    // (needed to sum #EXTINF — a bare existence check can no longer answer
+    // "is there enough buffered yet"); `cat`-ing a not-yet-existent file just
+    // rejects, which is treated the same as "not buffered" and retried.
+    // hls.js calls our pLoader the instant loadSource() runs; a not-yet-ready
+    // manifest resolves `readFile` to null → onError(404) → hls.js's own
+    // retry budget for that is short (observed: it does not keep retrying
+    // long enough for ffmpeg to catch up), so we wait here instead of racing
+    // it.
     // `stopCheck`, if given, is polled too — returning false bails out
     // immediately (used to stop polling the instant a session is torn down
-    // or superseded, instead of spawning `test` every 200ms for up to
+    // or superseded, instead of reading the playlist every 200ms for up to
     // timeoutMs after there's no one left who cares about the answer).
     async _vpWaitForPlaylist(path, timeoutMs, stopCheck) {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
             if (stopCheck && !stopCheck()) return false;
-            try { await cockpit.spawn(['test', '-s', path], { err: 'ignore' }); return true; } catch (e) {}
+            let text = null;
+            try { text = await cockpit.spawn(['cat', path], { err: 'ignore' }); } catch (e) {}
+            if (this._vpPlaylistBuffered(text, this._vpStartBufferTargetSecs)) return true;
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         return false;
@@ -213,10 +332,14 @@ window.ExplorerVideo = {
         // session is live; this is deliberate, harmless overlap.
         this._vpHbTouchDir(dir);
         const ff = await this._vpProbeFfmpeg();
-        const codec = (ff.ffprobe ? this._vpProbeDecision(await this._vpProbeStreams(file.path)) : 'x264');
+        const probed = ff.ffprobe ? await this._vpProbeStreams(file.path) : { streams: [], duration: null };
+        const codec = this._vpProbeDecision(probed.streams);
         if (!isNewest()) { await this._vpKillProcAndDir(null, dir); return; }   // superseded while probing — nothing spawned yet
-        // Reflect state in the badge.
-        if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; }
+        // Reflect state in the badge, and surface the real total duration
+        // (FIX D) straight away — hls.js's own duration only grows as
+        // segments land, so without this the header would show ~7s for a
+        // long file until the whole encode had been read.
+        if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; w.pv.totalDuration = probed.duration; }
         const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], { err: 'message' });
         // Register the session IMMEDIATELY (before any further await) — every
         // exit path below (ensureHls throwing, the playlist wait timing out,

@@ -38,11 +38,17 @@ function makeProc(argv) {
     return p;
 }
 
+// A playlist that _vpWaitForPlaylist's FIX-B buffer check accepts on the
+// very first read (3 segments * 12s = 36s ≥ the 30s target) — keeps this
+// state-machine test deterministic and fast, same as the old `test -s`
+// immediate-resolve behaviour it replaces.
+const FAKE_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:12.0,\nseg_00000.ts\n#EXTINF:12.0,\nseg_00001.ts\n#EXTINF:12.0,\nseg_00002.ts\n';
 const cockpit = {
     spawn(argv) {
         spawns.push(argv);
         if (argv[0] === 'ffmpeg') { const p = makeProc(argv); procs.push(p); return p; }
-        // test -s <playlist> / rm -rf <dir> / sh -c … all succeed immediately.
+        if (argv[0] === 'cat') { const p = Promise.resolve(FAKE_PLAYLIST); p.close = () => {}; return p; }
+        // rm -rf <dir> / sh -c … all succeed immediately.
         const p = Promise.resolve('');
         p.close = () => {};
         return p;
@@ -138,7 +144,7 @@ function makeApp() {
     let probeCalls = 0;
     app._vpProbeStreams = async () => {
         if (++probeCalls === 1) await aParked;
-        return [{ codec_type: 'video', codec_name: 'h264' }];
+        return { streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 123 };
     };
 
     const pA = app.startPreviewVideo('w1', { path: '/v/a.mkv' });   // older (deliberately un-awaited)
@@ -234,7 +240,7 @@ function makeApp() {
 
     let release;
     const parked = new Promise((resolve) => { release = resolve; });
-    app._vpProbeStreams = async () => { await parked; return []; };
+    app._vpProbeStreams = async () => { await parked; return { streams: [], duration: null }; };
 
     const p = app.startPreviewVideo('w1', { path: '/v/a.mkv' });
     await Promise.resolve();
