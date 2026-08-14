@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.5
+
+- **Split view: counts are no longer ambiguous between panes.** With two
+  panes open, the single shared status bar and toolbar chip couldn't say
+  *which* pane a number belonged to. Each pane now gets its own `N selected`
+  chip (in its head) and its own status strip (in its footer, aligned with
+  that pane's width) showing that pane's totals and selection — the shared
+  toolbar chip and status bar are hidden while split, since they'd just
+  repeat one pane's numbers ambiguously. Single-pane view is unchanged.
+
 ## 3.1.4
 
 - **Selection is easier to spot.** The status-bar selection breakdown now
