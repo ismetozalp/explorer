@@ -1652,7 +1652,10 @@ explorer/
 │   ├── example-actions.json  drop-in example custom actions
 │   └── system-actions.json   default system actions (incl. self-update), seeded by make install
 ├── tools/               dev-only checks (check-mixins.js, compose-test.js)
-├── tests/               Playwright browser smoke test (smoke.mjs)
+├── tests/               unit (node+vm), smoke, and Playwright e2e tests
+│   └── samples/             committed preview-fixture set (one sample per
+│                             previewable file kind); see samples-manifest-
+│                             unit.mjs and samples-preview-e2e.mjs
 ├── package.json         dev-only test deps (Playwright); NOT shipped to the plugin
 ├── Makefile              install / uninstall / zip
 └── README.md

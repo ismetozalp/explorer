@@ -2,6 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## Unreleased
+
+- **Dev: committed a previewable-fixture set and preview test coverage.**
+  `tests/samples/` now ships a small (~5 MB), synthetic set of sample files
+  covering every preview kind Explorer supports — images (incl. SVG/AVIF),
+  PDF, Markdown, `.docx`, spreadsheets (`.xlsx`/`.ods`/`.csv`), text/code,
+  audio, natively-playable video, and the ffmpeg/HLS video formats (incl.
+  `.ogv`, guarding the 3.1.6 black-picture fix). A new unit test pins the
+  fixture set against the preview-kind detectors, and a new end-to-end test
+  drives the real UI through every preview kind against these fixtures,
+  including transcoding. The existing smoke test also gained a fast,
+  ffmpeg-independent pass over a few of them. Dev-only — `tests/` is not
+  part of the installed/zipped plugin.
+
 ## 3.1.6
 
 - **Fixed: some `.ogv` videos played with sound but a black picture.**
