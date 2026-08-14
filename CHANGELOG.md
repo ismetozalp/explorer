@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.0.1
+
+- **Fixed: PDF preview prompted a download instead of rendering inline.**
+  Previewed binary files (PDF, images, audio, natively-played video) are now
+  fetched with the correct content type, so the browser knows how to display
+  them; a PDF preview now shows the built-in PDF viewer instead of offering
+  to save the file. Audio and video preview blobs also now carry a correct
+  content type.
+
 ## 3.0.0
 
 - **Preview is now a viewer.** Page through a folder's previewable files with

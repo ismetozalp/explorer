@@ -186,7 +186,7 @@ window.ExplorerEditor = {
             const canNative = Util.isVideoNative(file) && (file.size <= nativeLimit || !ff.ffmpeg);
             if (canNative) {
                 try {
-                    const blob = await FS.readBinaryAsBlob(file.path, ropts);
+                    const blob = await FS.readBinaryAsBlob(file.path, { ...ropts, type: Util.mimeType(file) });
                     set({ kind: 'video', mode: 'native', url: URL.createObjectURL(blob) });
                 } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
                 return;
@@ -216,7 +216,7 @@ window.ExplorerEditor = {
             } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
         } else if (Util.isImage(file) || Util.isPdf(file) || Util.isAudio(file)) {
             try {
-                const blob = await FS.readBinaryAsBlob(file.path, ropts);
+                const blob = await FS.readBinaryAsBlob(file.path, { ...ropts, type: Util.mimeType(file) });
                 const url = URL.createObjectURL(blob);
                 let kind = 'binary';
                 if (Util.isImage(file)) kind = 'image';

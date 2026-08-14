@@ -165,6 +165,29 @@ window.Util = (function () {
     }
 
     function isPdf(file) { return (file.name || '').toLowerCase().endsWith('.pdf'); }
+
+    // Extension -> MIME type, for blobs handed to <img>/<iframe>/<audio>/<video>
+    // (the browser needs a real content type to decide how to render/play a
+    // blob: URL — an empty type silently falls back to "download this").
+    // Only covers the types isImage/isPdf/isAudio/isVideoNative recognise;
+    // '' is the deliberate fallback for everything else (e.g. text, which is
+    // rendered from string content, not a blob URL, so no type is needed).
+    const MIME_TYPES = {
+        'pdf': 'application/pdf',
+        'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+        'gif': 'image/gif', 'webp': 'image/webp', 'bmp': 'image/bmp',
+        'ico': 'image/x-icon', 'avif': 'image/avif', 'svg': 'image/svg+xml',
+        'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+        'flac': 'audio/flac', 'm4a': 'audio/mp4', 'aac': 'audio/aac',
+        'opus': 'audio/opus',
+        'mp4': 'video/mp4', 'm4v': 'video/mp4', 'webm': 'video/webm',
+        'ogv': 'video/ogg',
+    };
+    function mimeType(file) {
+        const n = ((file && file.name) || '').toLowerCase();
+        const ext = n.includes('.') ? n.split('.').pop() : '';
+        return MIME_TYPES[ext] || '';
+    }
     function isVideo(file) {
         const ext = (file.name || '').toLowerCase().split('.').pop();
         // Natively-playable containers (see isVideoNative) plus everything
@@ -278,7 +301,7 @@ window.Util = (function () {
     return {
         humanSize, formatDate, joinPath, dirname, basename, normalizePath, shq, pathSegments,
         langFromExt, isTextLike, looksBinary, isImage, isPdf, isVideo, isAudio, isArchive, archiveFormat,
-        isMarkdown, isDocx, isSpreadsheet, isVideoNative, isPreviewable,
+        isMarkdown, isDocx, isSpreadsheet, isVideoNative, isPreviewable, mimeType,
         fileIcon, typeLabel, uid, fillTemplate, fillText
     };
 })();
