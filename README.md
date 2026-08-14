@@ -435,10 +435,15 @@ history, selection, sort order, search, and git strip.
 - **Shift-click** extends a range from the last-clicked row.
 - **Ctrl-click** toggles individual rows.
 - **Ctrl-A** selects all visible.
+- A compact **`N selected`** chip lights up in the toolbar (next to the path
+  bar) the moment the active pane has a selection — click it to clear the
+  selection. Hidden on phones, where the toolbar is already tight; the status
+  bar still shows the count there.
 - The status bar shows how many of the pane's items are selected, broken
   down into files vs. folders, plus the combined size of the selected files
   (folder sizes aren't shown, since Explorer doesn't compute folder totals) —
-  e.g. `4 of 28 selected · 3 files, 1 folder · 9.6 MB`.
+  e.g. `4 of 28 selected · 3 files, 1 folder · 9.6 MB` — styled in the accent
+  colour so it's easy to spot.
 
 ### Right-click context menu (file or empty area)
 

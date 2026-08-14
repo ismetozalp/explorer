@@ -127,6 +127,18 @@
             <button class="btn btn-sm me-2" :class="tab.dual ? 'btn-primary' : 'btn-outline-secondary'"
                     @click="toggleDualPane(tab)" :title="tab.dual ? 'Switch to single pane' : 'Split into two panes'">⊞ <span x-text="tab.dual ? 'Single' : 'Split'"></span></button>
 
+            <!-- Selection indicator (active pane) — compact echo of the status-bar
+                 breakdown, placed where the user is already looking. Reads the
+                 same tab.selection array as statusText()/selectionSummary() in
+                 the status bar (single source of truth, no separate count).
+                 Hidden on phones: the per-tab toolbar already wraps heavily
+                 there and the status bar still carries the full breakdown, so
+                 skipping it avoids any risk of crowding the phone layout. -->
+            <span class="toolbar-selection me-2" x-show="!ui.phone && activePane(tab).selection.length > 0" x-cloak
+                  :title="selectionSummary(activePane(tab)) + ' — click to clear'"
+                  @click="clearSelection(activePane(tab))"
+                  x-text="activePane(tab).selection.length + ' selected'"></span>
+
             <!-- Breadcrumbs / path input (active pane) -->
             <!-- Uses tab.editingPathTop (not the pane's editingPath) so that in
                  dual mode the top bar and the active pane's per-pane bar never
@@ -435,7 +447,7 @@
         <!-- Status bar (active pane) -->
         <div class="status-bar">
             <span x-text="statusText(activePane(tab))"></span>
-            <span class="ms-auto" x-text="activePane(tab).selection.length > 0 ? selectionSummary(activePane(tab)) : ''"></span>
+            <span class="ms-auto status-selection" x-text="activePane(tab).selection.length > 0 ? selectionSummary(activePane(tab)) : ''"></span>
         </div>
        </div>
       </template>
