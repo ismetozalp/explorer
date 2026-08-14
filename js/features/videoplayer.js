@@ -204,6 +204,14 @@ window.ExplorerVideo = {
             if (isNewest()) { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'Could not create the transcode cache directory: ' + (e && e.message ? e.message : e); ww.pv.transcodeState = 'error'; } }
             return;
         }
+        // Protect the dir the instant it exists: between here and the session
+        // registration below, ffmpeg hasn't spawned yet (no pgrep match) and no
+        // heartbeat interval is touching it yet either (the session isn't
+        // registered until after ffmpeg spawns) — a second tab's reap landing
+        // in that sub-second window would otherwise delete a dir out from under
+        // a start that's still in flight. Registration re-touches once the
+        // session is live; this is deliberate, harmless overlap.
+        this._vpHbTouchDir(dir);
         const ff = await this._vpProbeFfmpeg();
         const codec = (ff.ffprobe ? this._vpProbeDecision(await this._vpProbeStreams(file.path)) : 'x264');
         if (!isNewest()) { await this._vpKillProcAndDir(null, dir); return; }   // superseded while probing — nothing spawned yet
@@ -345,9 +353,19 @@ window.ExplorerVideo = {
     // branching on 126/127 per-iteration: pgrep's absence can't change mid-loop,
     // so checking once up front is simpler and just as safe, and it also covers
     // any other reason `command -v` might fail to resolve it.)
+    //
+    // Fix-round-1: the SAME reasoning applies to `find`, which now guards the
+    // .alive liveness check — `$(find "$d/.alive" -mmin -2 2>/dev/null)` with
+    // `find` missing/failing silently returns an empty string (the `2>/dev/null`
+    // hides exactly why), so `[ -n "$(...)" ]` is false and the loop falls
+    // through to `rm -rf "$d"` even for a dir with a brand-new heartbeat — the
+    // exact outcome the heartbeat exists to prevent. An absent tool must never
+    // silently flip a safety check into a destructive default, so `find` gets
+    // the same up-front `command -v` bail as `pgrep`.
     _vpReapScript() {
         return '[ -d "$1" ] || exit 0\n'
             + 'command -v pgrep >/dev/null 2>&1 || exit 0\n'
+            + 'command -v find  >/dev/null 2>&1 || exit 0\n'
             + 'for d in "$1"/*/; do d=${d%/}; [ -d "$d" ] || continue\n'
             + '  pgrep -f "$d" >/dev/null 2>&1 && continue\n'
             + '  [ -n "$(find "$d/.alive" -mmin -2 2>/dev/null)" ] && continue\n'
