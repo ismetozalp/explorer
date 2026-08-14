@@ -168,11 +168,12 @@ window.Util = (function () {
     function isVideo(file) {
         const ext = (file.name || '').toLowerCase().split('.').pop();
         // Natively-playable containers (see isVideoNative) plus everything
-        // else the ffmpeg->HLS transcode path (videoplayer.js) can take on —
-        // the README/CHANGELOG promise mkv/avi/HEVC-mov/wmv/flv/ts are all
-        // routed to preview, not treated as an unknown/binary file.
+        // else the ffmpeg->HLS transcode path (videoplayer.js) can take on.
+        // Deliberately NOT 'ts' (fix-round-2): a bare .ts is overwhelmingly
+        // TypeScript source in a file browser, not an MPEG transport stream —
+        // .m2ts/.mts still cover the AVCHD/transport-stream case.
         return ['mp4','webm','ogv','mkv','mov',
-                'avi','wmv','flv','ts','m4v','mpg','mpeg','m2ts','mts',
+                'avi','wmv','flv','m4v','mpg','mpeg','m2ts','mts',
                 '3gp','ogm','divx','vob','asf','rm','rmvb'].includes(ext);
     }
     function isAudio(file) {

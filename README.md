@@ -509,8 +509,10 @@ window above Explorer's 24px status bar instead of covering it.
 
 **Video that plays (3.0):** `.mp4`/`.webm` play natively in the browser.
 Anything the browser can't decode directly — `.mkv`, `.avi`, HEVC `.mov`,
-`.wmv`, `.flv`, `.ts`, … — is transcoded on the server with **ffmpeg** into
-an HLS stream and played back with `hls.js`; a theme-aware badge shows
+`.wmv`, `.flv`, `.m2ts`/`.mts`, … — is transcoded on the server with
+**ffmpeg** into an HLS stream and played back with `hls.js` (a bare `.ts`
+is treated as TypeScript source, not video — use `.m2ts`/`.mts` for an
+MPEG transport stream); a theme-aware badge shows
 **⚙ Transcoding** (green) while ffmpeg is actively re-encoding, or
 **Remuxing** (gray) when it's just repackaging the existing stream. The
 badge clears when playback is ready, and any ffmpeg/`hls.js` failure
