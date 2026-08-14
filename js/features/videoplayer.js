@@ -7,9 +7,106 @@ window.ExplorerVideo = {
         return ['-c:v', 'copy'];
     },
     // Decide remux (copy) vs transcode (x264) from ffprobe stream info.
-    _vpProbeDecision(streams) {
+    //
+    // `copyDecodable` is the 3.1.1 addition (see _vpDecodeProbeArgs). `-c:v
+    // copy` hands the SOURCE h264 bitstream straight to the browser's decoder,
+    // so "the container says h264" is not enough — the bitstream also has to be
+    // one the browser will accept. It is passed as an explicit third state:
+    //   true      — checked, decoded cleanly → copy
+    //   false     — checked, the decoder complained → transcode
+    //   undefined — not checked (no ffprobe, or the caller doesn't care) → the
+    //               pre-3.1.1 behaviour, copy on codec alone
+    _vpProbeDecision(streams, copyDecodable) {
         const v = (streams || []).find(s => s.codec_type === 'video');
-        return (v && v.codec_name === 'h264') ? 'copy' : 'x264';
+        if (!(v && v.codec_name === 'h264')) return 'x264';
+        return copyDecodable === false ? 'x264' : 'copy';
+    },
+    // ── copy-safety probe (3.1.1) ───────────────────────────────────────
+    // Found by live-debugging a user's file that produced a black player and
+    // no error: a 2h37m h264 High@4.1 mkv whose FIRST access unit carries a
+    // malformed SEI NAL (ffmpeg: "SEI type 5 size 732 truncated at 730").
+    // ffmpeg decodes it with a warning and remuxes the whole file happily, but
+    // Chromium's decoder rejects the very next packet —
+    //   PIPELINE_ERROR_DECODE: Failed to send video packet for decoding
+    // — at ~0.2s, every time. That was proven to be a property of the
+    // BITSTREAM, not of this plugin's HLS pipeline: copying the same video
+    // stream into a plain fragmented MP4 and giving it to a bare <video
+    // src=…> fails identically, copying it with the SEI NALs filtered out
+    // plays, and re-encoding it plays. hls.js then reports a fatal
+    // bufferAppendError and stops refreshing the playlist, which freezes the
+    // reported duration too — one bitstream defect, both of the symptoms the
+    // user reported ("won't play", "length is wrong").
+    //
+    // So before trusting `-c:v copy`, decode a couple of seconds of video and
+    // see whether the decoder has anything to say. ffprobe (already required
+    // for the stream/duration probe) decodes for real when asked for frame
+    // entries, and `-read_intervals '%+#N'` stops it after N frames, so this
+    // costs one open plus a fraction of a second (measured on this host over
+    // NFS: 166-225ms for a 1.4GB mp4 and an 8.5GB mkv alike) and reads only
+    // the first megabyte or two of the file.
+    //
+    // Deliberately conservative: ANY decoder complaint routes the file to
+    // x264. Being wrong that way costs CPU (the file still plays, and gains
+    // full seeking + a correct duration from the transcode path's synthetic
+    // playlist); being wrong the other way is a black player with no
+    // diagnosis. Measured false-positive rate on the user's real library:
+    // 0 of 31 h264 files flagged, and the one genuinely broken file flagged.
+    _vpDecodeProbeFrames: 48,
+    _vpDecodeProbeArgs(path) {
+        return ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_entries', 'frame=pict_type',
+            '-read_intervals', '%+#' + this._vpDecodeProbeFrames,
+            '-of', 'csv', path];
+    },
+    // PURE: pick the decoder complaint (if any) out of ffprobe's combined
+    // stdout+stderr. Combined because cockpit.spawn cannot hand back stderr
+    // separately from a process that EXITS ZERO (err:'message' only attaches
+    // it to a rejection), and this probe's whole point is what a successful
+    // run printed. The frame rows it asked for are `frame,<pict_type>`; every
+    // other non-blank line is ffmpeg's `[h264 @ 0x…] …` log format, i.e. a
+    // complaint. Matching on what we ASKED FOR rather than on the wording of
+    // the complaint is what keeps this from depending on ffmpeg's message
+    // catalogue or locale.
+    _vpDecodeComplaint(text) {
+        const lines = String(text || '').split('\n');
+        for (const line of lines) {
+            const t = line.trim();
+            if (!t || /^frame,/.test(t)) continue;
+            return t;
+        }
+        return '';
+    },
+    // PURE: hls.js's own MediaSource-duration override (3.1.1), or null.
+    //
+    // The remux path gets no synthetic playlist — a `-c:v copy` run cuts on
+    // the source's own GOP boundaries, so its segments are irregular and
+    // index↔time cannot be known ahead of time (see _vpBuildHlsArgs). hls.js
+    // therefore reads ffmpeg's REAL playlist, which has no #EXT-X-ENDLIST
+    // until the whole remux finishes, so the level stays `live` and hls.js
+    // reports the duration as "however much has been converted so far".
+    // Measured on the user's files: a 1h41m mp4 showed 0:39 for its first 20
+    // seconds and then jumped (14:50 → 21:29 → 29:09 → …), only settling on
+    // the true length after ~155s; an 8.5GB 2h37m mkv takes 222s to remux, so
+    // its scrubber is wrong for nearly four minutes. Dragging that scrubber
+    // to what looks like "the end" seeks to a few seconds in and stalls until
+    // the next playlist refresh.
+    //
+    // hls.js has a first-class hook for exactly this: attachMedia() accepts
+    // `{ media, overrides }`, and BufferController.getDurationAndRange()
+    // returns `overrides.duration` verbatim for any finite positive value,
+    // ahead of anything it would derive from the level. Pinning it to the
+    // ffprobe-reported duration makes the player's own scrubber show the
+    // file's true length from the first frame, on the same value the header
+    // already displays.
+    //
+    // Only for the remux path: the transcode path's synthetic playlist
+    // already declares the true duration (and its last entry is clamped by
+    // _vpSegCount, so forcing a slightly different number there could put
+    // MediaSource.duration below the buffered tail — which throws).
+    _vpAttachOverrides(codec, duration) {
+        if (codec === 'x264') return null;
+        if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return null;
+        return { duration };
     },
     // ffmpeg argv (no leading 'ffmpeg'): read the local file directly → HLS on disk.
     // Without a playlist-type tag, ffmpeg writes a plain live-style playlist
@@ -81,7 +178,10 @@ window.ExplorerVideo = {
     // It is deliberately NOT applied on the remux path (`-c:v copy`): there is
     // no encoder to force keyframes on, the segments stay GOP-length and
     // variable, so the synthetic-playlist/seek machinery below is disabled for
-    // remux and that path behaves exactly as it did in 3.0.x.
+    // remux: that path keeps reading ffmpeg's own growing playlist off disk.
+    // (3.1.1 gives it back the one thing that cost — a correct total length —
+    // through hls.js's MediaSource-duration override rather than through a
+    // playlist it cannot build; see _vpAttachOverrides.)
     //
     // `startIndex > 0` builds a RESTART run for a seek into a not-yet-converted
     // region (see _vpRestartAt):
@@ -458,6 +558,22 @@ window.ExplorerVideo = {
             return { streams: j.streams || [], duration: Number.isFinite(duration) ? duration : null };
         } catch (e) { return { streams: [], duration: null }; }
     },
+    // Run the copy-safety probe (see _vpDecodeProbeArgs) and say whether the
+    // source bitstream decoded cleanly. `err: 'out'` merges stderr into the
+    // resolved output — the complaint is the whole point and a zero-exit run
+    // is the normal case, so it cannot come back via a rejection.
+    // A probe that fails outright (ffprobe missing an option, unreadable file,
+    // a channel error) returns false: if we cannot establish that copying is
+    // safe, we do not copy. Same direction as every other judgement here —
+    // an unnecessary transcode still plays.
+    async _vpProbeDecodable(path) {
+        try {
+            const out = await cockpit.spawn(this._vpDecodeProbeArgs(path), { err: 'out' });
+            const complaint = this._vpDecodeComplaint(out);
+            if (complaint) console.info('explorer: source h264 is not safe to stream-copy, transcoding instead — ' + complaint);
+            return !complaint;
+        } catch (e) { return false; }
+    },
     // FIX B: target amount of playlist content (summed #EXTINF, in seconds)
     // to have on disk before handing the source to hls.js. Segments here run
     // ffmpeg's `-hls_time 4` target (7-12s observed on the user's real
@@ -802,7 +918,13 @@ window.ExplorerVideo = {
         this._vpHbTouchDir(dir);
         const ff = await this._vpProbeFfmpeg();
         const probed = ff.ffprobe ? await this._vpProbeStreams(file.path) : { streams: [], duration: null };
-        const codec = this._vpProbeDecision(probed.streams);
+        // Only worth asking when the answer can change the decision — i.e. the
+        // container already says h264 and we would otherwise stream-copy it
+        // (3.1.1; see _vpDecodeProbeArgs). Everything else is transcoded
+        // regardless, so the extra ffprobe would be pure latency.
+        const mightCopy = ff.ffprobe && this._vpProbeDecision(probed.streams) === 'copy';
+        const decodable = mightCopy ? await this._vpProbeDecodable(file.path) : undefined;
+        const codec = this._vpProbeDecision(probed.streams, decodable);
         if (!isNewest()) { await this._vpKillProcAndDir(null, dir); return; }   // superseded while probing — nothing spawned yet
         // Reflect state in the badge, and surface the real total duration
         // (FIX D) straight away — hls.js's own duration only grows as
@@ -842,8 +964,10 @@ window.ExplorerVideo = {
         // forced-keyframe segments _vpBuildHlsArgs produces for x264 (a remux's
         // segments are GOP-length and irregular, so index k does not map to a
         // known time) and a probed duration to build the playlist from. When
-        // either is missing, `serve` degrades to exactly the 3.0.x behaviour —
+        // either is missing, `serve` degrades to the pre-3.1.0 behaviour —
         // hand hls.js ffmpeg's own growing playlist and read segments off disk.
+        // (The duration that playlist implies is corrected at attach time by
+        // _vpAttachOverrides; only seeking past the converted point is lost.)
         const vodPlaylist = codec === 'x264' ? this._vpBuildVodPlaylist(probed.duration) : null;
         const serve = async (p, isAborted) => {
             if (!vodPlaylist) return readFile(p);
@@ -901,7 +1025,14 @@ window.ExplorerVideo = {
             // forcing position 0 explicitly.
             const hls = new window.Hls({ pLoader: Loader, fLoader: Loader, startPosition: 0 });
             hls.loadSource(this._vpSourceUrl(id));
-            hls.attachMedia(el);
+            // 3.1.1: pin the media duration on the remux path so the player's
+            // scrubber shows the file's real length from the start instead of
+            // ffmpeg's growing live playlist (see _vpAttachOverrides).
+            // attachMedia takes either the element or {media, overrides}; pass
+            // the bare element when there is no override, so the no-override
+            // path is byte-for-byte the 3.1.0 call.
+            const overrides = this._vpAttachOverrides(codec, probed.duration);
+            hls.attachMedia(overrides ? { media: el, overrides } : el);
             const s = this._vpSessions().get(winId);
             if (isNewest() && s && s.token === id) s.hls = hls; // still current: let teardown destroy() it later
             else { try { hls.destroy(); } catch (e) { console.warn('explorer: hls destroy failed', e); } this._vpKillProcAndDir(proc, dir); }

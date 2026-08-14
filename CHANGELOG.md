@@ -2,6 +2,31 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.1
+
+- **Fixed: some videos showed a black player and never started.** A video
+  whose picture data can be handed to the browser untouched is repackaged
+  rather than re-encoded, which is much faster — but that only works if the
+  browser will actually accept the source's picture data, and some files carry
+  malformed data that a player refuses even though the file is otherwise fine
+  and every other tool plays it. Explorer now decodes the first few frames
+  before it commits: if the decoder objects, the file is re-encoded instead
+  (the green **⚙ Transcoding** badge) rather than repackaged. Re-encoding is
+  slower, but it always plays — and it also brings the full progress bar and
+  seeking that re-encoded video already had. Files that repackage cleanly are
+  unaffected and still take the fast path.
+- **Fixed: repackaged video showed the wrong length on its progress bar.**
+  The player's own progress bar used to show only how much had been repackaged
+  so far, so a long film started out claiming to be about forty seconds long
+  and then jumped repeatedly as repackaging ran ahead, settling on the real
+  length only once the whole file was done — a couple of minutes for a large
+  one. Dragging that bar to what looked like the end landed a few seconds in
+  and stalled. The progress bar now shows the file's real total length from
+  the first frame, matching the length already shown in the title bar.
+  Dragging forward past the part that has been repackaged so far takes you as
+  far as it has got (repackaging usually outruns playback by a wide margin);
+  dragging backwards into anything already done is exact.
+
 ## 3.1.0
 
 - **Video that needs converting is now fully seekable, right from the start.**
