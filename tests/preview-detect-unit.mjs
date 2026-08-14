@@ -25,7 +25,9 @@ assert.strictEqual(U.isPreviewable(f('movie.mkv')), true);
 // Non-native containers ffmpeg->HLS must handle (fix round 1, Task 7):
 // isVideo() true (routes to the video/ffmpeg branch), isVideoNative() false
 // (browser can't decode them directly), isPreviewable() true throughout.
-for (const name of ['clip.avi', 'clip.wmv', 'clip.flv', 'clip.ts', 'clip.m4v',
+// NOTE: 'ts' is deliberately excluded — see the .ts regression guard below
+// (fix round 2).
+for (const name of ['clip.avi', 'clip.wmv', 'clip.flv', 'clip.m4v',
                      'clip.mpg', 'clip.mpeg', 'clip.m2ts', 'clip.mts', 'clip.3gp',
                      'clip.ogm', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
     assert.strictEqual(U.isVideo(f(name)), true, `isVideo(${name}) should be true`);
@@ -36,11 +38,18 @@ for (const name of ['clip.avi', 'clip.wmv', 'clip.flv', 'clip.ts', 'clip.m4v',
 // native; isVideo() just needs to agree so it's previewable at all).
 assert.strictEqual(U.isVideoNative(f('clip.m4v')), true);
 // Everything else in the new list is non-native — ffmpeg is required.
-for (const name of ['clip.avi', 'clip.wmv', 'clip.flv', 'clip.ts',
+for (const name of ['clip.avi', 'clip.wmv', 'clip.flv',
                      'clip.mpg', 'clip.mpeg', 'clip.m2ts', 'clip.mts', 'clip.3gp',
                      'clip.ogm', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
     assert.strictEqual(U.isVideoNative(f(name)), false, `isVideoNative(${name}) should be false`);
 }
+// Fix round 2 regression guard: a bare .ts is TypeScript source, not an
+// MPEG transport stream — it must stay on the text/code preview path, not
+// get swept into the video branch (isVideo() gates BEFORE isTextLike() at
+// the routing point in js/features/editor.js).
+assert.strictEqual(U.isVideo(f('app.ts')), false, 'app.ts must not be treated as video');
+assert.strictEqual(U.isTextLike(f('app.ts')), true, 'app.ts must stay text-like (syntax-highlighted code preview)');
+assert.strictEqual(U.isPreviewable(f('app.ts')), true, 'app.ts must still be previewable (as text)');
 assert.strictEqual(U.isPreviewable(f('pic.png')), true);
 assert.strictEqual(U.isPreviewable(f('README.md')), true);
 assert.strictEqual(U.isPreviewable(f('song.mp3')), true);
