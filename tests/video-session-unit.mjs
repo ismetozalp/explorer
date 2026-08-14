@@ -50,12 +50,23 @@ const cockpit = {
     file() { return { read: async () => null, close() {} }; },
 };
 
+// Fake setInterval/clearInterval: the heartbeat (preview-reap-hardening FIX 1)
+// must be testable without a real 30s wall-clock timer. Handles are plain
+// integers; `fn` is stashed so a test can fire a tick manually and
+// deterministically, and activeIntervals.size is the "how many timers are
+// actually running" ground truth teardown must drive to zero.
+let intervalSeq = 0;
+const activeIntervals = new Map();   // handle -> { fn, ms }
+function fakeSetInterval(fn, ms) { const h = ++intervalSeq; activeIntervals.set(h, { fn, ms }); return h; }
+function fakeClearInterval(h) { activeIntervals.delete(h); }
+
 const sandbox = {
     window: {}, console, cockpit,
     FS: { homeDir: async () => '/home/u', mkdir: async () => {} },
     Util: { uid: () => 'sid' + (++uidSeq) },
     document: { getElementById: () => ({ tagName: 'VIDEO' }) },   // a mounted <video>
     setTimeout, clearTimeout, Promise, Date,
+    setInterval: fakeSetInterval, clearInterval: fakeClearInterval,
 };
 vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
 sandbox.ExRT = sandbox.window.ExRT;
@@ -235,6 +246,54 @@ function makeApp() {
         'a start superseded by a teardown must not register a session for a closed window');
     assert.strictEqual(procs.length, 0, 'no ffmpeg should be spawned once the start is superseded before the spawn point');
     console.log('OK teardown-during-start: nothing registered, no ffmpeg spawned');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Heartbeat lifecycle (preview-reap-hardening FIX 1): the shared timer starts
+// when the FIRST session registers, is never duplicated by a second session,
+// keeps running while at least one session remains, and is cleared — handle
+// set back to null, no timer left in activeIntervals — once the LAST session
+// is dropped. setInterval/clearInterval are the fakes above: fully
+// deterministic, nothing here waits on a real clock tick.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); intervalSeq = 0;
+
+    assert.strictEqual(ExRT.video.hb, null, 'no heartbeat before any session exists');
+
+    await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
+    const hb1 = ExRT.video.hb;
+    assert.ok(hb1 !== null, 'heartbeat must start once a session registers');
+    assert.ok(activeIntervals.has(hb1), 'the handle in ExRT.video.hb must be a live interval');
+    assert.ok(spawns.some((a) => a[0] === 'touch' && a.some((x) => String(x).endsWith('/.alive'))),
+        'registering a session must touch its .alive marker immediately, before the first tick');
+
+    // A second window's session must reuse the SAME shared timer.
+    app.windows.push({ id: 'w2', kind: 'preview', _file: { path: '/v/c.mkv' }, pv: { kind: 'video', mode: 'hls', transcodeState: 'remuxing' } });
+    await app.startPreviewVideo('w2', { path: '/v/c.mkv' });
+    assert.strictEqual(ExRT.video.hb, hb1, 'a second session must not spawn a second heartbeat timer');
+    assert.strictEqual(activeIntervals.size, 1, 'exactly one shared interval for all sessions, never one per session');
+
+    // Firing the tick must touch .alive for every live session dir in one go.
+    spawns.length = 0;
+    activeIntervals.get(hb1).fn();
+    const touchCall = spawns.find((a) => a[0] === 'touch');
+    assert.ok(touchCall, 'a heartbeat tick must touch .alive markers');
+    assert.strictEqual(touchCall.length - 1, 2, 'one touch call covering both live session dirs');
+
+    // Dropping one of two sessions must leave the shared timer running.
+    await V._teardownPreviewVideo.call(app, 'w1');
+    assert.strictEqual(ExRT.video.hb, hb1, 'heartbeat must stay alive while any session remains');
+    assert.strictEqual(activeIntervals.size, 1);
+
+    // Dropping the LAST session must clear the timer.
+    await V._teardownPreviewVideo.call(app, 'w2');
+    assert.strictEqual(ExRT.video.hb, null, 'heartbeat handle must be cleared once the last session is gone');
+    assert.strictEqual(activeIntervals.size, 0, 'no interval may be left running with zero sessions');
+    console.log('OK heartbeat: starts on first session, shared not per-session, cleared with the last session');
 }
 
 // The registry must not live on Alpine-reactive component state.

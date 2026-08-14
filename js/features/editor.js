@@ -101,12 +101,29 @@ window.ExplorerEditor = {
     },
 
     async _loadPreviewInto(id, file, admin) {
+        // Per-window load generation (mirrors ExRT.video.gen for HLS starts).
+        // _loadPreviewInto is called concurrently for one window on rapid
+        // ◀/▶: without this, a slow-finishing OLDER load can win the race
+        // against a newer one and overwrite pv / the workbook registry with
+        // stale data (observed: the spreadsheet branch registers the workbook
+        // AFTER its own set(), so a slow older xlsx load left the previous
+        // file's workbook paired with the newer pv.sheets, and the sheet
+        // picker then threw). Bumping here, before any await, means every
+        // write below can cheaply check "is my generation still current?"
+        // and no-op if a newer call already superseded it.
+        const gen = (ExRT.preview.gen.get(id) || 0) + 1;
+        ExRT.preview.gen.set(id, gen);
+        const isCurrent = () => ExRT.preview.gen.get(id) === gen;
         const limit = (this.settings.previewLimitMB || 10) * 1024 * 1024;
         const ropts = admin ? { admin: true } : undefined;
         // Replacing pv drops whatever the previous load allocated for this
         // window: an object URL (revoked here, not left to the GC — blobs are
         // not collected while a URL handle exists) and the parsed workbook.
         const set = (pv) => {
+            // Superseded: a newer load already took the next generation. Free
+            // whatever THIS call allocated (e.g. an object URL) instead of
+            // leaking it, and leave the newer load's pv / workbook alone.
+            if (!isCurrent()) { if (pv && pv.url) this._revokePvUrl(pv.url); return; }
             const w = this._win(id);
             if (!w) return;
             if (w.pv && w.pv.url && w.pv.url !== pv.url) this._revokePvUrl(w.pv.url);
@@ -156,8 +173,10 @@ window.ExplorerEditor = {
                 // After set() (which clears this window's registry entry): the
                 // workbook is a large self-referential object and stays off
                 // reactive state — only the sheet names + rendered srcdoc are
-                // reactive. Dropped in set()/previewStep/_removeWindow.
-                ExRT.preview.workbooks.set(id, wb);
+                // reactive. Dropped in set()/previewStep/_removeWindow. Gated on
+                // isCurrent() same as set(): a superseded load must not pair a
+                // stale workbook with whatever newer pv.sheets is now showing.
+                if (isCurrent()) ExRT.preview.workbooks.set(id, wb);
             } catch (e) { set({ kind: 'binary', reason: 'Could not render spreadsheet: ' + (e.message || e) }); }
             return;
         }
@@ -181,7 +200,7 @@ window.ExplorerEditor = {
             // this window is the visible, active one — never for a window
             // restored minimized (which has no <video> element to attach to).
             set({ kind: 'video', mode: 'hls', transcodeState: 'pending', pending: true });
-            this._vpMaybeStart(id);
+            if (isCurrent()) this._vpMaybeStart(id);
             return;
         }
         if (Util.isTextLike(file)) {
@@ -608,6 +627,7 @@ window.ExplorerEditor = {
                 try { URL.revokeObjectURL(w.pv.url); } catch (e) {}
             }
             ExRT.preview.workbooks.delete(id);
+            ExRT.preview.gen.delete(id);
             ExRT.video.gen.delete(id);
             // Closing a window can promote another one that still has a
             // deferred HLS session waiting to start.

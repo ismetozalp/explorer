@@ -81,10 +81,19 @@ window.ExRT = {
     //   gen:      windowId -> monotonically increasing start generation; a
     //             start whose generation is stale has been superseded by a
     //             newer start (rapid ◀/▶) and must free only its own process.
-    video: { sessions: new Map(), gen: new Map() },
+    //   hb:       setInterval handle for the shared "prove this session is
+    //             still being watched" heartbeat (touches <dir>/.alive for
+    //             every live session), or null when no session is live. A
+    //             timer handle is exactly the kind of thing this firewall
+    //             exists for — never put it on reactive state.
+    video: { sessions: new Map(), gen: new Map(), hb: null },
 
     // Parsed SheetJS workbooks for spreadsheet previews, windowId -> workbook.
     // Same firewall: the workbook is a big self-referential object; only the
     // rendered srcdoc + sheet names belong on the reactive window.
-    preview: { workbooks: new Map() },
+    //   gen: windowId -> monotonically increasing preview-load generation; a
+    //        _loadPreviewInto call whose generation is stale has been
+    //        superseded by a newer load for the same window (rapid ◀/▶) and
+    //        must not write pv or register a workbook.
+    preview: { workbooks: new Map(), gen: new Map() },
 };
