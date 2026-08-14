@@ -128,7 +128,7 @@ try {
     await page.screenshot({ path: SHOT }).catch(() => {});
     const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && (!settingsOK || !previewOK)));
     if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, preview=${previewOK}. Screenshot: ${SHOT}`);
-    else done(0, `OK — 2.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    else done(0, `OK — 3.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
     await page.screenshot({ path: SHOT }).catch(() => {});
     done(3, `ERROR driving the browser: ${e.message}. Screenshot: ${SHOT}`);

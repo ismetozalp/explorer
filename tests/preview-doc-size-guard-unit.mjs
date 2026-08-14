@@ -13,6 +13,10 @@ vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), '
 // the browser) — expose them as bare globals in this same vm context, not
 // just as window.* properties, before editor.js's methods actually run.
 sandbox.Util = sandbox.window.Util;
+// Same for ExRT (js/runtime.js): editor.js keeps the parsed workbook and the
+// Monaco/Quill instances there, off Alpine reactive state.
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+sandbox.ExRT = sandbox.window.ExRT;
 let readBinaryCalls = 0;
 let readTextCalls = 0;
 sandbox.FS = {

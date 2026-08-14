@@ -57,7 +57,9 @@ Alpine.data('explorer', () => ({
     _winSeq: 1,
 
     // Server-side video playback (ffmpeg→HLS, see js/features/videoplayer.js).
-    video: { ffmpeg: null, _sessions: {}, installLog: '' },   // ffmpeg: {ffmpeg,ffprobe} once probed; _sessions keyed by window id; installLog: live output of installFfmpeg
+    // Plain, serializable state only: the live hls.js/ffmpeg session handles
+    // live in ExRT.video (see js/runtime.js — the reactivity firewall).
+    video: { ffmpeg: null, installLog: '' },   // ffmpeg: {ffmpeg,ffprobe} once probed; installLog: live output of installFfmpeg
     // Windows-style window-control glyphs.
     winIconMinimize: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 8 H9" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>',
     winIconMaximize: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.75" y="0.75" width="8.5" height="8.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>',
@@ -182,7 +184,9 @@ Alpine.data('explorer', () => ({
     // ───── Init ──────────────────────────────────────────────────────────────
     async init() {
         this.homePath = await FS.homeDir();
-        this.reapOrphanPreviews();   // clean up any ffmpeg/segments a prior crash left behind
+        // Awaited: it deletes under the very cache root the first preview may
+        // start a session in, so it must finish before anything else runs.
+        await this.reapOrphanPreviews();   // clean up segment dirs a prior crash left behind (in-use dirs are skipped)
 
         // Phone breakpoint drives the toolbar's ⋯ More collapse. CSS media
         // queries (max-width:640px) do the purely-visual reflow; this keeps the

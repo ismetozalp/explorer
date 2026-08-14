@@ -24,7 +24,7 @@ window.ExplorerVideo = {
             '-hls_list_size', '0',
             '-hls_flags', 'independent_segments',
             '-hls_segment_type', 'mpegts',
-            '-hls_segment_filename', dir + '/seg_%05d.ts',
+            '-hls_segment_filename', this._vpSegPattern(dir),
             dir + '/index.m3u8',
         ];
     },
@@ -78,9 +78,30 @@ window.ExplorerVideo = {
     async _ensureHls() { await this._ensureScript('js/hls.min.js', 'Hls'); },
 
     // ── stateful wiring (Task 5) ─────────────────────────────────────────
+    // Non-reactive session registry + per-window start generation (see
+    // js/runtime.js). Everything below goes through these instead of
+    // this.video._sessions, which used to put hls.js/process handles on
+    // Alpine reactive state.
+    _vpSessions() { return ExRT.video.sessions; },
+    // Bump and return this window's start generation. Every startPreviewVideo
+    // takes a fresh generation at entry; a teardown bumps it too, so any start
+    // still in flight for that window knows it has been superseded.
+    _vpNextGen(winId) {
+        const g = (ExRT.video.gen.get(winId) || 0) + 1;
+        ExRT.video.gen.set(winId, g);
+        return g;
+    },
     async _vpProbeFfmpeg() {
         if (this.video.ffmpeg) return this.video.ffmpeg;
-        const check = async (bin) => { try { await cockpit.spawn(['command', '-v', bin], { err: 'ignore' }); return true; } catch (e) { return false; } };
+        // MUST go through `sh -c`: cockpit.spawn() execs argv directly with no
+        // shell, and `command` is a shell BUILTIN — /usr/bin/command exists only
+        // on Red Hat (shipped by the bash RPM), so argv-exec'ing it fails on
+        // Debian/Ubuntu/Alpine and reported ffmpeg as missing everywhere else.
+        // Same form as js/features/mounts.js and js/features/terminal.js.
+        const check = async (bin) => {
+            try { await cockpit.spawn(['sh', '-c', 'command -v ' + bin + ' 2>/dev/null'], { err: 'ignore' }); return true; }
+            catch (e) { return false; }
+        };
         this.video.ffmpeg = { ffmpeg: await check('ffmpeg'), ffprobe: await check('ffprobe') };
         return this.video.ffmpeg;
     },
@@ -109,24 +130,27 @@ window.ExplorerVideo = {
         }
         return false;
     },
-    // Kill a bare {proc, dir} pair without touching video._sessions — used
+    // Kill a bare {proc, dir} pair without touching the session registry — used
     // when a session has already been superseded (a newer startPreviewVideo
     // call for the same window won the race) so we must free THIS process's
     // resources without deleting the newer, still-live registration.
+    // Failures here are logged, never swallowed silently: a throw out of
+    // close()/rm means the ffmpeg process or its segments are still around, and
+    // an empty catch turns that leak into an invisible one.
     async _vpKillProcAndDir(proc, dir) {
-        try { proc && proc.close && proc.close('cancelled'); } catch (e) {}
-        if (dir) { try { await cockpit.spawn(['rm', '-rf', dir]); } catch (e) {} }
+        try { proc && proc.close && proc.close('cancelled'); } catch (e) { console.warn('explorer: could not close ffmpeg process', e); }
+        if (dir) { try { await cockpit.spawn(['rm', '-rf', dir]); } catch (e) { console.warn('explorer: could not remove session dir ' + dir, e); } }
     },
     // Fixed-round-1: unified "this attempt is done, one way or another"
     // cleanup, called from every non-success exit of startPreviewVideo (not
     // just the happy path). `token` is the session id this particular call
-    // registered; if it's still the one in video._sessions[winId] we own the
+    // registered; if it's still the one in ExRT.video.sessions we own the
     // pv state and do a full teardown (kills ffmpeg, deletes the on-disk
     // session dir, clears the session). If a newer start already superseded
     // us (rapid ◀/▶ before this one finished waiting), we must NOT touch the
     // newer session or its pv — just kill our own stray process + directory.
     async _vpEndSession(winId, token, proc, dir, reason) {
-        const s = this.video._sessions[winId];
+        const s = this._vpSessions().get(winId);
         if (s && s.token === token) {
             const ww = this._win(winId);
             if (reason && ww && ww.pv) { ww.pv.reason = reason; ww.pv.transcodeState = 'error'; }
@@ -135,30 +159,70 @@ window.ExplorerVideo = {
             await this._vpKillProcAndDir(proc, dir);
         }
     },
+    // An HLS session is only worth starting for a window the user can actually
+    // see: a restored-but-minimized preview (js/core/tabs.js persists open
+    // preview windows and reopens them with {minimized:true}) would otherwise
+    // burn a full ffmpeg run against a <video> element that is never mounted,
+    // then report "this browser cannot play the converted stream" — a wrong
+    // diagnosis for a window nobody opened. So the load path only marks the
+    // preview `pending`, and the session starts here, the moment the window
+    // becomes the visible, active one.
+    _vpMaybeStart(winId) {
+        const w = this._win(winId);
+        if (!w || w.kind !== 'preview' || !w.pv) return;
+        if (w.pv.kind !== 'video' || w.pv.mode !== 'hls' || !w.pv.pending) return;
+        if (this.activeWinId !== winId || !this.hostVisible) return;
+        if (!w._file) return;
+        w.pv.pending = false;
+        w.pv.transcodeState = 'remuxing';
+        // Deliberately not awaited (callers are sync UI paths); the catch keeps
+        // a failure from becoming an unhandled rejection with a player stuck on
+        // "Remuxing" and no error text.
+        this.startPreviewVideo(winId, w._file).catch((e) => {
+            const ww = this._win(winId);
+            if (ww && ww.pv) { ww.pv.reason = 'Could not start playback: ' + (e && e.message ? e.message : e); ww.pv.transcodeState = 'error'; }
+        });
+    },
     // Spawn ffmpeg → HLS in a fresh session dir and attach hls.js to <video id="previewVideo">.
     async startPreviewVideo(winId, file) {
+        // Generation FIRST, before any await: two starts for one window overlap
+        // whenever ◀/▶ is clicked faster than a probe resolves, and the older
+        // one must never be able to register (and thereby orphan the newer
+        // one's hls.js + ffmpeg, which nothing would then ever free).
+        const gen = this._vpNextGen(winId);
+        const isNewest = () => ExRT.video.gen.get(winId) === gen;
         const w = this._win(winId); if (!w) return;
-        await this._teardownPreviewVideo(winId);
+        await this._vpDropSession(winId);   // drop any previous session WITHOUT bumping our own generation
         const home = this.homePath || await FS.homeDir();
         const root = this._vpCacheRoot(home);
         const id = Util.uid();
         const dir = this._vpSessionDir(root, id);
-        await FS.mkdir(dir);
+        // An unwritable/full ~/.cache must surface as a normal error state, not
+        // an unhandled rejection behind a player stuck on "Remuxing".
+        try { await FS.mkdir(dir); }
+        catch (e) {
+            if (isNewest()) { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'Could not create the transcode cache directory: ' + (e && e.message ? e.message : e); ww.pv.transcodeState = 'error'; } }
+            return;
+        }
         const ff = await this._vpProbeFfmpeg();
         const codec = (ff.ffprobe ? this._vpProbeDecision(await this._vpProbeStreams(file.path)) : 'x264');
+        if (!isNewest()) { await this._vpKillProcAndDir(null, dir); return; }   // superseded while probing — nothing spawned yet
         // Reflect state in the badge.
         if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; }
         const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], { err: 'message' });
         // Register the session IMMEDIATELY (before any further await) — every
         // exit path below (ensureHls throwing, the playlist wait timing out,
         // being superseded while waiting, hls.js unsupported, or the happy
-        // path) can now find this proc+dir via video._sessions[winId] and is
+        // path) can now find this proc+dir via ExRT.video.sessions and is
         // responsible for freeing it. `token` (=id) is compared by
         // isCurrent()/_vpEndSession() so a later startPreviewVideo() call for
         // this same window supersedes — and tears down — this one instead of
-        // both ffmpeg processes surviving.
-        this.video._sessions[winId] = { hls: null, proc, dir, token: id };
-        const isCurrent = () => { const s = this.video._sessions[winId]; return !!(s && s.token === id); };
+        // both ffmpeg processes surviving. Registration itself is gated on
+        // isNewest(): without that gate a slow older call could overwrite a
+        // newer call's entry here and strand the newer hls+ffmpeg forever.
+        if (!isNewest()) { await this._vpKillProcAndDir(proc, dir); return; }
+        this._vpSessions().set(winId, { hls: null, proc, dir, token: id });
+        const isCurrent = () => { const s = this._vpSessions().get(winId); return !!(isNewest() && s && s.token === id); };
         proc.then(() => {
             if (isCurrent()) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
             else { this._vpKillProcAndDir(proc, dir); } // superseded: ffmpeg exited clean, but its dir is now orphaned — nobody else will ever rm it
@@ -178,26 +242,51 @@ window.ExplorerVideo = {
         this.$nextTick(() => {
             if (!isCurrent()) { this._vpKillProcAndDir(proc, dir); return; } // superseded during the tick
             const el = document.getElementById('previewVideo');
-            if (!window.Hls || !window.Hls.isSupported() || !el) { this._vpEndSession(winId, id, proc, dir, 'This browser cannot play the converted stream.'); return; }
+            // Two distinct failures, two distinct messages: no <video> in the
+            // DOM means this window isn't on screen (nothing to attach to), and
+            // saying "this browser cannot play it" there is a false diagnosis.
+            if (!el) { this._vpEndSession(winId, id, proc, dir, 'The video player is not on screen — reopen the preview to play this file.'); return; }
+            if (!window.Hls || !window.Hls.isSupported()) { this._vpEndSession(winId, id, proc, dir, 'This browser cannot play the converted stream (HLS is not supported here).'); return; }
             const hls = new window.Hls({ pLoader: Loader, fLoader: Loader });
             hls.loadSource(this._vpSourceUrl(id));
             hls.attachMedia(el);
-            const s = this.video._sessions[winId];
-            if (s && s.token === id) s.hls = hls; // still current: let teardown destroy() it later
+            const s = this._vpSessions().get(winId);
+            if (isNewest() && s && s.token === id) s.hls = hls; // still current: let teardown destroy() it later
+            else { try { hls.destroy(); } catch (e) { console.warn('explorer: hls destroy failed', e); } this._vpKillProcAndDir(proc, dir); }
         });
     },
-    async _teardownPreviewVideo(winId) {
-        const s = this.video._sessions[winId];
+    // Free a window's session without touching its generation counter — used by
+    // startPreviewVideo, which has already taken its own generation and must
+    // not invalidate itself.
+    async _vpDropSession(winId) {
+        const s = this._vpSessions().get(winId);
         if (!s) return;
-        delete this.video._sessions[winId];
-        try { s.hls && s.hls.destroy(); } catch (e) {}
+        this._vpSessions().delete(winId);
+        try { s.hls && s.hls.destroy(); } catch (e) { console.warn('explorer: hls destroy failed', e); }
         await this._vpKillProcAndDir(s.proc, s.dir);
     },
+    async _teardownPreviewVideo(winId) {
+        // Bump the generation so a start still in flight for this window (the
+        // ◀/▶ and close paths call this without awaiting the start) knows it
+        // has been superseded and frees its own process instead of registering.
+        this._vpNextGen(winId);
+        await this._vpDropSession(winId);
+    },
+    // Startup cleanup of leftover session dirs. Scoped: it removes only session
+    // directories that NO running process refers to. The previous blanket
+    // `pkill -9 -f <root>` + `rm -rf <root>` also killed the ffmpeg of a SECOND
+    // Explorer tab and deleted its segments mid-playback. A dir whose ffmpeg is
+    // still alive is indistinguishable from another tab's live session, so it
+    // is left alone (cockpit-bridge kills a session's processes when its
+    // channel closes, so a genuinely orphaned ffmpeg is transient).
     async reapOrphanPreviews() {
         const home = this.homePath || await FS.homeDir();
         const root = this._vpCacheRoot(home);
-        try { await cockpit.spawn(['pkill', '-9', '-f', root]); } catch (e) {}
-        try { await cockpit.spawn(['rm', '-rf', root]); } catch (e) {}
+        const script = '[ -d "$1" ] || exit 0; '
+            + 'for d in "$1"/*/; do d=${d%/}; [ -d "$d" ] || continue; '
+            + 'pgrep -f "$d" >/dev/null 2>&1 || rm -rf "$d"; done';
+        try { await cockpit.spawn(['sh', '-c', script, 'sh', root], { err: 'ignore' }); }
+        catch (e) { console.warn('explorer: preview cache reap failed', e); }
     },
 
     // ── turn-key ffmpeg install (Task 6) ────────────────────────────────

@@ -4,6 +4,11 @@ import fs from 'node:fs';
 // Load utils (for isPreviewable) + editor mixin into one sandbox.
 const sandbox = { window: {}, console };
 vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
+// js/runtime.js defines the ExRT global (non-reactive registries) that
+// editor.js reads directly — in the page it's loaded before every feature
+// mixin, so the vm context needs it too.
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+sandbox.ExRT = sandbox.window.ExRT;
 vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox);
 const Util = sandbox.window.Util;
 const E = sandbox.window.ExplorerEditor;
@@ -27,6 +32,10 @@ const stub = {
   _winTitle: (p) => p,
   activateWindow() {},
   _loadPreviewInto() { this._loaded = (this._loaded || 0) + 1; }, // count reloads
+  // previewStep frees the outgoing preview's blob URL through the real helper
+  // (deferred to $nextTick so the element referencing it is unmounted first).
+  _revokePvUrl: E._revokePvUrl,
+  $nextTick(fn) { this._ticks = (this._ticks || []).concat(fn); },
 };
 E.previewCanStep.call(stub, 1, -1); // no throw
 assert.strictEqual(E.previewCanStep.call(stub, 1, -1), true);

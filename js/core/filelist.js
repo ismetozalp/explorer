@@ -98,10 +98,10 @@ window.ExplorerFileList = {
     typeLabel: Util.typeLabel,
     isTextLike: Util.isTextLike,
     isArchive: Util.isArchive,
-    isPreviewable(file) {
-        if (!file) return false;
-        return Util.isTextLike(file) || Util.isImage(file) || Util.isPdf(file) || Util.isVideo(file) || Util.isAudio(file);
-    },
+    // Single source of truth (js/utils.js) — a local copy here went stale and
+    // left .md/.docx/.xlsx un-previewable from the Space shortcut even though
+    // double-click opened them.
+    isPreviewable: Util.isPreviewable,
 
 
     // ───── Context menu ──────────────────────────────────────────────────────
