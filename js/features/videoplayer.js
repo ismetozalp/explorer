@@ -47,9 +47,9 @@ window.ExplorerVideo = {
     // gate (grep js/hls.min.js for `waitForLive`), which otherwise makes a
     // still-"live" (no-ENDLIST) level keep waiting rather than starting.
     //
-    // `-ac 2`: found live-verifying against the Mortal Kombat file, whose
-    // source audio is 6-channel AC3 5.1 (`ffprobe` confirmed channels:6,
-    // channel_layout:"5.1(side)"). Without an explicit channel count,
+    // `-ac 2`: found live-verifying against a real 5.1-AC3 source file
+    // (`ffprobe` confirmed channels:6, channel_layout:"5.1(side)").
+    // Without an explicit channel count,
     // ffmpeg's AAC encoder preserves the source layout, so `-c:a aac`
     // produced 6-channel AAC — confirmed via ffprobe on an actual output
     // segment. Chromium's MediaSource Extensions does not reliably accept
@@ -137,7 +137,12 @@ window.ExplorerVideo = {
     // NaN/0:00 — the caller x-shows on this being non-empty.
     _vpFormatDuration(seconds) {
         if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return '';
+        // Round FIRST, then reject a zero result — Fix-round-1: a value like
+        // 0.4 passes the `seconds <= 0` guard above (it's positive) but
+        // rounds to 0, which used to fall through and render as the
+        // misleading '0:00' instead of ''.
         const total = Math.round(seconds);
+        if (total <= 0) return '';
         const h = Math.floor(total / 3600);
         const m = Math.floor((total % 3600) / 60);
         const s = total % 60;
@@ -223,6 +228,19 @@ window.ExplorerVideo = {
         while ((m = re.exec(text))) total += parseFloat(m[1]) || 0;
         return total >= targetSecs;
     },
+    // Pure (unit-tested): does this playlist text list at least one media
+    // segment at all? Fix-round-1 — used by the degrade path below: the 60s
+    // backstop must not be all-or-nothing. Raising the bar from "one segment
+    // exists" to "~30s buffered" (FIX B) made the OLD single boolean outcome
+    // ("ready" vs "kill everything, hard error") much likelier to land on
+    // the destructive branch on a slow host (a 0.3-0.5x realtime transcode
+    // needs 60-100s of wall time just to reach 30s of encoded content) —
+    // for a file that used to play (with stalls) under the pre-fix code,
+    // this outright breaks it. So the backstop now asks a narrower
+    // question: is there ANYTHING to play yet, even short of the target?
+    _vpPlaylistHasSegments(text) {
+        return !!(text && /#EXTINF:/.test(text));
+    },
     // Poll until ffmpeg has flushed enough playlist content to start playback
     // (see _vpPlaylistBuffered / _vpStartBufferTargetSecs), or timeoutMs
     // elapses as a backstop. Reads the playlist's actual text every tick
@@ -238,16 +256,26 @@ window.ExplorerVideo = {
     // immediately (used to stop polling the instant a session is torn down
     // or superseded, instead of reading the playlist every 200ms for up to
     // timeoutMs after there's no one left who cares about the answer).
+    //
+    // Returns `{ status, text }` — Fix-round-1 (was a bare boolean): the
+    // caller needs the LAST read playlist text to decide, on a timeout,
+    // whether to degrade (attach with whatever's on disk) or genuinely
+    // error (nothing at all was ever produced). `status` is 'buffered'
+    // (target reached or ENDLIST seen), 'superseded' (stopCheck said stop —
+    // caller must not touch pv, just free this attempt's resources), or
+    // 'timeout' (deadline passed short of the target).
     async _vpWaitForPlaylist(path, timeoutMs, stopCheck) {
         const deadline = Date.now() + timeoutMs;
+        let lastText = null;
         while (Date.now() < deadline) {
-            if (stopCheck && !stopCheck()) return false;
+            if (stopCheck && !stopCheck()) return { status: 'superseded', text: lastText };
             let text = null;
             try { text = await cockpit.spawn(['cat', path], { err: 'ignore' }); } catch (e) {}
-            if (this._vpPlaylistBuffered(text, this._vpStartBufferTargetSecs)) return true;
+            lastText = text;
+            if (this._vpPlaylistBuffered(text, this._vpStartBufferTargetSecs)) return { status: 'buffered', text };
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
-        return false;
+        return { status: 'timeout', text: lastText };
     },
     // Kill a bare {proc, dir} pair without touching the session registry — used
     // when a session has already been superseded (a newer startPreviewVideo
@@ -370,9 +398,24 @@ window.ExplorerVideo = {
         try { await this._ensureHls(); }
         catch (e) { await this._vpEndSession(winId, id, proc, dir, 'Could not load the video player (hls.js failed to load).'); return; }
         // Don't hand hls.js a source until ffmpeg has actually produced the
-        // manifest + first segment (see _vpWaitForPlaylist).
-        const ready = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000, isCurrent);
-        if (!ready) { await this._vpEndSession(winId, id, proc, dir, 'ffmpeg did not produce a playable stream in time.'); return; }
+        // manifest + enough of a buffer (see _vpWaitForPlaylist).
+        const wait = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000, isCurrent);
+        if (wait.status === 'superseded') { await this._vpKillProcAndDir(proc, dir); return; }
+        if (wait.status === 'timeout') {
+            // Fix-round-1: degrade instead of erroring. The 60s backstop is
+            // unchanged, but FIX B raised the bar it has to clear (~30s
+            // buffered, not just "one segment exists") — on a slow host
+            // (ARM NAS, small VPS transcoding well under realtime) that can
+            // genuinely take longer than 60s even though the file WOULD
+            // play (with stalls, same as before this round of fixes). Only
+            // treat the timeout as fatal when there is truly nothing to
+            // play yet; otherwise attach with whatever's on disk and let it
+            // keep buffering in the background.
+            if (!this._vpPlaylistHasSegments(wait.text)) {
+                await this._vpEndSession(winId, id, proc, dir, 'ffmpeg did not produce a playable stream in time.');
+                return;
+            }
+        }
         if (!isCurrent()) { await this._vpKillProcAndDir(proc, dir); return; } // superseded while waiting
         // hls.js attaches on the next tick once the <video> element exists.
         this.$nextTick(() => {
@@ -383,7 +426,19 @@ window.ExplorerVideo = {
             // saying "this browser cannot play it" there is a false diagnosis.
             if (!el) { this._vpEndSession(winId, id, proc, dir, 'The video player is not on screen — reopen the preview to play this file.'); return; }
             if (!window.Hls || !window.Hls.isSupported()) { this._vpEndSession(winId, id, proc, dir, 'This browser cannot play the converted stream (HLS is not supported here).'); return; }
-            const hls = new window.Hls({ pLoader: Loader, fLoader: Loader });
+            // startPosition:0 — Fix-round-1. hls.js's default is -1 ("start at
+            // the live edge"), and `details.live` stays true until
+            // #EXT-X-ENDLIST (the "EVENT"!==t.type carve-out in the vendored
+            // hls.js only exempts the `waitForLive` gate, not
+            // setStartPosition), so without this the encode's OWN wait-for-
+            // buffer (FIX B) made it worse, not better: with
+            // liveSyncDurationCount's default of 3 and this ffmpeg's real
+            // segment lengths, a 30s buffer (~5 segments) computed a start
+            // position around 11s in — the opening of the file was silently
+            // skipped. The encode always starts at 0 and `-hls_list_size 0`
+            // keeps every fragment listed, so there is nothing to lose by
+            // forcing position 0 explicitly.
+            const hls = new window.Hls({ pLoader: Loader, fLoader: Loader, startPosition: 0 });
             hls.loadSource(this._vpSourceUrl(id));
             hls.attachMedia(el);
             const s = this._vpSessions().get(winId);

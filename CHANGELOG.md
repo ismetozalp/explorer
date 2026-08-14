@@ -14,12 +14,15 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   and the total length briefly showed as a few seconds.** Playback now
   waits until about 30 seconds of video has been converted before it
   starts, so it doesn't stall right at the start waiting for more data;
-  the real total length is shown immediately (instead of growing from
-  ~0:07 as more of the file is converted); and video with 5.1/multichannel
-  audio (common on ripped discs) is downmixed to stereo, since some
-  browsers refuse to play multichannel audio in this preview path. The
-  **Transcoding / Remuxing** badge and the length now show in the preview
-  window's title bar instead of floating over the video.
+  playback also now starts at the beginning of the file instead of
+  skipping ahead a few seconds. The title bar now shows the real total
+  length right away (the small counter on the video's own control bar
+  still climbs as more of the file finishes converting — that one's the
+  browser's, not ours). Video with 5.1/multichannel audio (common on
+  ripped discs) is downmixed to stereo, since some browsers refuse to
+  play multichannel audio in this preview path. The **Transcoding /
+  Remuxing** badge and the length now show in the preview window's title
+  bar instead of floating over the video.
 
 ## 3.0.0
 
