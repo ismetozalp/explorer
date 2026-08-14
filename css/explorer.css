@@ -321,6 +321,23 @@ body {
    against --ex-bg-alt in both themes, so no extra dark override is needed. */
 .status-selection { color: var(--ex-accent); font-weight: 600; }
 
+/* Per-pane footer (dual mode): the same .status-bar element, but at half
+   (or less) the width of the shared bar it replaces there. Without this,
+   long text wraps to a second line under a narrow pane and silently grows
+   that footer taller than its sibling's — breaking the side-by-side
+   alignment the per-pane footer exists to provide. Force a single line and
+   truncate instead. Scoped to footers nested in .file-pane so the
+   full-width shared bar (a sibling of .tab-split-body, not a .file-pane
+   descendant) is unaffected. */
+.file-pane > .status-bar > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.file-pane > .status-bar > span:first-child { flex: 1 1 auto; }
+.file-pane > .status-bar > span.status-selection { flex: 0 1 auto; }
+
 /* Compact selection chip in the per-tab toolbar; echoes the status-bar
    count from the same tab.selection source. */
 .toolbar-selection {

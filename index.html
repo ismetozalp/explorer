@@ -134,7 +134,7 @@
                  Hidden on phones: the per-tab toolbar already wraps heavily
                  there and the status bar still carries the full breakdown, so
                  skipping it avoids any risk of crowding the phone layout. -->
-            <span class="toolbar-selection me-2" x-show="!ui.phone && activePane(tab).selection.length > 0" x-cloak
+            <span class="toolbar-selection me-2" x-show="!ui.phone && !tab.dual && activePane(tab).selection.length > 0" x-cloak
                   :title="selectionSummary(activePane(tab)) + ' — click to clear'"
                   @click="clearSelection(activePane(tab))"
                   x-text="activePane(tab).selection.length + ' selected'"></span>
@@ -320,6 +320,14 @@
                                x-init="$nextTick(() => $el.focus())">
                     </template>
                 </div>
+                <!-- per-pane selection indicator — this pane's own count, so
+                     dual-mode selections can never be confused between panes.
+                     Reuses .toolbar-selection styling and the same
+                     statusText()/selectionSummary() source as the footer below. -->
+                <span class="toolbar-selection ms-2" x-show="p.selection.length > 0" x-cloak
+                      :title="selectionSummary(p) + ' — click to clear'"
+                      @click="clearSelection(p)"
+                      x-text="p.selection.length + ' selected'"></span>
             </div>
 
             <!-- per-pane error -->
@@ -397,6 +405,16 @@
                 </table>
                 <div x-show="p.loading" class="loading-overlay">Loading…</div>
             </div>
+
+            <!-- per-pane status footer (dual mode only) — this pane's own
+                 totals/selection, styled like the shared .status-bar so it
+                 reads as the same UI element but is unambiguous per pane.
+                 Reuses statusText()/selectionSummary() (single source of
+                 truth, same as the shared bar) so counts can't drift. -->
+            <div class="status-bar" x-show="tab.dual">
+                <span x-text="statusText(p)"></span>
+                <span class="ms-auto status-selection" x-text="p.selection.length > 0 ? selectionSummary(p) : ''"></span>
+            </div>
           </div>
         </template>
         </div>
@@ -444,8 +462,14 @@
         </template>
         </div>
 
-        <!-- Status bar (active pane) -->
-        <div class="status-bar">
+        <!-- Status bar (active pane). Hidden in dual mode: each pane now has
+             its own footer below, so this shared bar would just repeat one
+             pane's numbers with the same "whose count is this?" ambiguity
+             the per-pane footers exist to fix. x-show (not a CSS-only hide)
+             so its 24px flex-basis is removed from layout too — panes-container
+             is flex:1 1 auto, so the file lists simply gain that space back
+             rather than leaving a gap. -->
+        <div class="status-bar" x-show="!tab.dual">
             <span x-text="statusText(activePane(tab))"></span>
             <span class="ms-auto status-selection" x-text="activePane(tab).selection.length > 0 ? selectionSummary(activePane(tab)) : ''"></span>
         </div>
