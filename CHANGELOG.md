@@ -2,6 +2,18 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.6
+
+- **Fixed: some `.ogv` videos played with sound but a black picture.**
+  `.ogv` files almost always carry Theora video, and current versions of
+  Chrome no longer include a Theora decoder — but Chrome still answers
+  "maybe" when asked if it can play the container in general, so the plugin
+  handed the file straight to the browser instead of converting it first.
+  The result was a player with working controls and audio but a frame that
+  never showed anything. `.ogv` is now converted on the server (the same
+  path already used for `.mkv`, `.avi`, `.ogm`, and other formats the
+  browser can't decode on its own), so the picture plays correctly.
+
 ## 3.1.5
 
 - **Split view: counts are no longer ambiguous between panes.** With two

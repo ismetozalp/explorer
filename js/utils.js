@@ -215,9 +215,40 @@ window.Util = (function () {
         return file && file.type === 'f' && ['xlsx', 'xls', 'ods', 'csv', 'xlsb'].includes(ext);
     }
     // Browser <video> can decode these containers/codecs directly (no ffmpeg).
+    //
+    // 'ogv' was dropped in 3.1.6: an .ogv container almost always holds
+    // Theora video, and modern Chrome no longer ships a Theora decoder.
+    // canPlayType('video/ogg; codecs="theora"') correctly returns '' — but
+    // canPlayType('video/ogg') (the generic, codec-less check) returns
+    // 'maybe', which is the trap: the plugin has no codec-specific check at
+    // this layer, so a naive native-eligibility list lets the file through,
+    // the <video> element loads, shows controls, and plays the Vorbis audio
+    // track — with a permanently black picture, no error anywhere. Routing
+    // .ogv through the ffmpeg->HLS path (still true in isVideo()) transcodes
+    // it to something Chrome can actually decode. (.ogm was already excluded
+    // here for the same reason and needs no change.)
+    //
+    // mp4/m4v/webm were evaluated for the same failure mode and kept native:
+    // - mp4/m4v can (rarely) carry HEVC/H.265, which some Chrome builds
+    //   can't decode either — but the overwhelming majority of .mp4/.m4v
+    //   files in the wild are H.264, which is universally supported, and
+    //   there's no cheap way to know the codec without probing the file.
+    // - webm can in theory hold something exotic, but in practice is always
+    //   VP8/VP9/AV1, all natively decodable in Chrome.
+    // A codec-aware gate (probe with ffprobe before deciding native vs.
+    // ffmpeg) was considered but rejected for now: the only probe available
+    // at this point is _vpProbeFfmpeg's binary-existence check, not a real
+    // stream probe — adding one would mean spawning ffprobe on every single
+    // video preview (mp4 included) before the player can even start
+    // loading, which is latency on the overwhelmingly common, already-safe
+    // case to guard against a rare failure mode. If HEVC-in-mp4 turns out to
+    // be a real-world problem, the existing _vpProbeStreams/_vpProbeDecision
+    // machinery in videoplayer.js already knows how to read a codec name —
+    // it would just need to run before the native/ffmpeg fork instead of
+    // only after, which is future work, not this fix.
     function isVideoNative(file) {
         const ext = (file && file.name || '').toLowerCase().split('.').pop();
-        return file && file.type === 'f' && ['mp4', 'm4v', 'webm', 'ogv'].includes(ext);
+        return file && file.type === 'f' && ['mp4', 'm4v', 'webm'].includes(ext);
     }
     // Anything the preview window can show.
     function isPreviewable(file) {

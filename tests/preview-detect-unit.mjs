@@ -27,9 +27,13 @@ assert.strictEqual(U.isPreviewable(f('movie.mkv')), true);
 // (browser can't decode them directly), isPreviewable() true throughout.
 // NOTE: 'ts' is deliberately excluded — see the .ts regression guard below
 // (fix round 2).
+// 'ogv' joined this group in 3.1.6 (fix round 3): it almost always carries
+// Theora video, which modern Chrome can no longer decode — see the
+// isVideoNative() comment in js/utils.js for the canPlayType() evidence.
+// It sits alongside 'ogm' (already here, same underlying codec risk).
 for (const name of ['clip.avi', 'clip.wmv', 'clip.flv', 'clip.m4v',
                      'clip.mpg', 'clip.mpeg', 'clip.m2ts', 'clip.mts', 'clip.3gp',
-                     'clip.ogm', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
+                     'clip.ogm', 'clip.ogv', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
     assert.strictEqual(U.isVideo(f(name)), true, `isVideo(${name}) should be true`);
     assert.strictEqual(U.isPreviewable(f(name)), true, `isPreviewable(${name}) should be true`);
     assert.strictEqual(U.isTextLike(f(name)), false, `isTextLike(${name}) should be false (excluded as video)`);
@@ -40,9 +44,17 @@ assert.strictEqual(U.isVideoNative(f('clip.m4v')), true);
 // Everything else in the new list is non-native — ffmpeg is required.
 for (const name of ['clip.avi', 'clip.wmv', 'clip.flv',
                      'clip.mpg', 'clip.mpeg', 'clip.m2ts', 'clip.mts', 'clip.3gp',
-                     'clip.ogm', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
+                     'clip.ogm', 'clip.ogv', 'clip.divx', 'clip.vob', 'clip.asf', 'clip.rm', 'clip.rmvb']) {
     assert.strictEqual(U.isVideoNative(f(name)), false, `isVideoNative(${name}) should be false`);
 }
+// Direct regression guard for the reported bug: a real .ogv sample played
+// with working controls/audio but a permanently black picture, because
+// Chrome's generic 'video/ogg' canPlayType() answers 'maybe' even though it
+// cannot decode the Theora video track the container almost always holds.
+// isVideoNative() must say false so the file is routed to the ffmpeg->HLS
+// path instead of a bare <video src>.
+assert.strictEqual(U.isVideoNative(f('sample.ogv')), false, '.ogv must not be treated as natively playable (Theora black-picture bug)');
+assert.strictEqual(U.isVideo(f('sample.ogv')), true, '.ogv must still be handled as video (via ffmpeg)');
 // Fix round 2 regression guard: a bare .ts is TypeScript source, not an
 // MPEG transport stream — it must stay on the text/code preview path, not
 // get swept into the video branch (isVideo() gates BEFORE isTextLike() at

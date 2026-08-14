@@ -39,6 +39,11 @@ assert.strictEqual(U.mimeType(f('song.opus')), 'audio/opus');
 assert.strictEqual(U.mimeType(f('clip.mp4')), 'video/mp4');
 assert.strictEqual(U.mimeType(f('clip.m4v')), 'video/mp4');
 assert.strictEqual(U.mimeType(f('clip.webm')), 'video/webm');
+// 'ogv' left MIME_TYPES's video group in spirit as of 3.1.6 (isVideoNative()
+// no longer includes it — see js/utils.js — because modern Chrome can't
+// decode the Theora video most .ogv files carry), but the ext->MIME lookup
+// itself stays general-purpose and unchanged; nothing in the native-video
+// blob path reaches it for .ogv anymore.
 assert.strictEqual(U.mimeType(f('clip.ogv')), 'video/ogg');
 
 // Fallback: unknown / text / non-native-video extensions get '' — matches
@@ -61,7 +66,7 @@ for (const name of ['mp3','wav','ogg','flac','m4a','aac','opus']) {
     assert.notStrictEqual(U.mimeType(f('x.' + name)), '', `audio ext ${name} must have a MIME type`);
 }
 for (const name of ['mp4','m4v','webm','ogv']) {
-    assert.notStrictEqual(U.mimeType(f('x.' + name)), '', `native video ext ${name} must have a MIME type`);
+    assert.notStrictEqual(U.mimeType(f('x.' + name)), '', `video ext ${name} must have a MIME type`);
 }
 
 console.log('mime-unit: OK');
