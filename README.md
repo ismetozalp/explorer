@@ -432,10 +432,13 @@ history, selection, sort order, search, and git strip.
 ### Selection
 
 - Click selects one row.
-- **Shift-click** extends a range.
+- **Shift-click** extends a range from the last-clicked row.
 - **Ctrl-click** toggles individual rows.
 - **Ctrl-A** selects all visible.
-- The status bar shows total count and combined size of the selection.
+- The status bar shows how many of the pane's items are selected, broken
+  down into files vs. folders, plus the combined size of the selected files
+  (folder sizes aren't shown, since Explorer doesn't compute folder totals) —
+  e.g. `4 of 28 selected · 3 files, 1 folder · 9.6 MB`.
 
 ### Right-click context menu (file or empty area)
 
