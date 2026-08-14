@@ -14,7 +14,7 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   and offers a one-click install (with the manual command shown). Local files
   only — this is not an IPTV/streaming feature.
 - **Rendered documents.** Markdown renders (toggle to source), and **.docx** and
-  **spreadsheets** (.xlsx/.xls/.ods/.csv) render in a sandboxed frame.
+  **spreadsheets** (.xlsx/.xls/.ods/.csv/.xlsb) render in a sandboxed frame.
 - **New dependency (optional):** `ffmpeg` on the server — only needed for
   non-native video. See the README.
 

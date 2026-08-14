@@ -310,7 +310,7 @@ any normal Linux server but worth confirming:
 | a shell (`bash`) | integrated terminals (PTY via Cockpit's stream channel) |
 | `git`            | local repo status, clone, commit, push, fetch, pull|
 | `gh` (optional)  | GitHub integration — the plugin installs this on demand|
-| `ffmpeg` (optional) | transcoding video the browser can't decode natively for preview — see *Dependencies* under *File preview* below|
+| `ffmpeg` (optional) | transcoding video the browser can't decode natively for preview — see *Dependencies* under *Preview* below|
 
 The integrated terminal spawns your configured shell (default
 `/bin/bash`, override in Settings) over Cockpit's PTY stream channel —
