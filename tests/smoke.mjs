@@ -10,7 +10,9 @@ import { chromium } from 'playwright';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const URL  = process.env.COCKPIT_URL  || 'https://localhost:9090';
 const USER = process.env.COCKPIT_USER || os.userInfo().username;
 const PASS = process.env.COCKPIT_PASS || '';
@@ -18,6 +20,19 @@ const SHOT = process.env.SMOKE_SHOT   || '/tmp/claude-1000/-home-ismet-explorer/
 
 const errors = [];   // uncaught pageerrors + error-level console lines
 const RISK = /is not a function|is not defined|Cannot read propert|Explorer[A-Z]|\bExRT\b|undefined is not/i;
+
+// tabs.yml (persisted open tabs, incl. current path — see the preview-smoke
+// finally block below) can already have a real user tab pointing somewhere
+// meaningful. Snapshot now and force-restore the exact bytes at the end
+// instead of trusting "navigate back to homePath" to reproduce it (it won't,
+// if the original tab wasn't already at homePath).
+const TABS_YML = path.join(os.homedir(), '.config', 'cockpit', 'explorer', 'tabs.yml');
+let tabsSnapshot = null;
+try { tabsSnapshot = fs.readFileSync(TABS_YML); } catch (e) {}
+function restoreTabsFile() {
+    if (tabsSnapshot == null) return;
+    try { fs.writeFileSync(TABS_YML, tabsSnapshot); } catch (e) {}
+}
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--ignore-certificate-errors'] });
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -125,11 +140,72 @@ try {
         try { fs.rmSync(fixDir, { recursive: true, force: true }); } catch (e) {}
     }
 
+    // Committed-fixture preview pass (tests/samples/, see
+    // samples-manifest-unit.mjs + samples-preview-e2e.mjs): a few
+    // no-conversion kinds only — image, pdf, markdown, text — so this stays
+    // fast and independent of ffmpeg (heavy video transcoding is exercised
+    // in tests/samples-preview-e2e.mjs, not here).
+    let samplesOK = false;
+    const SAMPLES = path.join(__dirname, 'samples');
+    try {
+        await app.evaluate(async (dir) => {
+            const a = window.Alpine.$data(document.body);
+            await a.navigate(a.currentPane(), dir);
+        }, SAMPLES);
+        await app.locator('.file-list tbody tr[data-path]').first().waitFor({ timeout: 10000 });
+
+        const openAndCheck = async (name, check) => {
+            const sel = `tr[data-path="${SAMPLES}/${name}"]`;
+            await app.locator(sel).dblclick();
+            await app.locator('#windowHost.show').waitFor({ timeout: 10000 });
+            await app.locator('.loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+            await check();
+            await app.locator('.win-btn-close').click();
+            await app.locator('#windowHost.show').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+        };
+
+        await openAndCheck('sample.png', async () => {
+            const img = app.locator('img.preview-img');
+            await img.waitFor({ timeout: 5000 });
+            const w = await img.evaluate(el => el.naturalWidth);
+            if (!(w > 0)) throw new Error('image preview: naturalWidth is 0');
+        });
+        await openAndCheck('sample.pdf', async () => {
+            const frame = app.locator('iframe.preview-iframe');
+            await frame.waitFor({ timeout: 5000 });
+            const src = await frame.getAttribute('src');
+            if (!src || !src.startsWith('blob:')) throw new Error('pdf preview: iframe has no blob: src');
+        });
+        await openAndCheck('sample.md', async () => {
+            const doc = app.locator('iframe.preview-doc');
+            await doc.waitFor({ timeout: 5000 });
+            const srcdoc = await doc.getAttribute('srcdoc');
+            if (!srcdoc || !/<h1/i.test(srcdoc)) throw new Error('markdown preview: srcdoc missing rendered <h1>');
+        });
+        await openAndCheck('sample.js', async () => {
+            const content = await app.locator('.preview-code-wrap .preview-code').innerText();
+            if (!content.includes('function greet')) throw new Error('text preview: missing expected file content');
+        });
+
+        samplesOK = true;
+    } catch (e) {
+        errors.push({ kind: 'interaction', text: 'samples preview smoke failed: ' + e.message });
+    } finally {
+        await app.evaluate(async () => {
+            const a = window.Alpine.$data(document.body);
+            if (a.activeWinId) a.closeActiveWindow();
+            await a.navigate(a.currentPane(), a.homePath);
+        }).catch(() => {});
+        await page.waitForTimeout(600);
+        restoreTabsFile();
+    }
+
     await page.screenshot({ path: SHOT }).catch(() => {});
-    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && (!settingsOK || !previewOK)));
-    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, preview=${previewOK}. Screenshot: ${SHOT}`);
-    else done(0, `OK — 3.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && (!settingsOK || !previewOK || !samplesOK)));
+    if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, preview=${previewOK}, samples=${samplesOK}. Screenshot: ${SHOT}`);
+    else done(0, `OK — 3.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}, samples preview (image/pdf/markdown/text)=${samplesOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
+    restoreTabsFile();
     await page.screenshot({ path: SHOT }).catch(() => {});
     done(3, `ERROR driving the browser: ${e.message}. Screenshot: ${SHOT}`);
 }
