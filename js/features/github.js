@@ -21,6 +21,13 @@ window.ExplorerGithub = {
     isCheckoutCached(ownerRepo, path) {
         return this.repoCheckouts(ownerRepo).some(e => e.path === path);
     },
+    // True when `path` is AT or INSIDE a registered checkout for this repo
+    // (so a subfolder of a registered repo counts as cached, not "unregistered").
+    pathInCachedRepo(ownerRepo, path) {
+        if (!ownerRepo || !path) return false;
+        return this.repoCheckouts(ownerRepo).some(e =>
+            e.path && (path === e.path || path.startsWith(e.path + '/')));
+    },
     repoTitleOf(ownerRepo, path) {
         const e = this.repoCheckouts(ownerRepo).find(x => x.path === path);
         return (e && e.title) || this._defaultRepoTitle(ownerRepo, path);
