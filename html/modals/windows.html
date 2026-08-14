@@ -10,6 +10,20 @@
                     <span x-show="activeWin() && activeWin().kind === 'editor' && activeWin().dirty" class="dirty-marker">●</span>
                     <span class="badge bg-secondary small" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().lang" x-text="activeWin() && activeWin().lang"></span>
                     <span class="badge bg-secondary small" x-show="activeWin() && activeWin().readOnly">read-only</span>
+                    <!-- FIX C: moved out of the video body (was absolutely positioned over
+                         the <video> element) into the title bar, next to the other badges
+                         here. Same green "Transcoding" / gray "Remuxing" states, same
+                         terminal-state disappearance (transcodeState becomes 'done' or the
+                         badge conditions stop matching). Only for an hls video window. -->
+                    <span class="badge transcode-badge" :class="_vpHeaderPv() && _vpHeaderPv().transcodeState === 'transcoding' ? 'is-active' : 'is-idle'"
+                          x-show="_vpHeaderPv() && (_vpHeaderPv().transcodeState === 'transcoding' || _vpHeaderPv().transcodeState === 'remuxing')"
+                          x-text="_vpHeaderPv() && _vpHeaderPv().transcodeState === 'transcoding' ? '⚙ Transcoding' : 'Remuxing'"></span>
+                    <!-- FIX D: the probed real duration (ffprobe format=duration), shown
+                         immediately — hls.js's own timeline only grows as segments land,
+                         which is what made a long file briefly read as "0:07". -->
+                    <span class="small text-muted video-duration"
+                          x-show="_vpHeaderPv() && _vpFormatDuration(_vpHeaderPv().totalDuration)"
+                          x-text="_vpHeaderPv() ? _vpFormatDuration(_vpHeaderPv().totalDuration) : ''"></span>
                 </h5>
                 <div class="btn-group btn-group-sm ms-3" x-show="activeWin() && activeWin().kind === 'editor' && activeWin().canWysiwyg" role="group" aria-label="Editor mode">
                     <button type="button" class="btn btn-outline-secondary" :class="{ active: activeWin() && activeWin().mode === 'code' }" @click="setEditorMode('code')">Source</button>
@@ -83,9 +97,6 @@
                             <p>This video could not be played.</p>
                             <p x-text="activeWin() && activeWin().pv.reason"></p>
                         </div>
-                        <span class="transcode-badge" :class="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? 'is-active' : 'is-idle'"
-                              x-show="activeWin() && (activeWin().pv.transcodeState === 'transcoding' || activeWin().pv.transcodeState === 'remuxing')"
-                              x-text="activeWin() && activeWin().pv.transcodeState === 'transcoding' ? '⚙ Transcoding' : 'Remuxing'"></span>
                     </div>
                 </template>
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'video' && activeWin().pv.mode === 'ffmpeg-missing'">
