@@ -222,6 +222,11 @@ window.ExplorerVideo = {
         // newer call's entry here and strand the newer hls+ffmpeg forever.
         if (!isNewest()) { await this._vpKillProcAndDir(proc, dir); return; }
         this._vpSessions().set(winId, { hls: null, proc, dir, token: id });
+        // Start (or keep alive) the shared heartbeat and protect this brand-new
+        // session immediately — before the first interval tick — so a reap
+        // that races the very start of playback still sees a fresh .alive.
+        this._vpHbEnsure();
+        this._vpHbTouchDir(dir);
         const isCurrent = () => { const s = this._vpSessions().get(winId); return !!(isNewest() && s && s.token === id); };
         proc.then(() => {
             if (isCurrent()) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
@@ -262,6 +267,7 @@ window.ExplorerVideo = {
         const s = this._vpSessions().get(winId);
         if (!s) return;
         this._vpSessions().delete(winId);
+        this._vpHbMaybeStop();   // last session gone? kill the shared heartbeat timer.
         try { s.hls && s.hls.destroy(); } catch (e) { console.warn('explorer: hls destroy failed', e); }
         await this._vpKillProcAndDir(s.proc, s.dir);
     },
@@ -272,20 +278,86 @@ window.ExplorerVideo = {
         this._vpNextGen(winId);
         await this._vpDropSession(winId);
     },
+    // ── liveness heartbeat ──────────────────────────────────────────────
+    // ffmpeg EXITS once it has finished remuxing/transcoding, but hls.js keeps
+    // reading the already-written segments off disk for the rest of playback
+    // — so "is there an ffmpeg for this dir?" stops being true long before the
+    // dir stops being needed. A second Explorer tab's startup reap would then
+    // see no process, assume garbage, and rm -rf a dir tab A is still playing.
+    // Fix: while any session is live, touch <dir>/.alive for every session dir
+    // every ~30s — proof of a live *player*, independent of ffmpeg. The reap
+    // (see _vpReapScript) treats a fresh .alive as "still in use" even with no
+    // matching process. Reading segment files does NOT bump their mtime, so an
+    // mtime-only heuristic on the segments themselves would not work — this is
+    // why a dedicated marker file exists.
+    //
+    // One shared interval for every live session (not one timer per session),
+    // stored on ExRT.video.hb — never on Alpine-reactive state (see
+    // js/runtime.js's reactivity-firewall comments: a timer handle is exactly
+    // the kind of thing that firewall exists for).
+    _vpHbIntervalMs: 30000,
+    async _vpHbTouchDir(dir) {
+        if (!dir) return;
+        try { await cockpit.spawn(['touch', dir + '/.alive'], { err: 'ignore' }); }
+        catch (e) { console.warn('explorer: heartbeat touch failed for ' + dir, e); }
+    },
+    async _vpHbTouchAll() {
+        const dirs = Array.from(this._vpSessions().values(), (s) => s.dir).filter(Boolean);
+        if (!dirs.length) return;
+        try { await cockpit.spawn(['touch', ...dirs.map((d) => d + '/.alive')], { err: 'ignore' }); }
+        catch (e) { console.warn('explorer: heartbeat touch failed', e); }
+    },
+    // Idempotent: safe to call on every session registration. Only starts a
+    // timer when none is running and at least one session exists.
+    _vpHbEnsure() {
+        if (ExRT.video.hb || this._vpSessions().size === 0) return;
+        ExRT.video.hb = setInterval(() => { this._vpHbTouchAll(); }, this._vpHbIntervalMs);
+    },
+    // Call after removing a session from the registry. Stops the shared timer
+    // once nobody is left to protect — every teardown path (_vpDropSession,
+    // and therefore _teardownPreviewVideo/_removeWindow/supersede paths that
+    // funnel through it) ends up here.
+    _vpHbMaybeStop() {
+        if (this._vpSessions().size > 0) return;
+        if (ExRT.video.hb) { clearInterval(ExRT.video.hb); ExRT.video.hb = null; }
+    },
+
+    // The reap shell script, as a standalone string so the unit test can run
+    // exactly what ships (see tests/preview-reap-unit.mjs) instead of a copy
+    // that could silently drift from the real one.
+    //
     // Startup cleanup of leftover session dirs. Scoped: it removes only session
-    // directories that NO running process refers to. The previous blanket
-    // `pkill -9 -f <root>` + `rm -rf <root>` also killed the ffmpeg of a SECOND
-    // Explorer tab and deleted its segments mid-playback. A dir whose ffmpeg is
-    // still alive is indistinguishable from another tab's live session, so it
-    // is left alone (cockpit-bridge kills a session's processes when its
-    // channel closes, so a genuinely orphaned ffmpeg is transient).
+    // directories that NO running process refers to AND that have no recent
+    // heartbeat. The previous blanket `pkill -9 -f <root>` + `rm -rf <root>`
+    // also killed the ffmpeg of a SECOND Explorer tab and deleted its segments
+    // mid-playback. A dir whose ffmpeg is still alive is indistinguishable from
+    // another tab's live session, so it is left alone (cockpit-bridge kills a
+    // session's processes when its channel closes, so a genuinely orphaned
+    // ffmpeg is transient); ditto a dir with a fresh .alive heartbeat (§ above).
+    //
+    // `pgrep -f "$d" >/dev/null 2>&1` cannot tell "no match" (exit 1) apart from
+    // "pgrep isn't installed" (exit 127) by exit code alone — treating both as
+    // "no process" turned a missing procps package into "delete every session
+    // dir, including ones in active use". Bailing out entirely via
+    // `command -v pgrep || exit 0` when the binary isn't available makes that
+    // failure mode inert instead of destructive: the reap simply does nothing
+    // that run, rather than guessing. (This is the approach chosen over
+    // branching on 126/127 per-iteration: pgrep's absence can't change mid-loop,
+    // so checking once up front is simpler and just as safe, and it also covers
+    // any other reason `command -v` might fail to resolve it.)
+    _vpReapScript() {
+        return '[ -d "$1" ] || exit 0\n'
+            + 'command -v pgrep >/dev/null 2>&1 || exit 0\n'
+            + 'for d in "$1"/*/; do d=${d%/}; [ -d "$d" ] || continue\n'
+            + '  pgrep -f "$d" >/dev/null 2>&1 && continue\n'
+            + '  [ -n "$(find "$d/.alive" -mmin -2 2>/dev/null)" ] && continue\n'
+            + '  rm -rf "$d"\n'
+            + 'done\n';
+    },
     async reapOrphanPreviews() {
         const home = this.homePath || await FS.homeDir();
         const root = this._vpCacheRoot(home);
-        const script = '[ -d "$1" ] || exit 0; '
-            + 'for d in "$1"/*/; do d=${d%/}; [ -d "$d" ] || continue; '
-            + 'pgrep -f "$d" >/dev/null 2>&1 || rm -rf "$d"; done';
-        try { await cockpit.spawn(['sh', '-c', script, 'sh', root], { err: 'ignore' }); }
+        try { await cockpit.spawn(['sh', '-c', this._vpReapScript(), 'sh', root], { err: 'ignore' }); }
         catch (e) { console.warn('explorer: preview cache reap failed', e); }
     },
 
