@@ -167,7 +167,13 @@ window.Util = (function () {
     function isPdf(file) { return (file.name || '').toLowerCase().endsWith('.pdf'); }
     function isVideo(file) {
         const ext = (file.name || '').toLowerCase().split('.').pop();
-        return ['mp4','webm','ogv','mkv','mov'].includes(ext);
+        // Natively-playable containers (see isVideoNative) plus everything
+        // else the ffmpeg->HLS transcode path (videoplayer.js) can take on —
+        // the README/CHANGELOG promise mkv/avi/HEVC-mov/wmv/flv/ts are all
+        // routed to preview, not treated as an unknown/binary file.
+        return ['mp4','webm','ogv','mkv','mov',
+                'avi','wmv','flv','ts','m4v','mpg','mpeg','m2ts','mts',
+                '3gp','ogm','divx','vob','asf','rm','rmvb'].includes(ext);
     }
     function isAudio(file) {
         const ext = (file.name || '').toLowerCase().split('.').pop();

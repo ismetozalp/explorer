@@ -9,6 +9,9 @@
 //     b.txt   — plain text (nav filler)
 //     c.png   — tiny non-image bytes (nav filler; not actually rendered)
 //     d.mkv   — dummy bytes (ffmpeg-missing-panel assertion; never decoded)
+//     e.avi   — dummy bytes (fix-round-1 regression guard: .avi must route
+//               to the video/ffmpeg-missing panel, NOT the "looks like a
+//               binary file" text fallback — see Util.isVideo in utils.js)
 //
 // Run:  COCKPIT_USER=<you> COCKPIT_PASS=<pass> node tests/preview-e2e.mjs
 import { chromium } from 'playwright';
@@ -89,6 +92,7 @@ try {
         await FS.writeText(dir + '/b.txt', 'plain text fixture\n');
         await FS.writeText(dir + '/c.png', 'not a real png, just tiny bytes');
         await FS.writeText(dir + '/d.mkv', 'dummy mkv bytes (never decoded by this test)');
+        await FS.writeText(dir + '/e.avi', 'dummy avi bytes (never decoded by this test)');
     }, FIXDIR);
 
     // Force the ffmpeg-missing state up front (before any video preview is
@@ -106,15 +110,15 @@ try {
     // Wait for the LAST fixture row specifically (not just "any row") — the
     // listing re-renders as the directory read streams in, so counting rows
     // right after the first one appears can catch it mid-transition.
-    await app.locator(`tr[data-path="${FIXDIR}/d.mkv"]`).waitFor({ timeout: 10000 });
+    await app.locator(`tr[data-path="${FIXDIR}/e.avi"]`).waitFor({ timeout: 10000 });
     // tbody also always contains a (usually x-show-hidden) "this folder is
     // empty" <tr> with no data-path — [data-path] excludes it.
     const rowCount = await app.locator('.file-list tbody tr[data-path]').count();
-    if (rowCount !== 4) {
+    if (rowCount !== 5) {
         const names = await app.locator('.file-list tbody tr[data-path] .file-name').allInnerTexts();
-        fail(`expected 4 fixture rows, got ${rowCount}: ${JSON.stringify(names)}`);
+        fail(`expected 5 fixture rows, got ${rowCount}: ${JSON.stringify(names)}`);
     }
-    console.log('OK fixtures: 4 previewable files created and listed');
+    console.log('OK fixtures: 5 previewable files created and listed (incl. e.avi)');
 
     // ── (a) Open a.md via double-click; nav present, disabled at start ──
     await app.locator(`tr[data-path="${FIXDIR}/a.md"]`).dblclick();
@@ -125,8 +129,8 @@ try {
     if (!(await prevBtn.isDisabled())) fail('◀ should be disabled at the first file');
     if (await nextBtn.isDisabled()) fail('▶ should be enabled (not at the last file)');
     let counter = (await app.locator('.win-controls .text-muted').first().innerText()).trim();
-    if (counter !== '1 / 4') fail(`expected counter "1 / 4", got "${counter}"`);
-    console.log('OK nav: ◀/▶ present, ◀ disabled at start, counter "1 / 4"');
+    if (counter !== '1 / 5') fail(`expected counter "1 / 5", got "${counter}"`);
+    console.log('OK nav: ◀/▶ present, ◀ disabled at start, counter "1 / 5"');
 
     // ── (b) Markdown renders; Source toggle switches to raw text ──
     const docFrame = app.locator('iframe.preview-doc');
@@ -148,27 +152,42 @@ try {
     // ── (c) Native .mp4 fixture — optional; brief's fixture set has none ──
     console.log('SKIP native-mp4: no .mp4 fixture in this suite (optional per brief)');
 
-    // ── Walk ▶ to the end (b.txt -> c.png -> d.mkv); path advances, disables ──
-    for (let i = 0; i < 3; i++) {
+    // ── Walk ▶ to the end (b.txt -> c.png -> d.mkv -> e.avi); path advances, disables ──
+    for (let i = 0; i < 4; i++) {
         await nextBtn.click();
         await app.locator('.loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     }
     const endPath = await app.evaluate(() => window.Alpine.$data(document.body).activeWin().path);
-    if (endPath !== FIXDIR + '/d.mkv') fail('expected to land on d.mkv after 3x ▶, got ' + endPath);
-    if (!(await nextBtn.isDisabled())) fail('▶ should be disabled at the last file (d.mkv)');
+    if (endPath !== FIXDIR + '/e.avi') fail('expected to land on e.avi after 4x ▶, got ' + endPath);
+    if (!(await nextBtn.isDisabled())) fail('▶ should be disabled at the last file (e.avi)');
     if (await prevBtn.isDisabled()) fail('◀ should be enabled (not at the first file)');
     counter = (await app.locator('.win-controls .text-muted').first().innerText()).trim();
-    if (counter !== '4 / 4') fail(`expected counter "4 / 4" at the end, got "${counter}"`);
-    console.log('OK nav: ▶ advances activeWin().path through the folder and disables at the end (4 / 4)');
+    if (counter !== '5 / 5') fail(`expected counter "5 / 5" at the end, got "${counter}"`);
+    console.log('OK nav: ▶ advances activeWin().path through the folder and disables at the end (5 / 5)');
 
-    // ── (d) ffmpeg-missing panel for the .mkv (state forced above) ──
+    // ── (d) ffmpeg-missing panel — .avi (fix-round-1 regression guard) ──
+    // Before the fix, Util.isVideo() didn't include 'avi', so .avi fell
+    // through to the text-like branch and rendered the "This looks like a
+    // binary file…" fallback instead of ever reaching the video/ffmpeg path.
+    // Asserting the SAME ffmpeg-missing panel (not the binary fallback) here
+    // proves the routing fix, not just the pure-function unit test.
+    const binaryFallback = app.locator('.preview-fallback', { hasText: 'This file cannot be previewed inline' });
+    if (await binaryFallback.count()) fail('.avi fell through to the binary fallback — isVideo() routing regression');
     const missingPanel = app.locator('.preview-fallback', { hasText: 'ffmpeg is required' });
     await missingPanel.waitFor({ timeout: 10000 });
     const installBtn = app.locator('button', { hasText: 'Install ffmpeg' });
-    if (!(await installBtn.count())) fail('Install ffmpeg button not shown in the ffmpeg-missing panel');
-    const cmdText = (await app.locator('.preview-fallback pre code').innerText()).trim();
-    if (!cmdText) fail('ffmpeg-missing panel is missing the install command text');
-    console.log(`OK ffmpeg-missing: panel shown with install command ("${cmdText}") and Install ffmpeg button (not clicked)`);
+    if (!(await installBtn.count())) fail('Install ffmpeg button not shown in the ffmpeg-missing panel for .avi');
+    let cmdText = (await app.locator('.preview-fallback pre code').innerText()).trim();
+    if (!cmdText) fail('ffmpeg-missing panel is missing the install command text for .avi');
+    console.log(`OK ffmpeg-missing (.avi): routes to the video panel, not binary fallback — install command ("${cmdText}"), Install ffmpeg button present (not clicked)`);
+
+    // ── Same panel still shows for .mkv (step back one file) ──
+    await prevBtn.click();
+    await app.locator('.loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await missingPanel.waitFor({ timeout: 10000 });
+    cmdText = (await app.locator('.preview-fallback pre code').innerText()).trim();
+    if (!cmdText) fail('ffmpeg-missing panel is missing the install command text for .mkv');
+    console.log(`OK ffmpeg-missing (.mkv): panel shown with install command ("${cmdText}") and Install ffmpeg button (not clicked)`);
 
     await app.locator('.win-btn-close').click();
 
