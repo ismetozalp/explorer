@@ -43,11 +43,21 @@ function makeProc(argv) {
 // state-machine test deterministic and fast, same as the old `test -s`
 // immediate-resolve behaviour it replaces.
 const FAKE_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:12.0,\nseg_00000.ts\n#EXTINF:12.0,\nseg_00001.ts\n#EXTINF:12.0,\nseg_00002.ts\n';
+// Under the 30s target on its own (one 5s segment) — used by the Fix-round-1
+// "the wait actually loops" test below via `catQueue`: when set, 'cat' calls
+// shift responses off this queue in order; once exhausted (or when it's
+// null, the default for every other test block), 'cat' falls back to the
+// already-buffered FAKE_PLAYLIST so nothing else in this file has to change.
+const UNDER_BUFFERED_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:5.0,\nseg_00000.ts\n';
+let catQueue = null;
 const cockpit = {
     spawn(argv) {
         spawns.push(argv);
         if (argv[0] === 'ffmpeg') { const p = makeProc(argv); procs.push(p); return p; }
-        if (argv[0] === 'cat') { const p = Promise.resolve(FAKE_PLAYLIST); p.close = () => {}; return p; }
+        if (argv[0] === 'cat') {
+            const text = (catQueue && catQueue.length) ? catQueue.shift() : FAKE_PLAYLIST;
+            const p = Promise.resolve(text); p.close = () => {}; return p;
+        }
         // rm -rf <dir> / sh -c … all succeed immediately.
         const p = Promise.resolve('');
         p.close = () => {};
@@ -125,6 +135,46 @@ function makeApp() {
         'cockpit.spawn(["command", …]) execs argv with no shell — /usr/bin/command does not exist on Debian/Ubuntu/Alpine');
     assert.deepStrictEqual({ ffmpeg: ff.ffmpeg, ffprobe: ff.ffprobe }, { ffmpeg: true, ffprobe: true });
     console.log('OK C1: probe argv = ' + JSON.stringify(probeArgvs[0]) + ' (shell form, works on every distro)');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-1 (Important 3): FIX B's wait must actually RE-POLL the
+// playlist, not just check it once. The reviewer found that reverting
+// _vpWaitForPlaylist's body to the old bare `test -s` existence check left
+// this suite green, because every prior test's fake 'cat' response was
+// already buffered on the first read. Here the first read is deliberately
+// under the 30s target (via catQueue), so a correct implementation must
+// loop at least once more before it can attach — and a reverted
+// implementation (checking existence instead of content, or not looping at
+// all) would either attach immediately on bad data or never issue a second
+// 'cat' call. Also closes the FIX D stateful gap: pv.totalDuration must
+// carry the ffprobe-probed value all the way through to the window's pv,
+// not just be computed and dropped.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    catQueue = [UNDER_BUFFERED_PLAYLIST];   // 1st 'cat' read: 5s, under target; then falls back to FAKE_PLAYLIST (36s, buffered)
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 4242 });
+
+    await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
+
+    const catCalls = spawns.filter((a) => a[0] === 'cat');
+    assert.ok(catCalls.length >= 2,
+        'the wait must re-poll the playlist after an under-buffered read, not attach on the first (or a bare existence) check — got ' + catCalls.length + ' cat call(s)');
+    assert.ok(!spawns.some((a) => a[0] === 'test'), 'must not use the old test -s existence check anymore');
+
+    const w = app._win('w1');
+    assert.strictEqual(w.pv.totalDuration, 4242,
+        'the ffprobe-probed duration must be threaded through onto pv.totalDuration, not just computed and dropped');
+
+    const s = ExRT.video.sessions.get('w1');
+    assert.ok(s && s.hls instanceof FakeHls, 'must still reach a successful attach once the buffer target is met');
+    console.log('OK FIX B loop: attached after ' + catCalls.length + ' cat read(s) (1 under-buffered + buffered); pv.totalDuration=' + w.pv.totalDuration + ' threaded from the probe');
+
+    await V._teardownPreviewVideo.call(app, 'w1');
+    catQueue = null;   // reset for every block below
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -227,6 +277,46 @@ function makeApp() {
     assert.strictEqual(after.proc.closed, null, 'the newer ffmpeg must survive');
     assert.strictEqual(hlsInstances.length, 1, 'the superseded start must not attach a second hls.js');
     console.log('OK C2 (post-registration): older start resumed after supersession and left session ' + after.token + ' intact');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-1 (Important 2): the 60s backstop must degrade, not error, when
+// SOME content exists but the 30s target wasn't reached in time — and must
+// still error when there is genuinely nothing to play. _vpWaitForPlaylist
+// is stubbed directly (a real 60000ms timeout is not worth a real wait
+// here); this exercises the call-site branching in startPreviewVideo added
+// in this round.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    // (a) timeout + some content on disk -> attach anyway (no error).
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    app._vpWaitForPlaylist = async () => ({ status: 'timeout', text: '#EXTINF:5.0,\nseg_00000.ts\n' });
+
+    await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
+
+    const w = app._win('w1');
+    assert.strictEqual(w.pv.reason, undefined, 'a slow host with SOME buffered content must degrade-attach, not error');
+    const s = ExRT.video.sessions.get('w1');
+    assert.ok(s && s.hls instanceof FakeHls, 'must still attach hls.js on the degrade path');
+    console.log('OK degrade: timeout with a partial buffer attaches instead of erroring');
+    await V._teardownPreviewVideo.call(app, 'w1');
+}
+{
+    // (b) timeout + genuinely nothing on disk -> the original hard error.
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    app._vpWaitForPlaylist = async () => ({ status: 'timeout', text: '' });
+
+    await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
+
+    const w = app._win('w1');
+    assert.strictEqual(w.pv.transcodeState, 'error', 'a timeout with NOTHING playable must still be a hard error');
+    assert.match(w.pv.reason || '', /did not produce a playable stream in time/);
+    assert.strictEqual(ExRT.video.sessions.get('w1'), undefined, 'the failed attempt must not leave a session registered');
+    console.log('OK hard-error: timeout with no segments at all still errors and tears down');
 }
 
 // ─────────────────────────────────────────────────────────────────────────

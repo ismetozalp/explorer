@@ -67,12 +67,71 @@ assert.strictEqual(V._vpPlaylistBuffered(null, 30), false);
     console.log('OK _vpPlaylistBuffered: under-target false, at/over-target true, ENDLIST always true');
 }
 
+// Fix-round-1 (Important 2): "is there anything at all to play yet" — the
+// narrower question the 60s backstop degrade path asks, distinct from
+// _vpPlaylistBuffered's "is the FULL 30s target met".
+assert.strictEqual(V._vpPlaylistHasSegments(''), false);
+assert.strictEqual(V._vpPlaylistHasSegments(null), false);
+assert.strictEqual(V._vpPlaylistHasSegments('#EXTM3U\n#EXT-X-VERSION:3\n'), false, 'playlist header alone, no segments yet, is not playable');
+assert.strictEqual(V._vpPlaylistHasSegments('#EXTM3U\n#EXTINF:7.0,\nseg_00000.ts\n'), true, 'even a single segment is enough to degrade-attach on');
+console.log('OK _vpPlaylistHasSegments: false until at least one #EXTINF exists');
+
+// Fix-round-1 (Important 3): _vpHeaderPv is the entire justification for
+// FIX C's header badge/duration not throwing on non-video windows (the
+// title bar renders for every window kind). Three cases per review:
+// editor window, native-mode video, hls-mode video.
+{
+    const withActiveWin = (win) => ({ activeWin: () => win });
+    assert.strictEqual(
+        V._vpHeaderPv.call(withActiveWin({ kind: 'editor', lang: 'js' })), null,
+        'editor window (no .pv at all) must return null, not throw');
+    assert.strictEqual(
+        V._vpHeaderPv.call(withActiveWin({ kind: 'preview', pv: { kind: 'video', mode: 'native' } })), null,
+        'native-mode video (plain <video>, no transcoding) must return null — the header is hls-only');
+    const hlsPv = { kind: 'video', mode: 'hls', transcodeState: 'transcoding', totalDuration: 100 };
+    assert.strictEqual(
+        V._vpHeaderPv.call(withActiveWin({ kind: 'preview', pv: hlsPv })), hlsPv,
+        'hls-mode video must return its own pv object');
+    assert.strictEqual(V._vpHeaderPv.call(withActiveWin(null)), null, 'no active window must return null');
+    console.log('OK _vpHeaderPv: editor -> null, native video -> null, hls video -> pv');
+}
+
+// Fix-round-1 (Important 3): FIX D's ffprobe argv must actually request
+// format=duration — reverting `-show_entries` back to stream-only entries
+// left the offline suite green before this test existed, since
+// video-session-unit stubs _vpProbeStreams directly rather than exercising
+// the real argv. cockpit isn't otherwise defined in this sandbox; supplied
+// here just for this one call.
+{
+    const spawnCalls = [];
+    sandbox.cockpit = {
+        spawn: async (argv) => {
+            spawnCalls.push(argv);
+            return JSON.stringify({
+                format: { duration: '123.5' },
+                streams: [{ codec_type: 'video', codec_name: 'h264' }],
+            });
+        },
+    };
+    const probed = await V._vpProbeStreams('/m/a.mkv');
+    assert.strictEqual(spawnCalls.length, 1);
+    const argv = spawnCalls[0];
+    assert.ok(argv.includes('ffprobe'), 'must spawn ffprobe');
+    const entriesIdx = argv.indexOf('-show_entries');
+    assert.ok(entriesIdx !== -1 && /format=duration/.test(argv[entriesIdx + 1]),
+        'must request format=duration in -show_entries — dropping this silently breaks FIX D');
+    assert.strictEqual(probed.duration, 123.5, 'format.duration must be parsed onto the returned object');
+    assert.strictEqual(probed.streams.length, 1);
+    console.log('OK _vpProbeStreams: ffprobe argv requests format=duration, and it is parsed');
+}
+
 // FIX D: duration formatter — H:MM:SS over an hour, M:SS under, '' when unusable
-assert.strictEqual(V._vpFormatDuration(5741), '1:35:41');   // Mortal Kombat, real probed length
-assert.strictEqual(V._vpFormatDuration(6239), '1:43:59');   // Invincible, real probed length
+assert.strictEqual(V._vpFormatDuration(5741), '1:35:41');   // 1h35m sample
+assert.strictEqual(V._vpFormatDuration(6239), '1:43:59');   // 1h44m sample
 assert.strictEqual(V._vpFormatDuration(59), '0:59');
 assert.strictEqual(V._vpFormatDuration(60), '1:00');
 assert.strictEqual(V._vpFormatDuration(0), '');
+assert.strictEqual(V._vpFormatDuration(0.4), '', 'Fix-round-1: rounds to 0 — must not render as the misleading "0:00"');
 assert.strictEqual(V._vpFormatDuration(-5), '');
 assert.strictEqual(V._vpFormatDuration(null), '');
 assert.strictEqual(V._vpFormatDuration(undefined), '');
