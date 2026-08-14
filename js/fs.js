@@ -126,13 +126,18 @@ window.FS = (function () {
 
     // Read a file as a Blob (binary). Uses base64 via cat | base64 since
     // cockpit.file()'s binary support is limited in older versions.
+    // opts.type: optional MIME type to tag the Blob with (see Util.mimeType).
+    // Blobs handed straight to <img>/<iframe>/<audio>/<video> via a blob: URL
+    // need a real content type or the browser won't know how to render them
+    // (Chrome's PDF viewer in particular refuses a typeless blob and offers a
+    // download instead). Omitted/falsy => untyped Blob, exactly as before.
     async function readBinaryAsBlob(path, opts) {
         try {
             const b64 = await cockpit.spawn(['base64', '-w', '0', path], spawnOpts(opts));
             const bin = atob(b64);
             const arr = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-            return new Blob([arr]);
+            return new Blob([arr], { type: (opts && opts.type) || '' });
         } catch (e) {
             const err = new Error(e.message || String(e));
             err.permissionDenied = /permission denied|EACCES/i.test(e.message || '');
