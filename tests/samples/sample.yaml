@@ -1,0 +1,25 @@
+# sample.yaml - synthetic YAML file for Explorer preview testing
+name: explorer-sample
+version: 1.0.0
+description: >
+  A small YAML document with a mapping, a list, and nesting,
+  for exercising the syntax-highlighted preview path.
+
+tags:
+  - sample
+  - yaml
+  - explorer
+  - preview
+
+config:
+  enabled: true
+  retries: 3
+  timeout_ms: 1500
+
+items:
+  - id: 1
+    label: Apple
+  - id: 2
+    label: Banana
+  - id: 3
+    label: Grape

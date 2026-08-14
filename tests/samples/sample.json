@@ -1,0 +1,17 @@
+{
+  "_comment": "Synthetic JSON sample for Explorer preview testing",
+  "name": "explorer-sample",
+  "version": "1.0.0",
+  "description": "A small JSON document with nested structures for exercising the syntax-highlighted preview path.",
+  "tags": ["sample", "json", "explorer", "preview"],
+  "config": {
+    "enabled": true,
+    "retries": 3,
+    "timeoutMs": 1500
+  },
+  "items": [
+    { "id": 1, "label": "Apple" },
+    { "id": 2, "label": "Banana" },
+    { "id": 3, "label": "Grape" }
+  ]
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- sample.xml - synthetic XML file for Explorer preview testing -->
+<catalog>
+  <meta purpose="explorer-sample-file" path="/home/ismet/sample/sample.xml"/>
+  <item id="1">
+    <name>Apple</name>
+    <color>Red</color>
+    <count>5</count>
+  </item>
+  <item id="2">
+    <name>Banana</name>
+    <color>Yellow</color>
+    <count>12</count>
+  </item>
+  <item id="3">
+    <name>Grape</name>
+    <color>Purple</color>
+    <count>40</count>
+  </item>
+</catalog>

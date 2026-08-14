@@ -1,0 +1,23 @@
+/* sample.css - synthetic CSS file for Explorer preview testing */
+
+:root {
+  --bg: #1e293b;
+  --fg: #f8fafc;
+  --accent: #38bdf8;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: sans-serif;
+}
+
+.sample-card {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.sample-card:hover {
+  box-shadow: 0 0 0 2px var(--accent);
+}

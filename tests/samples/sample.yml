@@ -1,0 +1,14 @@
+# sample.yml - same content as sample.yaml, using the alternate .yml extension
+# so Explorer's extension detection for both spellings can be exercised.
+name: explorer-sample
+version: 1.0.0
+description: A small YAML document for exercising the .yml preview path.
+
+tags:
+  - sample
+  - yml
+  - explorer
+
+config:
+  enabled: true
+  retries: 3

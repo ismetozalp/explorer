@@ -1,0 +1,8 @@
+# .gitignore - synthetic dotfile for Explorer preview testing
+# (exercises detection of hidden/dotfiles with no base name, only an extension-like suffix)
+
+*.log
+*.tmp
+node_modules/
+__pycache__/
+.env
