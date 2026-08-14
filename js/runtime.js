@@ -71,4 +71,20 @@ window.ExRT = {
     editor: { file: null, models: new Map() },   // file: single Monaco instance; models: windowId -> ITextModel
     actionsEditor: { editor: null, model: null }, // custom-actions JSON/YAML editor
     quill: { editor: null },                      // WYSIWYG editor (md/html)
+
+    // Server-side video sessions (js/features/videoplayer.js). An hls.js
+    // instance and a live cockpit.spawn() process handle must never be walked
+    // by Alpine: reading them back through a reactive proxy is how a teardown
+    // ends up calling destroy()/close() on a Proxy and throwing (which the
+    // catch-alls then hide, turning "never leaks" into "leaks silently").
+    //   sessions: windowId -> { hls, proc, dir, token }
+    //   gen:      windowId -> monotonically increasing start generation; a
+    //             start whose generation is stale has been superseded by a
+    //             newer start (rapid ◀/▶) and must free only its own process.
+    video: { sessions: new Map(), gen: new Map() },
+
+    // Parsed SheetJS workbooks for spreadsheet previews, windowId -> workbook.
+    // Same firewall: the workbook is a big self-referential object; only the
+    // rendered srcdoc + sheet names belong on the reactive window.
+    preview: { workbooks: new Map() },
 };

@@ -504,8 +504,8 @@ has more than one previewable file, **◀ / ▶** buttons (and the **plain
 arrow keys** — `Alt`+arrow still moves between panes/history) appear in
 the window header along with an **n / N** counter, so you can page through
 every previewable file in that folder without leaving the preview window.
-The buttons disable at the first/last file. **Maximize** now keeps the
-window above Explorer's 24px status bar instead of covering it.
+The buttons disable at the first/last file. A maximized window keeps the
+open-windows taskbar visible along the bottom of the screen.
 
 **Video that plays (3.0):** `.mp4`/`.webm` play natively in the browser.
 Anything the browser can't decode directly — `.mkv`, `.avi`, HEVC `.mov`,
@@ -514,9 +514,11 @@ Anything the browser can't decode directly — `.mkv`, `.avi`, HEVC `.mov`,
 is treated as TypeScript source, not video — use `.m2ts`/`.mts` for an
 MPEG transport stream); a theme-aware badge shows
 **⚙ Transcoding** (green) while ffmpeg is actively re-encoding, or
-**Remuxing** (gray) when it's just repackaging the existing stream. The
-badge clears when playback is ready, and any ffmpeg/`hls.js` failure
-surfaces as text instead of a dead player. This only plays local files —
+**Remuxing** (gray) when it's just repackaging the existing stream.
+Playback starts as soon as the first segments are on disk; the badge stays
+up until ffmpeg has finished converting the whole file, so for a long
+transcode it remains visible well into playback. Any ffmpeg/`hls.js`
+failure surfaces as text instead of a dead player. This only plays local files —
 it is not an IPTV/streaming feature.
 
 ![Video preview with transcoding badge and file navigation](screenshots/preview-video.svg)

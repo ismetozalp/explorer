@@ -130,7 +130,9 @@ window.ExplorerSettings = {
 
         if (ev.key === ' ' && pane && pane.kind === 'dir') {
             const sel = this.selectedFiles(pane);
-            if (sel.length === 1 && this.isPreviewable(sel[0])) { ev.preventDefault(); this.openPreview(sel[0]); }
+            // siblings: same as the double-click path (js/core/fileops.js), so a
+            // Space-opened preview also gets the ◀/▶ folder navigation.
+            if (sel.length === 1 && this.isPreviewable(sel[0])) { ev.preventDefault(); this.openPreview(sel[0], { siblings: pane.files || [] }); }
             return;
         }
         if (ev.key === 'F2' && tab) { ev.preventDefault(); this.renameSelected(); return; }

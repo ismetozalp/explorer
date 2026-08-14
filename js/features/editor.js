@@ -50,6 +50,15 @@ window.ExplorerEditor = {
         await this._loadPreviewInto(id, file);
     },
 
+    // Free a preview's blob URL once the element that referenced it is gone.
+    // Revoking while the <video>/<img> is still mounted makes the browser
+    // re-request a now-dead blob: URL (net::ERR_FILE_NOT_FOUND in the console,
+    // observed live), so this waits for Alpine to unmount it first.
+    _revokePvUrl(url) {
+        if (!url) return;
+        this.$nextTick(() => { try { URL.revokeObjectURL(url); } catch (e) {} });
+    },
+
     previewCanStep(id, dir) {
         const w = this._win(id);
         if (!w || !w.nav) return false;
@@ -62,6 +71,11 @@ window.ExplorerEditor = {
         const next = w.nav.idx + dir;
         if (next < 0 || next >= w.nav.list.length) return;      // clamp
         if (this._teardownPreviewVideo) this._teardownPreviewVideo(id); // stop any hls/ffmpeg (Task 5)
+        // Free the outgoing blob URL: paging through a folder of large photos
+        // otherwise retains every decoded image until the page is reloaded
+        // (only the last window's URL was ever revoked, in _removeWindow).
+        if (w.pv) this._revokePvUrl(w.pv.url);
+        ExRT.preview.workbooks.delete(id);
         w.nav.idx = next;
         const file = w.nav.list[next];
         w._file = file;
@@ -89,11 +103,24 @@ window.ExplorerEditor = {
     async _loadPreviewInto(id, file, admin) {
         const limit = (this.settings.previewLimitMB || 10) * 1024 * 1024;
         const ropts = admin ? { admin: true } : undefined;
-        const set = (pv) => { const w = this._win(id); if (w) { w.pv = Object.assign({ permissionDenied: false }, pv); w.loading = false; } };
+        // Replacing pv drops whatever the previous load allocated for this
+        // window: an object URL (revoked here, not left to the GC — blobs are
+        // not collected while a URL handle exists) and the parsed workbook.
+        const set = (pv) => {
+            const w = this._win(id);
+            if (!w) return;
+            if (w.pv && w.pv.url && w.pv.url !== pv.url) this._revokePvUrl(w.pv.url);
+            ExRT.preview.workbooks.delete(id);
+            w.pv = Object.assign({ permissionDenied: false }, pv);
+            w.loading = false;
+        };
         if (Util.isMarkdown(file)) {
             if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}).` }); return; }
             try {
                 const txt = await FS.readText(file.path, ropts);
+                // Source mode reuses the text preview's Prism-highlighted <pre>;
+                // without the grammar loaded it renders unhighlighted.
+                if (window.loadPrismLanguage) await window.loadPrismLanguage('markdown');
                 await this._ensureMarked();
                 const html = this._renderMarkdown(txt);
                 // mdMode:'source' so this fallback state is coherent with the toggle
@@ -125,7 +152,12 @@ window.ExplorerEditor = {
                 const wb = XLSX.read(buf, { type: 'array' });
                 const sheets = wb.SheetNames.slice();
                 const html = sheets.length ? XLSX.utils.sheet_to_html(wb.Sheets[sheets[0]]) : '<p>(no sheets)</p>';
-                set({ kind: 'sheet', _wb: wb, sheets, sheetIdx: 0, srcdoc: this._docIframeShell(html) });
+                set({ kind: 'sheet', sheets, sheetIdx: 0, srcdoc: this._docIframeShell(html) });
+                // After set() (which clears this window's registry entry): the
+                // workbook is a large self-referential object and stays off
+                // reactive state — only the sheet names + rendered srcdoc are
+                // reactive. Dropped in set()/previewStep/_removeWindow.
+                ExRT.preview.workbooks.set(id, wb);
             } catch (e) { set({ kind: 'binary', reason: 'Could not render spreadsheet: ' + (e.message || e) }); }
             return;
         }
@@ -145,8 +177,11 @@ window.ExplorerEditor = {
                 set({ kind: 'video', mode: 'ffmpeg-missing', installCmd: this._pkgInstallCommand(os) });
                 return;
             }
-            set({ kind: 'video', mode: 'hls', transcodeState: 'remuxing' });
-            this.startPreviewVideo(id, file);
+            // `pending`: the ffmpeg session is started by _vpMaybeStart once
+            // this window is the visible, active one — never for a window
+            // restored minimized (which has no <video> element to attach to).
+            set({ kind: 'video', mode: 'hls', transcodeState: 'pending', pending: true });
+            this._vpMaybeStart(id);
             return;
         }
         if (Util.isTextLike(file)) {
@@ -198,11 +233,12 @@ window.ExplorerEditor = {
     },
     _selectSheet(id, i) {
         const w = this._win(id);
-        if (!w || !w.pv || !w.pv._wb) return;
+        const wb = ExRT.preview.workbooks.get(id);
+        if (!w || !w.pv || !wb) return;
         const name = w.pv.sheets[i];
         w.pv.sheetIdx = i;
         try {
-            const html = XLSX.utils.sheet_to_html(w.pv._wb.Sheets[name]);
+            const html = XLSX.utils.sheet_to_html(wb.Sheets[name]);
             w.pv.srcdoc = this._docIframeShell(html);
         } catch (e) { w.pv.srcdoc = this._docIframeShell('<p>Could not render sheet.</p>'); }
     },
@@ -318,12 +354,18 @@ window.ExplorerEditor = {
         } else {
             this._showHost();
         }
+        // A preview whose HLS session was deferred (window not on screen yet)
+        // starts now, if this made it the visible active window.
+        if (this._vpMaybeStart) this._vpMaybeStart(id);
     },
 
     _showHost() {
         bootstrap.Modal.getOrCreateInstance(this.windowHostEl).show();
         this.hostVisible = true;
         this.$nextTick(() => this._syncActiveEditor());
+        // Restore path: _restoreWindows() picks the active window and shows the
+        // host directly, without going back through activateWindow().
+        if (this._vpMaybeStart) this._vpMaybeStart(this.activeWinId);
     },
     minimizeHost() {
         bootstrap.Modal.getOrCreateInstance(this.windowHostEl).hide();
@@ -565,6 +607,11 @@ window.ExplorerEditor = {
             } else if (w.pv && w.pv.url) {
                 try { URL.revokeObjectURL(w.pv.url); } catch (e) {}
             }
+            ExRT.preview.workbooks.delete(id);
+            ExRT.video.gen.delete(id);
+            // Closing a window can promote another one that still has a
+            // deferred HLS session waiting to start.
+            if (this.activeWinId && this._vpMaybeStart) this._vpMaybeStart(this.activeWinId);
             if (!this.activeWinId) {
                 bootstrap.Modal.getOrCreateInstance(this.windowHostEl).hide();
                 this.hostVisible = false;
