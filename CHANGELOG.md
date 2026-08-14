@@ -2,6 +2,14 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.2
+
+- **Fixed: maximized video preview sat in a corner.** Maximizing the preview
+  window while a video was playing left it capped at its normal-window size
+  in the top-left, with a large empty dark area to the right and below.
+  Maximized video preview now fills the window (letterboxed) instead of
+  sitting in a corner.
+
 ## 3.1.1
 
 - **Fixed: some videos showed a black player and never started.** A video
