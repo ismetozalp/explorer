@@ -1,0 +1,13 @@
+Explorer plain-text preview sample
+===================================
+
+This is a small, human-readable plain text file (.txt) created to
+exercise Explorer's syntax-highlighted / plain text preview path.
+
+It contains:
+- multiple lines
+- a short list
+- and a closing line identifying the file.
+
+File: /home/ismet/sample/sample.txt
+Purpose: manual preview testing for the Explorer Cockpit plugin.

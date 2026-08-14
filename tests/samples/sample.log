@@ -1,0 +1,7 @@
+2026-08-14 09:00:01 INFO  [explorer-sample] starting synthetic sample app
+2026-08-14 09:00:01 DEBUG [explorer-sample] this is a synthetic log file for Explorer preview testing
+2026-08-14 09:00:02 INFO  [explorer-sample] loaded config from sample.conf
+2026-08-14 09:00:02 WARN  [explorer-sample] example warning: disk usage nearing threshold (72%)
+2026-08-14 09:00:03 ERROR [explorer-sample] example error: simulated connection timeout after 3000ms
+2026-08-14 09:00:04 INFO  [explorer-sample] recovered, continuing normal operation
+2026-08-14 09:00:05 INFO  [explorer-sample] shutdown requested, exiting cleanly
