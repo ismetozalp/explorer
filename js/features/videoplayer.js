@@ -133,12 +133,40 @@ window.ExplorerVideo = {
         if (!Number.isFinite(t) || t <= 0) return 0;
         return Math.floor(t / this._vpSegSecs);
     },
+    // Fix-round-1 (I1a): a trailing remainder shorter than one frame is not a
+    // segment. ffmpeg has no frame to put in it, so it writes one FEWER segment
+    // than ceil(duration/segDur) claims — and a segment the encoder will never
+    // produce is a phantom the player waits on forever (hls.js applies no
+    // timeout to a custom loader and retries a 404 six times with backoff).
+    // Reproduced with real ffmpeg: a probed duration of 100.048980s (remainder
+    // 0.048980s) declared 26 segments where ffmpeg produced 25. 0.05s is just
+    // over one frame at 20fps — below any frame rate this path realistically
+    // handles, so it never drops a segment that would have had content.
+    _vpSegMinTailSecs: 0.05,
     // Number of segments a file of `duration` seconds maps to (the last one is
     // short unless the duration divides exactly). 0 for an unknown/unusable
     // duration — the caller then falls back to ffmpeg's own playlist.
     _vpSegCount(duration) {
         if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return 0;
-        return Math.ceil(duration / this._vpSegSecs);
+        const whole = Math.floor(duration / this._vpSegSecs);
+        const tail = duration - whole * this._vpSegSecs;
+        if (tail >= this._vpSegMinTailSecs) return whole + 1;
+        return Math.max(whole, 1);   // a sub-frame tail folds into the previous segment
+    },
+    // PURE: add `range` to a sorted, non-overlapping list of {start,end} segment
+    // ranges, merging anything it touches (adjacent counts: [0,40] and [41,90]
+    // are one continuous stretch of segments). Keeps doneRuns from growing
+    // without bound when a user seeks repeatedly, and keeps the lookup in
+    // _vpSegKnownComplete short.
+    _vpMergeRanges(ranges, range) {
+        const all = (ranges || []).concat([range]).slice().sort((a, b) => a.start - b.start);
+        const out = [];
+        for (const r of all) {
+            const last = out[out.length - 1];
+            if (last && r.start <= last.end + 1) last.end = Math.max(last.end, r.end);
+            else out.push({ start: r.start, end: r.end });
+        }
+        return out;
     },
     // PURE: the whole point of the 3.1.0 seek work. hls.js is handed THIS
     // playlist instead of ffmpeg's, so it learns the file's real duration and
@@ -154,17 +182,20 @@ window.ExplorerVideo = {
         const n = this._vpSegCount(duration);
         if (!n) return null;
         const seg = this._vpSegSecs;
+        // The last entry carries whatever is left, which after the sub-frame
+        // clamp in _vpSegCount can be marginally MORE than one segment — so
+        // TARGETDURATION is derived from it rather than assumed to be `seg`.
+        const lastDur = duration - (n - 1) * seg;
         const out = [
             '#EXTM3U',
             '#EXT-X-VERSION:3',
             '#EXT-X-PLAYLIST-TYPE:VOD',
-            // Must be >= the longest #EXTINF; every #EXTINF here is <= seg.
-            '#EXT-X-TARGETDURATION:' + Math.ceil(seg),
+            '#EXT-X-TARGETDURATION:' + Math.max(Math.ceil(seg), Math.ceil(lastDur)),
             '#EXT-X-MEDIA-SEQUENCE:0',
             '#EXT-X-INDEPENDENT-SEGMENTS',
         ];
         for (let k = 0; k < n; k++) {
-            const d = k === n - 1 ? duration - k * seg : seg;
+            const d = k === n - 1 ? lastDur : seg;
             out.push('#EXTINF:' + d.toFixed(6) + ',');
             out.push(this._vpSegName(k));
         }
@@ -189,6 +220,14 @@ window.ExplorerVideo = {
     // slow host. Same order as the 30s start-buffer target.
     _vpSegWaitMs: 30000,
     _vpSegPollMs: 250,
+    // Fix-round-1 (C1): how many times ONE fragment request may move the
+    // encoder. One is enough by construction — a restart is aimed at exactly
+    // the segment being requested, so the very next run produces it — and it
+    // caps the damage from any request that outlives the fragment it was for:
+    // it can waste at most one respawn, never trade the encoder back and forth
+    // with a live request. A request that still can't be served then reports
+    // 404 and hls.js retries with a fresh budget.
+    _vpSegMaxRestarts: 1,
     // PURE: is segment `index` known to be COMPLETE on disk?
     //
     // "The file exists" is NOT the same as "the segment is playable": ffmpeg
@@ -203,19 +242,28 @@ window.ExplorerVideo = {
     // bytes for the whole run — that starves both the start-buffer gate and the
     // progress read below. Same trap as `-hls_playlist_type vod`.)
     //
-    // So completeness is answered per run:
-    //   • at/after the current run's start → its playlist is the authority:
-    //     complete iff index <= frontier;
-    //   • before it → the segment can only have come from an earlier run of
-    //     this session. A restart never deletes segments, so those files are
-    //     still there and still valid for the same timeline positions;
-    //     `doneRuns` records the ranges each superseded run was last observed
-    //     to have completed. Anything outside them is treated as not available
-    //     (worst case: one extra restart to re-produce a segment that may in
-    //     fact have been fine — the safe direction to be wrong in).
+    // So completeness is answered in two steps:
+    //   • [runStart .. frontier] is the span the LIVE run has written, and its
+    //     playlist is the authority for it — index <= frontier means closed,
+    //     index == frontier+1 means "being written right now";
+    //   • anything OUTSIDE that span the live run has not touched (it has not
+    //     got there yet, or it starts above it), so an earlier run's record can
+    //     be trusted: `doneRuns` holds the ranges each superseded run was last
+    //     observed to have completed, and a restart never deletes segments, so
+    //     those files are still there and still valid for the same timeline
+    //     positions. Anything in neither is treated as unavailable (worst case:
+    //     one extra restart to re-produce a segment that may in fact have been
+    //     fine — the safe direction to be wrong in).
+    // Checking the live span FIRST is what keeps this honest when a restarted
+    // run encodes back over a range an earlier run had completed: while it is
+    // rewriting seg k, k is inside [runStart..frontier+1] and the frontier — not
+    // the stale doneRuns entry — decides.
     _vpSegKnownComplete({ index, runStart, frontier, doneRuns }) {
         if (!Number.isFinite(index) || !Number.isFinite(runStart)) return false;
-        if (index >= runStart) return Number.isFinite(frontier) && index <= frontier;
+        if (Number.isFinite(frontier) && index >= runStart) {
+            if (index <= frontier) return true;        // the live run has closed it
+            if (index <= frontier + 1) return false;   // the live run is writing it RIGHT NOW
+        }
         return (doneRuns || []).some((r) => index >= r.start && index <= r.end);
     },
     // PURE: wait, restart, or serve? Decided from numbers only, so it is
@@ -257,6 +305,16 @@ window.ExplorerVideo = {
     _vpFileName(url) { return (url.split('/').pop() || '').split('?')[0]; },
     _vpResolveInDir(dir, url) { return dir + '/' + this._vpFileName(url); },
     // ── hls.js Cockpit byte-loader (ported from InFlightTV hlsLoader.ts) ──
+    // Fix-round-1 (C1): `readFile` is called with a SECOND argument, an
+    // `isAborted()` probe bound to this loader instance. abort()/destroy() used
+    // to only suppress the callback, which is fine for a plain file read but not
+    // for the 3.1.0 on-demand segment producer: that one can run for up to 30s
+    // and can respawn ffmpeg, so an abandoned request kept making restart
+    // decisions for a fragment nobody wanted any more — two live loops (the
+    // abandoned read-ahead and the new seek) then fought over the encoder,
+    // ping-ponging it between their two targets. hls.js aborts the in-flight
+    // fragment when the media seeks; propagating that is what makes the
+    // abandoned request stop instead of racing.
     _vpLoaderClass(readFile, resolvePath) {
         const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
         const newStats = () => ({ aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0,
@@ -265,7 +323,7 @@ window.ExplorerVideo = {
             constructor() { this.context = null; this.stats = newStats(); this._aborted = false; }
             load(context, _config, callbacks) {
                 this.context = context; this._aborted = false; this.stats = newStats(); this.stats.loading.start = now();
-                Promise.resolve(readFile(resolvePath(context.url))).then((data) => {
+                Promise.resolve(readFile(resolvePath(context.url), () => this._aborted)).then((data) => {
                     if (this._aborted) return;
                     if (data == null) { callbacks.onError({ code: 404, text: 'not found' }, context, null, this.stats); return; }
                     let bytes = data;
@@ -492,7 +550,20 @@ window.ExplorerVideo = {
         const sess = () => { const s = this._vpSessions().get(winId); return s && s.token === token ? s : null; };
         proc.then(() => {
             const s = sess();
-            if (s && s.proc === proc) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
+            if (s && s.proc === proc) {
+                s.runExited = true;   // nothing beyond this run's frontier will ever appear (I1b)
+                const ww = this._win(winId);
+                // Fix-round-1 (M4): 'done' means "there is nothing left to
+                // convert", and that is only true when the run that just
+                // finished started at the beginning of the timeline. A run
+                // restarted at a seek target reaching EOF says nothing about
+                // the stretch before its start — which may never have been
+                // converted at all — so the badge stays on 'transcoding'
+                // rather than claiming a completeness this session doesn't
+                // have. (Simplest honest rule; tracking full coverage across
+                // runs would buy only a cosmetic badge change.)
+                if (ww && ww.pv && ww.pv.mode === 'hls' && s.runStart === 0) ww.pv.transcodeState = 'done';
+            }
             else if (!s) this._vpKillProcAndDir(proc, dir);   // superseded session: its dir is orphaned
         }).catch((e) => {
             const s = sess();
@@ -518,8 +589,20 @@ window.ExplorerVideo = {
         if (s0.restarting) { await s0.restarting; return; }
         let wrapped;
         const run = (async () => {
-            const cur = this._vpSessions().get(winId);
+            let cur = this._vpSessions().get(winId);
             if (!cur || cur.token !== token) return;
+            // Measure the outgoing run's progress instead of trusting whatever
+            // the last segment request happened to observe: the range recorded
+            // below is the ONLY evidence that this run's segments are complete
+            // once its playlist is overwritten by the new run, and a value that
+            // is merely stale (or was never taken) silently costs a re-encode
+            // of a stretch that had already been converted. One `cat`, once per
+            // restart. (`restarting` is published synchronously by the caller
+            // below, so this await cannot let a second restart slip past the
+            // coalescing gate.)
+            await this._vpRunFrontier(cur);
+            cur = this._vpSessions().get(winId);
+            if (!cur || cur.token !== token) return;   // torn down during that read
             // Kill the outgoing run FIRST: two ffmpegs writing one session dir
             // (and one of them unreachable) is exactly the leak this file's
             // rules exist to prevent. Detach it from the session BEFORE closing
@@ -535,7 +618,7 @@ window.ExplorerVideo = {
             // overwritten by the new run). Without it, seeking backwards into
             // an already-converted stretch would needlessly restart again.
             if (Number.isFinite(cur.frontier) && cur.frontier >= cur.runStart)
-                cur.doneRuns.push({ start: cur.runStart, end: cur.frontier });
+                cur.doneRuns = this._vpMergeRanges(cur.doneRuns, { start: cur.runStart, end: cur.frontier });
             const outgoing = cur.proc;
             cur.proc = null;
             try { outgoing && outgoing.close && outgoing.close('cancelled'); }
@@ -549,6 +632,16 @@ window.ExplorerVideo = {
             if (!now || now.token !== token) { await this._vpKillProcAndDir(proc, cur.dir); return; }
             now.proc = proc;
             now.runStart = index;
+            // Fix-round-1 (C2): the frontier belongs to the run that produced
+            // it, so it MUST be reset in the same synchronous block as
+            // runStart. Leaving the outgoing run's value behind let a second
+            // restart (before any _vpRunFrontier call) record
+            // {start: newRunStart, end: staleFrontier} — a doneRuns range
+            // covering segments the new run had not written at all, which the
+            // completeness gate would then happily read half-written .ts files
+            // from. -1 means "this run has flushed nothing yet".
+            now.frontier = index - 1;
+            now.runExited = false;
             this._vpWatchProc(winId, token, proc, now.dir);
             this._vpHbTouchDir(now.dir);
             const ww = this._win(winId);
@@ -581,9 +674,19 @@ window.ExplorerVideo = {
     // Every already-converted segment — from this run or any earlier one — is
     // served straight from disk on the first pass, so this costs one file read
     // in the common case.
-    async _vpServeSegment(winId, token, index, readFile) {
+    //
+    // Fix-round-1 (C1): `isAborted` is the loader's abort probe. It is checked
+    // at the top of every iteration AND immediately before any restart
+    // decision — an abandoned request must never spawn (or respawn) ffmpeg.
+    // `_vpSegMaxRestarts` is the second half of that guard: even a request that
+    // is somehow never aborted can only move the encoder once, so two live
+    // loops can no longer ping-pong it between their targets indefinitely.
+    async _vpServeSegment(winId, token, index, readFile, isAborted) {
         const deadline = Date.now() + this._vpSegWaitMs;
+        const aborted = () => !!(isAborted && isAborted());
+        let restarts = 0;
         for (;;) {
+            if (aborted()) return null;
             const s = this._vpSessions().get(winId);
             if (!s || s.token !== token) return null;    // closed/superseded: stop, don't restart anything
             // One cheap `cat` of ffmpeg's playlist answers both questions at
@@ -598,10 +701,23 @@ window.ExplorerVideo = {
                 if (bytes && bytes.byteLength) return bytes;
                 ready = false;   // listed but unreadable (deleted under us): decide as if absent
             }
+            // Fix-round-1 (I1b): the run that owns this range has EXITED and
+            // never produced this segment — no amount of waiting or restarting
+            // can conjure it (it is past the end of the file). Fail fast
+            // instead of burning the full deadline: hls.js applies no timeout
+            // of its own to a custom loader, and it retries a 404 six times
+            // with backoff, so a 30s wait per attempt is minutes of a frozen
+            // player before its fatal error.
+            if (!ready && s.runExited && index >= s.runStart && index > frontier) return null;
             if (Date.now() >= deadline) return null;
             if (s.restarting) { await s.restarting; continue; }   // coalesce onto the in-flight restart
             const action = this._vpSegAction({ ready, index, runStart: s.runStart, frontier });
-            if (action === 'restart') { await this._vpRestartAt(winId, token, index); continue; }
+            if (action === 'restart') {
+                if (aborted() || restarts >= this._vpSegMaxRestarts) return null;
+                restarts++;
+                await this._vpRestartAt(winId, token, index);
+                continue;
+            }
             await new Promise((resolve) => setTimeout(resolve, this._vpSegPollMs));
         }
     },
@@ -684,7 +800,7 @@ window.ExplorerVideo = {
         // different start point, and _vpSegAction needs to know where the
         // current run began. Still non-reactive (ExRT), still keyed by winId,
         // still the single authority for teardown.
-        this._vpSessions().set(winId, { hls: null, proc, dir, token: id, srcPath: file.path, codec, runStart: 0, frontier: -1, doneRuns: [], restarting: null });
+        this._vpSessions().set(winId, { hls: null, proc, dir, token: id, srcPath: file.path, codec, runStart: 0, frontier: -1, doneRuns: [], restarting: null, runExited: false });
         // Start (or keep alive) the shared heartbeat and protect this brand-new
         // session immediately — before the first interval tick — so a reap
         // that races the very start of playback still sees a fresh .alive.
@@ -703,13 +819,13 @@ window.ExplorerVideo = {
         // either is missing, `serve` degrades to exactly the 3.0.x behaviour —
         // hand hls.js ffmpeg's own growing playlist and read segments off disk.
         const vodPlaylist = codec === 'x264' ? this._vpBuildVodPlaylist(probed.duration) : null;
-        const serve = async (p) => {
+        const serve = async (p, isAborted) => {
             if (!vodPlaylist) return readFile(p);
             const name = p.split('/').pop() || '';
             if (name === 'index.m3u8') return new TextEncoder().encode(vodPlaylist);
             const k = this._vpSegIndexFromName(name);
             if (k == null) return readFile(p);
-            return this._vpServeSegment(winId, id, k, readFile);
+            return this._vpServeSegment(winId, id, k, readFile, isAborted);
         };
         const Loader = this._vpLoaderClass(serve, (u) => this._vpResolveInDir(dir, u));
         // hls.js is lazy-loaded (no eager <script> tag) — must resolve before

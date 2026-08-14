@@ -77,7 +77,15 @@ window.ExRT = {
     // by Alpine: reading them back through a reactive proxy is how a teardown
     // ends up calling destroy()/close() on a Proxy and throwing (which the
     // catch-alls then hide, turning "never leaks" into "leaks silently").
-    //   sessions: windowId -> { hls, proc, dir, token }
+    //   sessions: windowId -> { hls, proc, dir, token, srcPath, codec,
+    //             runStart, frontier, doneRuns, restarting, runExited } — the
+    //             fields after `token` are the 3.1.0 seek state: which ffmpeg
+    //             run is live (`-start_number` = runStart), how far it has got
+    //             (frontier), which segment ranges earlier runs of this same
+    //             session completed (doneRuns), the single in-flight restart
+    //             promise (restarting), and whether the current run has exited.
+    //             `hls`, `proc` and `restarting` are exactly the kind of live
+    //             handles the firewall below exists for.
     //   gen:      windowId -> monotonically increasing start generation; a
     //             start whose generation is stale has been superseded by a
     //             newer start (rapid ◀/▶) and must free only its own process.
