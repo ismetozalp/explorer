@@ -518,7 +518,17 @@ MPEG transport stream); a theme-aware badge shows
 Playback starts as soon as the first segments are on disk; the badge stays
 up until ffmpeg has finished converting the whole file, so for a long
 transcode it remains visible well into playback. Any ffmpeg/`hls.js`
-failure surfaces as text instead of a dead player. This only plays local files —
+failure surfaces as text instead of a dead player.
+
+**Seeking while it converts (3.1):** a transcoded video shows its real
+total length and a fully seekable progress bar from the start, and you can
+drag to any point in the file — converting restarts at that point and
+playback resumes there. Parts that are already converted (including ones
+you skipped over) play straight from the cache without being converted
+again, and only one conversion ever runs per open video. Remuxed video
+(the gray **Remuxing** badge) keeps the earlier behaviour — its segments
+are cut on the source's own keyframes rather than a fixed grid, so its
+timeline fills in as it goes. This only plays local files —
 it is not an IPTV/streaming feature.
 
 ![Video preview with transcoding badge and file navigation](screenshots/preview-video.svg)

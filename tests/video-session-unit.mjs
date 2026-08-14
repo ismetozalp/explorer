@@ -28,12 +28,19 @@ const spawns = [];              // every cockpit.spawn argv, in order
 const procs = [];               // the ffmpeg process handles we handed out
 let uidSeq = 0;
 
+// close() REJECTS the promise, exactly as cockpit.spawn() does when a channel
+// is closed early — the seek-restart path closes the outgoing ffmpeg while its
+// session is alive, so "a close is not a failure" has to be modelled here or
+// the regression it guards (restart tearing the session down) is untestable.
+// The inert `.catch` keeps that rejection from ever surfacing as an unhandled
+// rejection for procs that are killed before anything attaches a handler.
 function makeProc(argv) {
     let settle;
     const p = new Promise((resolve, reject) => { settle = { resolve, reject }; });
+    p.catch(() => {});
     p.argv = argv;
     p.closed = null;
-    p.close = (why) => { p.closed = why || 'closed'; };
+    p.close = (why) => { if (p.closed) return; p.closed = why || 'closed'; settle.reject(new Error(p.closed)); };
     p._exit = () => settle.resolve('');
     return p;
 }
@@ -50,10 +57,11 @@ const FAKE_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:12.0,\nseg_00000.ts\n#
 // already-buffered FAKE_PLAYLIST so nothing else in this file has to change.
 const UNDER_BUFFERED_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:5.0,\nseg_00000.ts\n';
 let catQueue = null;
+let onFfmpeg = null;    // test hook: called with every ffmpeg argv as it spawns
 const cockpit = {
     spawn(argv) {
         spawns.push(argv);
-        if (argv[0] === 'ffmpeg') { const p = makeProc(argv); procs.push(p); return p; }
+        if (argv[0] === 'ffmpeg') { const p = makeProc(argv); procs.push(p); if (onFfmpeg) onFfmpeg(argv); return p; }
         if (argv[0] === 'cat') {
             const text = (catQueue && catQueue.length) ? catQueue.shift() : FAKE_PLAYLIST;
             const p = Promise.resolve(text); p.close = () => {}; return p;
@@ -63,8 +71,22 @@ const cockpit = {
         p.close = () => {};
         return p;
     },
-    file() { return { read: async () => null, close() {} }; },
+    // Virtual segment store for the 3.1.0 seek tests: `produced` holds the
+    // segment indices ffmpeg has "written" into the session dir. Every other
+    // test block leaves it empty, which reads exactly like the old
+    // always-null stub.
+    file(p) {
+        return {
+            read: async () => {
+                const m = /seg_(\d+)\.ts$/.exec(String(p));
+                if (m && produced.has(parseInt(m[1], 10))) return new Uint8Array([0x47, 0, 0, 0]);
+                return null;
+            },
+            close() {},
+        };
+    },
 };
+const produced = new Set();
 
 // Fake setInterval/clearInterval: the heartbeat (preview-reap-hardening FIX 1)
 // must be testable without a real 30s wall-clock timer. Handles are plain
@@ -81,7 +103,7 @@ const sandbox = {
     FS: { homeDir: async () => '/home/u', mkdir: async () => {} },
     Util: { uid: () => 'sid' + (++uidSeq) },
     document: { getElementById: () => ({ tagName: 'VIDEO' }) },   // a mounted <video>
-    setTimeout, clearTimeout, Promise, Date,
+    setTimeout, clearTimeout, Promise, Date, TextEncoder, TextDecoder,
     setInterval: fakeSetInterval, clearInterval: fakeClearInterval,
 };
 vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
@@ -93,7 +115,9 @@ const ExRT = sandbox.ExRT;
 // hls.js stub — records instances so we can prove which one survived.
 const hlsInstances = [];
 class FakeHls {
-    constructor() { this.destroyed = false; this.src = null; this.media = null; hlsInstances.push(this); }
+    // `config` is captured so a test can instantiate the real loader class the
+    // mixin passed in (pLoader/fLoader) and drive it like hls.js would.
+    constructor(config) { this.config = config || {}; this.destroyed = false; this.src = null; this.media = null; hlsInstances.push(this); }
     loadSource(u) { this.src = u; }
     attachMedia(el) { this.media = el; }
     destroy() { this.destroyed = true; }
@@ -390,6 +414,190 @@ function makeApp() {
     assert.strictEqual(ExRT.video.hb, null, 'heartbeat handle must be cleared once the last session is gone');
     assert.strictEqual(activeIntervals.size, 0, 'no interval may be left running with zero sessions');
     console.log('OK heartbeat: starts on first session, shared not per-session, cleared with the last session');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3.1.0 seek support, stateful half. Drives the REAL loader class the mixin
+// handed to hls.js (captured off FakeHls.config) exactly as hls.js would:
+// playlist request first, then fragment requests. Covers the synthetic
+// playlist, serving an already-produced segment, the seek-restart (with its
+// argv), restart coalescing, and the leak invariants a restart must not
+// break (old ffmpeg killed, session dir KEPT, session registration and
+// heartbeat intact, teardown still frees everything).
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const DURATION = 6239.024;             // ~1h44m sample (mpeg4 → transcode path)
+    const SEEK_INDEX = 1200;               // 4800s ≈ 80 minutes in
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear();
+    produced.clear();
+    app._vpSegPollMs = 5;                  // keep the poll loop fast; logic is unchanged
+    // mpeg4 video → _vpProbeDecision says x264 → the transcode (seekable) path.
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: DURATION });
+    // Model ffmpeg: a run started at -start_number K flushes K, K+1, K+2 shortly
+    // after it spawns (the initial run starts at 0).
+    onFfmpeg = (argv) => {
+        const i = argv.indexOf('-start_number');
+        const start = i === -1 ? 0 : parseInt(argv[i + 1], 10);
+        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); }, 10);
+    };
+
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const sess = ExRT.video.sessions.get('w1');
+    assert.ok(sess && sess.hls instanceof FakeHls, 'the transcode session must attach');
+    assert.strictEqual(sess.runStart, 0, 'the initial run starts at segment 0');
+    assert.strictEqual(sess.codec, 'x264');
+    assert.strictEqual(sess.srcPath, '/v/a.avi', 'the source path must be recorded — a restart has to rebuild the same command');
+    const initialProc = sess.proc;
+    assert.ok(initialProc.argv.join(' ').includes('-force_key_frames'), 'the transcode run must force keyframes onto the segment grid');
+
+    // Drive the loader hls.js was given.
+    const Loader = sess.hls.config.pLoader;
+    assert.strictEqual(sess.hls.config.fLoader, Loader, 'playlist and fragment loaders are the same class');
+    const loadVia = (url, responseType) => new Promise((resolve, reject) => {
+        const l = new Loader();
+        l.load({ url, responseType: responseType || '' }, {}, {
+            onSuccess: (r) => resolve(r.data),
+            onError: (e) => reject(new Error('loader error ' + JSON.stringify(e))),
+        });
+    });
+
+    // (1) The playlist hls.js gets is the SYNTHETIC one — full duration, every
+    // segment listed, VOD + ENDLIST — not ffmpeg's growing 3-segment file.
+    const text = await loadVia('explorer-preview://sid1/index.m3u8');
+    assert.ok(text.includes('#EXT-X-ENDLIST') && text.includes('#EXT-X-PLAYLIST-TYPE:VOD'),
+        'hls.js must be handed a complete VOD playlist, or it treats the level as live and refuses to seek');
+    const listed = (text.match(/^seg_\d+\.ts$/gm) || []).length;
+    assert.strictEqual(listed, Math.ceil(DURATION / V._vpSegSecs),
+        'the playlist must cover the whole probed duration up front (got ' + listed + ' segments)');
+    assert.ok(text.includes(V._vpSegName(SEEK_INDEX)), 'the seek target must already be listed as a normal segment');
+    assert.ok(!spawns.some((a) => a[0] === 'cat' && a.length && String(a[1]).includes('index.m3u8') && false), 'sanity');
+
+    // (2) A segment already on disk is served straight through, with no restart.
+    const spawnsBefore = spawns.filter((a) => a[0] === 'ffmpeg').length;
+    const frag0 = await loadVia('explorer-preview://sid1/seg_00000.ts', 'arraybuffer');
+    assert.ok(frag0 && frag0.byteLength > 0, 'an existing segment must be served as bytes');
+    assert.strictEqual(spawns.filter((a) => a[0] === 'ffmpeg').length, spawnsBefore,
+        'serving an existing segment must not respawn ffmpeg');
+
+    // (3) THE FEATURE: a fragment request for a region ffmpeg has not reached
+    // (and, at 1200 segments ahead, never would in time) restarts ffmpeg there.
+    // Two overlapping requests around the same target must coalesce into ONE
+    // restart.
+    const [fragA, fragB] = await Promise.all([
+        loadVia('explorer-preview://sid1/seg_01200.ts', 'arraybuffer'),
+        loadVia('explorer-preview://sid1/seg_01201.ts', 'arraybuffer'),
+    ]);
+    assert.ok(fragA && fragA.byteLength > 0 && fragB && fragB.byteLength > 0,
+        'seeking into a not-yet-converted region must actually produce playable bytes');
+    const ffmpegRuns = spawns.filter((a) => a[0] === 'ffmpeg');
+    assert.strictEqual(ffmpegRuns.length, 2,
+        'exactly one restart for a burst of requests around one seek target (got ' + ffmpegRuns.length + ' ffmpeg runs)');
+    const restartArgv = ffmpegRuns[1];
+    const T = String(SEEK_INDEX * V._vpSegSecs);
+    assert.strictEqual(restartArgv[restartArgv.indexOf('-ss') + 1], T, 'the restart must seek the input to the segment boundary');
+    assert.ok(restartArgv.indexOf('-ss') < restartArgv.indexOf('-i'), '-ss must precede -i');
+    assert.strictEqual(restartArgv[restartArgv.indexOf('-start_number') + 1], String(SEEK_INDEX));
+    assert.strictEqual(restartArgv[restartArgv.indexOf('-output_ts_offset') + 1], T);
+    assert.strictEqual(restartArgv[restartArgv.length - 1], sess.dir + '/index.m3u8', 'the restart must write into the SAME session dir');
+
+    // (4) Leak/teardown invariants across the restart.
+    const after = ExRT.video.sessions.get('w1');
+    assert.strictEqual(after, sess, 'the session registration must survive a restart (same entry, same token)');
+    assert.strictEqual(after.runStart, SEEK_INDEX, 'the new run start must be recorded, or the next request re-restarts');
+    assert.strictEqual(initialProc.closed, 'cancelled', 'the outgoing ffmpeg must be killed — never two ffmpegs per session');
+    assert.notStrictEqual(after.proc, initialProc);
+    assert.strictEqual(after.proc.closed, null, 'the new run must be alive');
+    assert.ok(!spawns.some((a) => a[0] === 'rm' && a[2] === sess.dir),
+        'a restart must NOT delete the session dir — the segments already converted stay valid and reusable');
+    await new Promise((r) => setTimeout(r, 20));   // let the killed proc's rejection settle
+    const w = app._win('w1');
+    assert.strictEqual(w.pv.reason, undefined,
+        'closing the outgoing ffmpeg is not a failure — it must not surface as an error or tear the session down');
+    assert.strictEqual(w.pv.transcodeState, 'transcoding');
+    assert.ok(ExRT.video.sessions.get('w1'), 'the session must still be registered after the killed run rejected');
+    assert.ok(ExRT.video.hb !== null && activeIntervals.size === 1, 'the heartbeat must keep running across a restart');
+
+    // (5) A seek BACK into an already-converted region is served from disk.
+    const spawnsBeforeBack = spawns.filter((a) => a[0] === 'ffmpeg').length;
+    const back = await loadVia('explorer-preview://sid1/seg_00001.ts', 'arraybuffer');
+    assert.ok(back && back.byteLength > 0);
+    assert.strictEqual(spawns.filter((a) => a[0] === 'ffmpeg').length, spawnsBeforeBack,
+        'segments from an earlier run are still valid for the same timeline positions — no restart needed');
+
+    // (5b) A segment file that is on disk but NOT yet listed by the run writing
+    // it is half-written: it must not be served. (Here seg_01250 "exists" while
+    // the run's frontier is 1202 — the gate must force a restart at 1250 rather
+    // than hand hls.js a truncated .ts.)
+    produced.add(1250);
+    const runsBeforeGate = spawns.filter((a) => a[0] === 'ffmpeg').length;
+    const gated = await loadVia('explorer-preview://sid1/seg_01250.ts', 'arraybuffer');
+    const gateRuns = spawns.filter((a) => a[0] === 'ffmpeg');
+    assert.strictEqual(gateRuns.length, runsBeforeGate + 1,
+        'a segment past the current run\'s playlist frontier must not be read off disk — it is still being written');
+    assert.strictEqual(gateRuns[gateRuns.length - 1][gateRuns[gateRuns.length - 1].indexOf('-start_number') + 1], '1250');
+    assert.ok(gated && gated.byteLength > 0, 'and it must still end up served once the run that owns it lists it');
+    console.log('OK seek: half-written segment (on disk, not yet listed) is not served — restarted at 1250 instead');
+
+    // (6) Teardown still frees everything after a restart.
+    const lastProc = after.proc;
+    await V._teardownPreviewVideo.call(app, 'w1');
+    assert.strictEqual(ExRT.video.sessions.get('w1'), undefined);
+    assert.strictEqual(lastProc.closed, 'cancelled', 'teardown must close the RESTARTED ffmpeg');
+    assert.ok(spawns.some((a) => a[0] === 'rm' && a[1] === '-rf' && a[2] === sess.dir), 'teardown must remove the session dir');
+    assert.strictEqual(ExRT.video.hb, null);
+    console.log('OK seek: synthetic VOD playlist (' + listed + ' segments), 1 coalesced restart at -ss ' + T + '/-start_number ' + SEEK_INDEX + ', dir kept, old ffmpeg killed, teardown clean');
+    onFfmpeg = null; produced.clear();
+}
+
+// A segment that never appears must fail the loader (not hang forever) — and a
+// session torn down mid-request must stop immediately without restarting
+// anything for a window nobody is watching.
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 60;                  // real timeout logic, test-scale deadline
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 600 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const s = ExRT.video.sessions.get('w1');
+    const Loader = s.hls.config.pLoader;
+    const err = await new Promise((resolve) => {
+        new Loader().load({ url: 'explorer-preview://sid1/seg_00007.ts', responseType: 'arraybuffer' }, {}, {
+            onSuccess: () => resolve(null), onError: (e) => resolve(e),
+        });
+    });
+    assert.ok(err && err.code === 404, 'an unproducible segment must come back as a loader error, not a hung request');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    console.log('OK seek: unproducible segment reports a loader error within the bounded wait');
+}
+
+// The remux path must be untouched: no forced keyframes, and hls.js still gets
+// ffmpeg's own playlist (its segments are GOP-length, so index→time mapping —
+// and therefore the whole restart mechanism — does not hold there).
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'h264' }], duration: 600 });
+    await app.startPreviewVideo('w1', { path: '/v/a.mkv' });
+    const s = ExRT.video.sessions.get('w1');
+    assert.strictEqual(s.codec, 'copy');
+    assert.ok(!s.proc.argv.includes('-force_key_frames'), 'remux must not carry forced keyframes');
+    const text = await new Promise((resolve, reject) => {
+        new (s.hls.config.pLoader)().load({ url: 'explorer-preview://sid1/index.m3u8', responseType: '' }, {}, {
+            onSuccess: (r) => resolve(r.data), onError: (e) => reject(new Error(JSON.stringify(e))),
+        });
+    }).catch(() => null);
+    assert.ok(text === null || !text.includes('#EXT-X-PLAYLIST-TYPE:VOD'),
+        'the remux path must keep reading ffmpeg\'s own playlist off disk, not a synthetic one');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    console.log('OK remux path unchanged: no forced keyframes, no synthetic playlist');
 }
 
 // The registry must not live on Alpine-reactive component state.

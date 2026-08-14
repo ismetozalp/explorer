@@ -65,22 +65,188 @@ window.ExplorerVideo = {
     // lossy 128k preview transcode anyway) produces plain 2-channel AAC,
     // confirmed via ffprobe and via a live end-to-end replay of this exact
     // file (see the delivery report for the observed numbers).
-    _vpBuildHlsArgs({ inputPath, dir, videoCodec }) {
+    //
+    // ── SEEK SUPPORT (3.1.0) ────────────────────────────────────────────
+    // `-force_key_frames expr:gte(t,n_forced*SEG)` (transcode path only) is
+    // what makes time↔segment mapping deterministic: the encoder is forced to
+    // put a keyframe at the first frame at/after every multiple of SEG, and
+    // `-hls_time SEG` then cuts there, so segment k always covers
+    // [k*SEG, (k+1)*SEG) — measured on this host as a uniform 4.004s per
+    // segment for 23.976fps content (the +0.004 is just frame quantisation:
+    // the first frame at/after t=4.0 lands at 96/23.976). Without forced
+    // keyframes ffmpeg can only cut on the source's own GOP boundaries, which
+    // are irregular, and "which segment holds minute 80?" becomes unanswerable
+    // without reading every segment.
+    //
+    // It is deliberately NOT applied on the remux path (`-c:v copy`): there is
+    // no encoder to force keyframes on, the segments stay GOP-length and
+    // variable, so the synthetic-playlist/seek machinery below is disabled for
+    // remux and that path behaves exactly as it did in 3.0.x.
+    //
+    // `startIndex > 0` builds a RESTART run for a seek into a not-yet-converted
+    // region (see _vpRestartAt):
+    //   -ss <k*SEG>              input-side (fast) seek to the segment boundary
+    //   -start_number <k>        write seg_<k>.ts, seg_<k+1>.ts, … so the output
+    //                            lands exactly where the playlist expects it
+    //   -output_ts_offset <k*SEG> keep the output timestamps on the GLOBAL
+    //                            timeline, so the restarted run's media PTS
+    //                            continue where the timeline says they should
+    //                            and no #EXT-X-DISCONTINUITY handling is needed.
+    _vpBuildHlsArgs({ inputPath, dir, videoCodec, startIndex }) {
+        const seg = this._vpSegSecs;
+        const k = Number.isFinite(startIndex) && startIndex > 0 ? Math.floor(startIndex) : 0;
+        const offset = this._vpSegStartTime(k);
         return [
             '-y', '-hide_banner',
+            ...(k > 0 ? ['-ss', String(offset)] : []),
             '-i', inputPath,
             '-map', '0:v:0?', '-map', '0:a:0?',
             ...this._vpVideoCodecArgs(videoCodec),
+            ...(videoCodec === 'x264' ? ['-force_key_frames', 'expr:gte(t,n_forced*' + seg + ')'] : []),
             '-c:a', 'aac', '-ac', '2', '-b:a', '128k',
             '-f', 'hls',
-            '-hls_time', '4',
+            '-hls_time', String(seg),
             '-hls_playlist_type', 'event',
             '-hls_list_size', '0',
             '-hls_flags', 'independent_segments',
             '-hls_segment_type', 'mpegts',
+            ...(k > 0 ? ['-start_number', String(k), '-output_ts_offset', String(offset)] : []),
             '-hls_segment_filename', this._vpSegPattern(dir),
             dir + '/index.m3u8',
         ];
+    },
+    // ── segment/time mapping + synthetic playlist (all PURE, unit-tested) ──
+    // One constant everything derives from: the nominal segment length in
+    // seconds, used for -hls_time, the forced-keyframe expression, the
+    // synthetic playlist's #EXTINF values and the time↔index mapping. Changing
+    // it changes all of them together, which is the point.
+    _vpSegSecs: 4,
+    _vpSegName(index) { return 'seg_' + String(index).padStart(5, '0') + '.ts'; },
+    // 'seg_00042.ts' → 42; anything else (index.m3u8, junk) → null.
+    _vpSegIndexFromName(name) {
+        const m = /^seg_(\d+)\.ts$/.exec(name || '');
+        return m ? parseInt(m[1], 10) : null;
+    },
+    // Timeline position of a segment boundary, and the reverse mapping.
+    _vpSegStartTime(index) { return (index > 0 ? index : 0) * this._vpSegSecs; },
+    _vpSegIndexForTime(t) {
+        if (!Number.isFinite(t) || t <= 0) return 0;
+        return Math.floor(t / this._vpSegSecs);
+    },
+    // Number of segments a file of `duration` seconds maps to (the last one is
+    // short unless the duration divides exactly). 0 for an unknown/unusable
+    // duration — the caller then falls back to ffmpeg's own playlist.
+    _vpSegCount(duration) {
+        if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return 0;
+        return Math.ceil(duration / this._vpSegSecs);
+    },
+    // PURE: the whole point of the 3.1.0 seek work. hls.js is handed THIS
+    // playlist instead of ffmpeg's, so it learns the file's real duration and
+    // its full segment list up front — #EXT-X-PLAYLIST-TYPE:VOD plus a closing
+    // #EXT-X-ENDLIST is what makes hls.js treat the level as complete (its
+    // `live` flag is driven solely by ENDLIST — see the long note on
+    // _vpBuildHlsArgs), so the player's own scrubber shows the true length
+    // immediately and every position on it is seekable. Segments that ffmpeg
+    // hasn't produced yet are listed anyway; _vpServeSegment is responsible for
+    // making them appear (by waiting, or by restarting ffmpeg at that point).
+    // Returns null when the duration is unknown/unusable.
+    _vpBuildVodPlaylist(duration) {
+        const n = this._vpSegCount(duration);
+        if (!n) return null;
+        const seg = this._vpSegSecs;
+        const out = [
+            '#EXTM3U',
+            '#EXT-X-VERSION:3',
+            '#EXT-X-PLAYLIST-TYPE:VOD',
+            // Must be >= the longest #EXTINF; every #EXTINF here is <= seg.
+            '#EXT-X-TARGETDURATION:' + Math.ceil(seg),
+            '#EXT-X-MEDIA-SEQUENCE:0',
+            '#EXT-X-INDEPENDENT-SEGMENTS',
+        ];
+        for (let k = 0; k < n; k++) {
+            const d = k === n - 1 ? duration - k * seg : seg;
+            out.push('#EXTINF:' + d.toFixed(6) + ',');
+            out.push(this._vpSegName(k));
+        }
+        out.push('#EXT-X-ENDLIST');
+        return out.join('\n') + '\n';
+    },
+    // How far ahead of the current ffmpeg run's frontier a requested segment may
+    // be before we treat the request as a SEEK rather than as normal buffering.
+    // hls.js reads ahead of the playhead (its default maxBufferLength is 30s ≈
+    // 7 segments here, but it requests them one at a time, so a request lands at
+    // most a segment or two beyond what ffmpeg has flushed while it keeps up).
+    // 3 segments ≈ 12s of tolerance: comfortably absorbs a transcoder that has
+    // momentarily fallen behind the reader (wait — it will arrive in seconds),
+    // while a real seek is always hundreds or thousands of segments away and so
+    // is never mistaken for buffering. Deliberately small: restarting when we
+    // could have waited costs a whole ffmpeg respawn, so the bias is towards
+    // waiting.
+    _vpSegAheadTolerance: 3,
+    // Upper bound on how long a single segment request may block before the
+    // loader reports failure to hls.js. Covers the worst realistic case: a
+    // restart (ffmpeg spawn + input seek + encoding the first 4s segment) on a
+    // slow host. Same order as the 30s start-buffer target.
+    _vpSegWaitMs: 30000,
+    _vpSegPollMs: 250,
+    // PURE: is segment `index` known to be COMPLETE on disk?
+    //
+    // "The file exists" is NOT the same as "the segment is playable": ffmpeg
+    // creates a segment file when it STARTS writing it and only appends the
+    // matching #EXTINF to its playlist when it CLOSES it. Handing hls.js a
+    // half-written .ts is a demux error / stall, and it is exactly what happens
+    // on a host where the encode barely outruns playback — the case the old
+    // code never hit, because hls.js then only ever asked for segments ffmpeg
+    // had already listed. (ffmpeg's own `-hls_flags temp_file` would give
+    // atomic segment writes, but it was tried and rejected: on this ffmpeg it
+    // also defers the PLAYLIST write to muxer close, so index.m3u8 stays 0
+    // bytes for the whole run — that starves both the start-buffer gate and the
+    // progress read below. Same trap as `-hls_playlist_type vod`.)
+    //
+    // So completeness is answered per run:
+    //   • at/after the current run's start → its playlist is the authority:
+    //     complete iff index <= frontier;
+    //   • before it → the segment can only have come from an earlier run of
+    //     this session. A restart never deletes segments, so those files are
+    //     still there and still valid for the same timeline positions;
+    //     `doneRuns` records the ranges each superseded run was last observed
+    //     to have completed. Anything outside them is treated as not available
+    //     (worst case: one extra restart to re-produce a segment that may in
+    //     fact have been fine — the safe direction to be wrong in).
+    _vpSegKnownComplete({ index, runStart, frontier, doneRuns }) {
+        if (!Number.isFinite(index) || !Number.isFinite(runStart)) return false;
+        if (index >= runStart) return Number.isFinite(frontier) && index <= frontier;
+        return (doneRuns || []).some((r) => index >= r.start && index <= r.end);
+    },
+    // PURE: wait, restart, or serve? Decided from numbers only, so it is
+    // directly unit-testable.
+    //   ready     — the segment is on disk AND known complete (see
+    //               _vpSegKnownComplete); a previous run's output is just as
+    //               valid as this run's, it is the same timeline
+    //   index     — the segment hls.js asked for
+    //   runStart  — the `-start_number` of the ffmpeg run that is currently
+    //               running (0 for the initial run)
+    //   frontier  — the highest index this run is known to have produced
+    //               (runStart-1 when it hasn't flushed anything yet)
+    // A request BELOW runStart can never be satisfied by waiting: this run only
+    // ever writes forward from runStart, so the user must have seeked back into
+    // a hole — restart. A request far ABOVE the frontier is a forward seek into
+    // a region this run would only reach after minutes/hours of encoding —
+    // restart. Everything in between is ordinary read-ahead — wait.
+    _vpSegAction({ ready, index, runStart, frontier }) {
+        if (ready) return 'serve';
+        if (!Number.isFinite(runStart) || !Number.isFinite(index)) return 'restart';
+        if (index < runStart) return 'restart';
+        const f = Number.isFinite(frontier) ? frontier : runStart - 1;
+        return index <= f + this._vpSegAheadTolerance ? 'wait' : 'restart';
+    },
+    // PURE: how many segments has the current ffmpeg run flushed? ffmpeg appends
+    // one #EXTINF to its own playlist per completed segment, so counting them is
+    // a cheap, allocation-free progress read (one `cat`, no directory listing).
+    _vpCountSegments(text) {
+        if (!text) return 0;
+        const m = text.match(/#EXTINF:/g);
+        return m ? m.length : 0;
     },
     // ── session paths (ported from InFlightTV session.ts) ──
     _vpCacheRoot(home) { return home + '/.cache/cockpit-explorer/preview'; },
@@ -306,6 +472,139 @@ window.ExplorerVideo = {
             await this._vpKillProcAndDir(proc, dir);
         }
     },
+    // ── ffmpeg run lifecycle (one run at a time per session) ─────────────
+    // Watch the ffmpeg process of a session's CURRENT run. Split out of
+    // startPreviewVideo because a session can now go through several runs (the
+    // initial one plus one per seek-restart), and each run's exit has to be
+    // interpreted relative to the session as it stands when it exits:
+    //   • still the current run of this session → the encode finished normally
+    //     ('done' badge) or failed (error + full teardown, as before);
+    //   • session gone (window closed / superseded by a newer start) → nobody
+    //     will ever free this process or its dir, so do it here (unchanged
+    //     3.0.x behaviour);
+    //   • session still ours but a DIFFERENT proc is registered → we closed
+    //     this run ourselves to restart at a seek target. The rejection is
+    //     expected, and the session dir is still in active use — touching
+    //     either would kill a healthy session (this is exactly the invariant a
+    //     naive restart breaks: close(old) makes cockpit.spawn's promise reject,
+    //     which used to funnel straight into _vpEndSession).
+    _vpWatchProc(winId, token, proc, dir) {
+        const sess = () => { const s = this._vpSessions().get(winId); return s && s.token === token ? s : null; };
+        proc.then(() => {
+            const s = sess();
+            if (s && s.proc === proc) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
+            else if (!s) this._vpKillProcAndDir(proc, dir);   // superseded session: its dir is orphaned
+        }).catch((e) => {
+            const s = sess();
+            if (s && s.proc === proc) this._vpEndSession(winId, token, proc, dir, 'ffmpeg failed' + (e && e.message ? ': ' + e.message : ''));
+            else if (!s) this._vpKillProcAndDir(proc, dir);
+        });
+    },
+    // Restart this session's ffmpeg so that it produces segment `index` onward
+    // (a seek into a region the current run will never reach). The session dir
+    // is deliberately KEPT: every segment already on disk is still valid for the
+    // same timeline positions (`-output_ts_offset` keeps the restarted run on
+    // the global timeline), so a seek back into an already-converted region is
+    // served straight from disk with no further restart.
+    //
+    // Anti-thrash: at most ONE restart in flight per session. A concurrent
+    // request that also wants a restart awaits the in-flight one and then
+    // re-decides (see _vpServeSegment's loop) — which, for a nearby index, comes
+    // back as 'wait', so a burst of requests around one seek target collapses
+    // into a single ffmpeg respawn.
+    async _vpRestartAt(winId, token, index) {
+        const s0 = this._vpSessions().get(winId);
+        if (!s0 || s0.token !== token) return;
+        if (s0.restarting) { await s0.restarting; return; }
+        let wrapped;
+        const run = (async () => {
+            const cur = this._vpSessions().get(winId);
+            if (!cur || cur.token !== token) return;
+            // Kill the outgoing run FIRST: two ffmpegs writing one session dir
+            // (and one of them unreachable) is exactly the leak this file's
+            // rules exist to prevent. Detach it from the session BEFORE closing
+            // it, so _vpWatchProc's "is this still the session's process?" test
+            // is already false when close() rejects the spawn promise —
+            // otherwise that rejection reads as "ffmpeg failed" and tears the
+            // whole session down mid-seek. (It is also false by the time the
+            // rejection microtask runs, since the assignment below is
+            // synchronous, but a leak this expensive gets both guards.)
+            // Remember what the outgoing run had finished before replacing it:
+            // its segments stay on disk and stay valid, and this is the only
+            // record that they are COMPLETE (its playlist is about to be
+            // overwritten by the new run). Without it, seeking backwards into
+            // an already-converted stretch would needlessly restart again.
+            if (Number.isFinite(cur.frontier) && cur.frontier >= cur.runStart)
+                cur.doneRuns.push({ start: cur.runStart, end: cur.frontier });
+            const outgoing = cur.proc;
+            cur.proc = null;
+            try { outgoing && outgoing.close && outgoing.close('cancelled'); }
+            catch (e) { console.warn('explorer: could not close ffmpeg process', e); }
+            const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: cur.srcPath, dir: cur.dir, videoCodec: cur.codec, startIndex: index })], { err: 'message' });
+            // The spawn is not awaited, but the session could still have been
+            // torn down in the microtask between the two lines — re-check before
+            // publishing the new process, and free it (dir included: with the
+            // session gone, nobody else will) if it has.
+            const now = this._vpSessions().get(winId);
+            if (!now || now.token !== token) { await this._vpKillProcAndDir(proc, cur.dir); return; }
+            now.proc = proc;
+            now.runStart = index;
+            this._vpWatchProc(winId, token, proc, now.dir);
+            this._vpHbTouchDir(now.dir);
+            const ww = this._win(winId);
+            if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'transcoding';
+        })();
+        wrapped = run
+            .catch((e) => { console.warn('explorer: ffmpeg restart failed', e); })
+            .finally(() => { const c = this._vpSessions().get(winId); if (c && c.restarting === wrapped) c.restarting = null; });
+        s0.restarting = wrapped;
+        await wrapped;
+    },
+    // How far the current run has got: ffmpeg appends one #EXTINF to its own
+    // playlist per completed segment, and the run started at `runStart`, so the
+    // highest index it has flushed is runStart + count - 1 (runStart-1 when it
+    // has flushed nothing yet). ffmpeg's playlist is otherwise unused now that
+    // hls.js is served a synthetic one — it survives purely as this progress
+    // read and as the start-buffer gate.
+    // It is cached on the session as `frontier` because a restart needs the last
+    // known value to record what the outgoing run had completed (see doneRuns).
+    async _vpRunFrontier(s) {
+        let text = null;
+        try { text = await cockpit.spawn(['cat', this._vpPlaylist(s.dir)], { err: 'ignore' }); } catch (e) {}
+        s.frontier = s.runStart + this._vpCountSegments(text) - 1;
+        return s.frontier;
+    },
+    // Serve one segment to hls.js, producing it on demand if necessary. Returns
+    // the bytes, or null (→ the loader reports a 404 to hls.js) if it cannot be
+    // produced within _vpSegWaitMs or the session went away meanwhile.
+    //
+    // Every already-converted segment — from this run or any earlier one — is
+    // served straight from disk on the first pass, so this costs one file read
+    // in the common case.
+    async _vpServeSegment(winId, token, index, readFile) {
+        const deadline = Date.now() + this._vpSegWaitMs;
+        for (;;) {
+            const s = this._vpSessions().get(winId);
+            if (!s || s.token !== token) return null;    // closed/superseded: stop, don't restart anything
+            // One cheap `cat` of ffmpeg's playlist answers both questions at
+            // once: has the current run closed this segment (may we read it?)
+            // and how far has it got (wait or restart?). Only needed for the
+            // current run's range — earlier runs' output is answered from
+            // s.doneRuns with no I/O at all.
+            const frontier = index >= s.runStart ? await this._vpRunFrontier(s) : s.frontier;
+            let ready = this._vpSegKnownComplete({ index, runStart: s.runStart, frontier, doneRuns: s.doneRuns });
+            if (ready) {
+                const bytes = await readFile(s.dir + '/' + this._vpSegName(index));
+                if (bytes && bytes.byteLength) return bytes;
+                ready = false;   // listed but unreadable (deleted under us): decide as if absent
+            }
+            if (Date.now() >= deadline) return null;
+            if (s.restarting) { await s.restarting; continue; }   // coalesce onto the in-flight restart
+            const action = this._vpSegAction({ ready, index, runStart: s.runStart, frontier });
+            if (action === 'restart') { await this._vpRestartAt(winId, token, index); continue; }
+            await new Promise((resolve) => setTimeout(resolve, this._vpSegPollMs));
+        }
+    },
     // An HLS session is only worth starting for a window the user can actually
     // see: a restored-but-minimized preview (js/core/tabs.js persists open
     // preview windows and reopens them with {minimized:true}) would otherwise
@@ -380,19 +679,39 @@ window.ExplorerVideo = {
         // isNewest(): without that gate a slow older call could overwrite a
         // newer call's entry here and strand the newer hls+ffmpeg forever.
         if (!isNewest()) { await this._vpKillProcAndDir(proc, dir); return; }
-        this._vpSessions().set(winId, { hls: null, proc, dir, token: id });
+        // `srcPath`/`codec`/`runStart`/`restarting` are the 3.1.0 seek state: a
+        // restart has to be able to rebuild the exact same ffmpeg command with a
+        // different start point, and _vpSegAction needs to know where the
+        // current run began. Still non-reactive (ExRT), still keyed by winId,
+        // still the single authority for teardown.
+        this._vpSessions().set(winId, { hls: null, proc, dir, token: id, srcPath: file.path, codec, runStart: 0, frontier: -1, doneRuns: [], restarting: null });
         // Start (or keep alive) the shared heartbeat and protect this brand-new
         // session immediately — before the first interval tick — so a reap
         // that races the very start of playback still sees a fresh .alive.
         this._vpHbEnsure();
         this._vpHbTouchDir(dir);
         const isCurrent = () => { const s = this._vpSessions().get(winId); return !!(isNewest() && s && s.token === id); };
-        proc.then(() => {
-            if (isCurrent()) { const ww = this._win(winId); if (ww && ww.pv && ww.pv.mode === 'hls') ww.pv.transcodeState = 'done'; }
-            else { this._vpKillProcAndDir(proc, dir); } // superseded: ffmpeg exited clean, but its dir is now orphaned — nobody else will ever rm it
-        }).catch((e) => { this._vpEndSession(winId, id, proc, dir, 'ffmpeg failed' + (e && e.message ? ': ' + e.message : '')); });
+        // Was an inline proc.then/catch pair; now shared with the seek-restart
+        // path (see _vpWatchProc — a restart's close() of the outgoing process
+        // must not be mistaken for "ffmpeg failed" and tear the session down).
+        this._vpWatchProc(winId, id, proc, dir);
         const readFile = async (p) => { const h = cockpit.file(p, { binary: true }); try { return await h.read(); } catch (e) { return null; } finally { h.close(); } };
-        const Loader = this._vpLoaderClass(readFile, (u) => this._vpResolveInDir(dir, u));
+        // Seek support is the transcode path only: it needs the uniform,
+        // forced-keyframe segments _vpBuildHlsArgs produces for x264 (a remux's
+        // segments are GOP-length and irregular, so index k does not map to a
+        // known time) and a probed duration to build the playlist from. When
+        // either is missing, `serve` degrades to exactly the 3.0.x behaviour —
+        // hand hls.js ffmpeg's own growing playlist and read segments off disk.
+        const vodPlaylist = codec === 'x264' ? this._vpBuildVodPlaylist(probed.duration) : null;
+        const serve = async (p) => {
+            if (!vodPlaylist) return readFile(p);
+            const name = p.split('/').pop() || '';
+            if (name === 'index.m3u8') return new TextEncoder().encode(vodPlaylist);
+            const k = this._vpSegIndexFromName(name);
+            if (k == null) return readFile(p);
+            return this._vpServeSegment(winId, id, k, readFile);
+        };
+        const Loader = this._vpLoaderClass(serve, (u) => this._vpResolveInDir(dir, u));
         // hls.js is lazy-loaded (no eager <script> tag) — must resolve before
         // touching window.Hls, both for the isSupported() check and `new Hls(...)`.
         try { await this._ensureHls(); }

@@ -2,6 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.0
+
+- **Video that needs converting is now fully seekable, right from the start.**
+  The player shows the file's real total length and a normal progress bar as
+  soon as playback begins, instead of a bar that grew as the conversion caught
+  up. You can now drag to any point — including parts that haven't been
+  converted yet: conversion restarts at that point and playback resumes there
+  after a couple of seconds. Anything already converted, including sections you
+  skipped over, replays straight from the cache without being converted again,
+  and only ever one conversion runs per open video. This covers video that has
+  to be re-encoded (the **⚙ Transcoding** badge). Video that only needs
+  repackaging (**Remuxing** — already-H.264 sources) is unchanged: its pieces
+  can't be cut to a fixed grid, so its timeline still fills in as it goes.
+
 ## 3.0.1
 
 - **Fixed: PDF preview prompted a download instead of rendering inline.**

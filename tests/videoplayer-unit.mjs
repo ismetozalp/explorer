@@ -47,6 +47,168 @@ assert.ok(!j.includes('-hls_playlist_type vod'), 'must NOT use vod — verified 
 assert.ok(args[args.length - 1] === '/c/s/index.m3u8');
 assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-user_agent')); // no IPTV bits
 
+// ─────────────────────────────────────────────────────────────────────────
+// 3.1.0 seek support — the pure parts.
+// ─────────────────────────────────────────────────────────────────────────
+
+// (1) ffmpeg argv: forced keyframes on the transcode path only, and the
+// restart triple (-ss before -i, -start_number, -output_ts_offset).
+{
+    const SEG = V._vpSegSecs;
+    assert.strictEqual(typeof SEG, 'number');
+    const x264 = V._vpBuildHlsArgs({ inputPath: '/m/a.avi', dir: '/c/s', videoCodec: 'x264' });
+    const jx = x264.join(' ');
+    assert.ok(jx.includes('-force_key_frames expr:gte(t,n_forced*' + SEG + ')'),
+        'the transcode path must force keyframes on the segment grid — without it segments are GOP-length and index→time is unknowable');
+    assert.ok(jx.includes('-hls_time ' + SEG), 'hls_time must come from the same constant as the keyframe expression');
+    // Remux is explicitly out of scope: -c:v copy has no encoder to force
+    // keyframes on, so its segments stay irregular and it keeps 3.0.x behaviour.
+    const copy = V._vpBuildHlsArgs({ inputPath: '/m/a.mkv', dir: '/c/s', videoCodec: 'copy' }).join(' ');
+    assert.ok(!copy.includes('-force_key_frames'), 'the remux path must NOT force keyframes (there is no encoder)');
+    // No restart flags on a normal (index 0) run.
+    assert.ok(!jx.includes('-start_number') && !jx.includes('-output_ts_offset') && !jx.includes('-ss'),
+        'the initial run must not carry restart flags');
+
+    const r = V._vpBuildHlsArgs({ inputPath: '/m/a.avi', dir: '/c/s', videoCodec: 'x264', startIndex: 1200 });
+    const t = String(1200 * SEG);
+    assert.ok(r.indexOf('-ss') !== -1 && r.indexOf('-ss') < r.indexOf('-i'),
+        '-ss must precede -i (input-side fast seek) — after -i it decodes the whole file up to the point');
+    assert.strictEqual(r[r.indexOf('-ss') + 1], t);
+    assert.strictEqual(r[r.indexOf('-start_number') + 1], '1200', 'the restart must write seg_01200.ts onward');
+    assert.strictEqual(r[r.indexOf('-output_ts_offset') + 1], t, 'restarted output must stay on the global timeline');
+    assert.strictEqual(r[r.length - 1], '/c/s/index.m3u8', 'restart writes into the SAME session dir');
+    console.log('OK seek argv: force_key_frames (x264 only) + -ss/-start_number/-output_ts_offset at ' + t + 's');
+}
+
+// (2) time ↔ segment index mapping
+{
+    const SEG = V._vpSegSecs;
+    assert.strictEqual(V._vpSegStartTime(0), 0);
+    assert.strictEqual(V._vpSegStartTime(1200), 1200 * SEG);
+    assert.strictEqual(V._vpSegIndexForTime(0), 0);
+    assert.strictEqual(V._vpSegIndexForTime(SEG - 0.001), 0, 'just before the boundary is still segment 0');
+    assert.strictEqual(V._vpSegIndexForTime(SEG), 1, 'the boundary itself starts the next segment');
+    assert.strictEqual(V._vpSegIndexForTime(4800), Math.floor(4800 / SEG));
+    assert.strictEqual(V._vpSegIndexForTime(-5), 0);
+    assert.strictEqual(V._vpSegIndexForTime(NaN), 0);
+    // Round trip: the start time of the segment holding t is never after t.
+    for (const t of [0, 3.9, 4, 100, 4800, 6238.9]) {
+        const k = V._vpSegIndexForTime(t);
+        assert.ok(V._vpSegStartTime(k) <= t && V._vpSegStartTime(k + 1) > t, 'segment ' + k + ' must contain t=' + t);
+    }
+    assert.strictEqual(V._vpSegName(0), 'seg_00000.ts');
+    assert.strictEqual(V._vpSegName(1200), 'seg_01200.ts', 'name must match ffmpeg -hls_segment_filename seg_%05d.ts');
+    assert.strictEqual(V._vpSegIndexFromName('seg_01200.ts'), 1200);
+    assert.strictEqual(V._vpSegIndexFromName('index.m3u8'), null);
+    assert.strictEqual(V._vpSegIndexFromName('seg_01200.ts.tmp'), null);
+    assert.strictEqual(V._vpSegIndexFromName(''), null);
+    console.log('OK time↔segment mapping: t=4800 → ' + V._vpSegIndexForTime(4800) + ' → ' + V._vpSegName(V._vpSegIndexForTime(4800)));
+}
+
+// (3) the synthetic VOD playlist generator
+{
+    const SEG = V._vpSegSecs;
+    // Unknown/unusable duration → null (caller falls back to ffmpeg's playlist).
+    for (const bad of [0, -1, null, undefined, NaN, Infinity, '600'])
+        assert.strictEqual(V._vpBuildVodPlaylist(bad), null, 'unusable duration ' + String(bad) + ' must not produce a playlist');
+    assert.strictEqual(V._vpSegCount(0), 0);
+    assert.strictEqual(V._vpSegCount(null), 0);
+
+    // A duration that divides exactly: 40s / 4s = 10 whole segments.
+    const exact = V._vpBuildVodPlaylist(10 * SEG);
+    const exactSegs = exact.match(/^seg_\d+\.ts$/gm) || [];
+    const exactInf = (exact.match(/#EXTINF:([0-9.]+)/g) || []).map((s) => parseFloat(s.split(':')[1]));
+    assert.strictEqual(exactSegs.length, 10, 'an exactly-dividing duration must not produce a spurious 11th segment');
+    assert.strictEqual(exactInf.length, 10);
+    assert.strictEqual(exactInf[9], SEG, 'the last segment of an exact division is a FULL segment, not a 0-length one');
+    assert.ok(Math.abs(exactInf.reduce((a, b) => a + b, 0) - 10 * SEG) < 1e-6, 'summed #EXTINF must equal the duration');
+
+    // A duration that does not divide: the ~1h44m sample used for live
+    // verification (6239.024s). 6239.024/4 → 1560 segments, last one short.
+    const D = 6239.024;
+    const pl = V._vpBuildVodPlaylist(D);
+    const n = Math.ceil(D / SEG);
+    assert.strictEqual(n, 1560);
+    const segs = pl.match(/^seg_\d+\.ts$/gm) || [];
+    const infs = (pl.match(/#EXTINF:([0-9.]+)/g) || []).map((s) => parseFloat(s.split(':')[1]));
+    assert.strictEqual(segs.length, n, 'one entry per segment for k = 0..N-1');
+    assert.strictEqual(infs.length, n, 'every segment entry must carry its own #EXTINF');
+    assert.strictEqual(segs[0], 'seg_00000.ts');
+    assert.strictEqual(segs[n - 1], V._vpSegName(n - 1));
+    assert.ok(Math.abs(infs[n - 1] - (D - (n - 1) * SEG)) < 1e-6,
+        'the last #EXTINF must be the remainder (' + (D - (n - 1) * SEG).toFixed(3) + 's), not a full segment');
+    for (let i = 0; i < n - 1; i++) assert.strictEqual(infs[i], SEG, 'every non-final #EXTINF must be exactly one segment');
+    assert.ok(Math.abs(infs.reduce((a, b) => a + b, 0) - D) < 1e-6,
+        'summed #EXTINF must equal the probed duration — this IS the duration the player shows');
+
+    // Tags: without VOD + ENDLIST hls.js treats the level as live and refuses
+    // to seek past what it has seen (the whole bug this feature fixes).
+    assert.ok(pl.startsWith('#EXTM3U'), 'must start with #EXTM3U');
+    assert.ok(pl.includes('#EXT-X-PLAYLIST-TYPE:VOD'), 'must be tagged VOD');
+    assert.ok(/#EXT-X-ENDLIST\s*$/.test(pl), 'must be closed with #EXT-X-ENDLIST — hls.js drives its `live` flag off this tag alone');
+    const target = parseInt(/#EXT-X-TARGETDURATION:(\d+)/.exec(pl)[1], 10);
+    assert.ok(target >= Math.max(...infs), 'TARGETDURATION (' + target + ') must be >= the longest #EXTINF');
+    assert.ok(pl.indexOf('#EXT-X-ENDLIST') > pl.lastIndexOf('seg_'), 'ENDLIST must come after every segment');
+    console.log('OK VOD playlist: ' + n + ' segments for ' + D + 's, last #EXTINF=' + infs[n - 1].toFixed(3) + 's, TARGETDURATION=' + target + ', VOD+ENDLIST present');
+}
+
+// (4) the wait-vs-restart decision
+{
+    const TOL = V._vpSegAheadTolerance;
+    // Ready on disk (this run's or an earlier run's — same timeline) → serve.
+    assert.strictEqual(V._vpSegAction({ ready: true, index: 5, runStart: 900, frontier: 950 }), 'serve',
+        'a ready segment must be served without any further thought, even from a region this run skipped');
+    // Normal read-ahead: at or just past the frontier → wait for ffmpeg.
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 10, runStart: 0, frontier: 9 }), 'wait');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 9 + TOL, runStart: 0, frontier: 9 }), 'wait',
+        'the last segment inside the tolerance window must wait, not restart');
+    // Nothing flushed yet by a fresh run (frontier = runStart-1) → wait.
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 1200, runStart: 1200, frontier: 1199 }), 'wait',
+        'a just-restarted run has flushed nothing yet — that must not immediately restart again (thrash)');
+    // Far ahead: a forward seek this run would take hours to reach → restart.
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 10 + TOL, runStart: 0, frontier: 9 }), 'restart',
+        'one segment past the tolerance window is a seek, not buffering');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 1200, runStart: 0, frontier: 40 }), 'restart');
+    // Behind the current run's start: it only writes forward — waiting is futile.
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 300, runStart: 1200, frontier: 1250 }), 'restart',
+        'a segment below the run start can never appear by waiting');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 1199, runStart: 1200, frontier: 1400 }), 'restart');
+    // Garbage in → restart (safe: bounded by the caller's deadline).
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 5, runStart: NaN, frontier: 5 }), 'restart');
+    console.log('OK _vpSegAction: serve / wait (<= frontier+' + TOL + ') / restart (ahead of tolerance, or below runStart)');
+}
+
+// (4b) completeness: "the file exists" is not "the segment is playable" —
+// ffmpeg creates a segment when it STARTS writing it and lists it only when it
+// closes it, so the frontier (for the current run) and the recorded ranges of
+// superseded runs are what may be read.
+{
+    const done = [{ start: 0, end: 40 }, { start: 900, end: 905 }];
+    // Current run's range: the playlist frontier is the authority.
+    assert.strictEqual(V._vpSegKnownComplete({ index: 1202, runStart: 1200, frontier: 1202, doneRuns: done }), true);
+    assert.strictEqual(V._vpSegKnownComplete({ index: 1203, runStart: 1200, frontier: 1202, doneRuns: done }), false,
+        'the segment being written right now must NOT be served — a half-written .ts is a demux error');
+    assert.strictEqual(V._vpSegKnownComplete({ index: 1200, runStart: 1200, frontier: 1199, doneRuns: done }), false,
+        'a run that has flushed nothing yet has nothing readable');
+    // Earlier runs: only what they were observed to have completed.
+    assert.strictEqual(V._vpSegKnownComplete({ index: 40, runStart: 1200, frontier: 1202, doneRuns: done }), true,
+        'a segment an earlier run completed is still valid — a restart never deletes segments');
+    assert.strictEqual(V._vpSegKnownComplete({ index: 41, runStart: 1200, frontier: 1202, doneRuns: done }), false,
+        'past an earlier run\'s recorded end, the file on disk may be the one it died mid-write on');
+    assert.strictEqual(V._vpSegKnownComplete({ index: 902, runStart: 1200, frontier: 1202, doneRuns: done }), true);
+    assert.strictEqual(V._vpSegKnownComplete({ index: 500, runStart: 1200, frontier: 1202, doneRuns: done }), false);
+    assert.strictEqual(V._vpSegKnownComplete({ index: 5, runStart: 1200, frontier: 1202, doneRuns: [] }), false);
+    assert.strictEqual(V._vpSegKnownComplete({ index: 5, runStart: 0, frontier: undefined, doneRuns: [] }), false);
+    console.log('OK _vpSegKnownComplete: current run gated by its playlist frontier, earlier runs by their recorded ranges');
+}
+
+// (5) run-progress read (ffmpeg's own playlist is now only a progress counter)
+assert.strictEqual(V._vpCountSegments(null), 0);
+assert.strictEqual(V._vpCountSegments('#EXTM3U\n#EXT-X-VERSION:3\n'), 0);
+assert.strictEqual(V._vpCountSegments('#EXTM3U\n#EXTINF:4.004,\nseg_01200.ts\n#EXTINF:4.004,\nseg_01201.ts\n'), 2,
+    'the frontier is derived from this count — miscounting makes every request look like a seek');
+console.log('OK _vpCountSegments: counts flushed segments of the current run');
+
 // FIX B: playlist "enough buffered to start" decision
 assert.strictEqual(V._vpPlaylistBuffered('', 30), false, 'empty/no playlist is never buffered');
 assert.strictEqual(V._vpPlaylistBuffered(null, 30), false);
