@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.3
+
+- **Selection summary now breaks down files vs. folders.** The status bar's
+  selection readout used to show only a raw count and size (`4 selected ·
+  9.6 MB`). It now relates the selection to the pane's total and splits it
+  into files/folders, e.g. `4 of 28 selected · 3 files, 1 folder · 9.6 MB`.
+  A folders-only selection omits the size instead of showing a misleading
+  `0 B` (folder sizes aren't computed).
+
 ## 3.1.2
 
 - **Fixed: maximized video preview sat in a corner.** Maximizing the preview

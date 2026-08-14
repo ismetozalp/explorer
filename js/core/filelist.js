@@ -45,8 +45,21 @@ window.ExplorerFileList = {
 
     selectionSummary(tab) {
         const sel = this.selectedFiles(tab);
-        const total = sel.reduce((s, f) => s + (f.type === 'f' ? f.size : 0), 0);
-        return `${sel.length} selected · ${Util.humanSize(total)}`;
+        tab = tab || this.currentPane();
+        const totalCount = tab ? tab.files.length : sel.length;
+        const dirs = sel.filter(f => f.type === 'd').length;
+        // Symlinks ('l') and anything else count as files; only plain files
+        // ('f') contribute to the size total (folder sizes aren't meaningful).
+        const files = sel.length - dirs;
+        const size = sel.reduce((s, f) => s + (f.type === 'f' ? f.size : 0), 0);
+
+        const parts = [`${sel.length} of ${totalCount} selected`];
+        const breakdown = [];
+        if (files > 0) breakdown.push(`${files} file${files === 1 ? '' : 's'}`);
+        if (dirs > 0) breakdown.push(`${dirs} folder${dirs === 1 ? '' : 's'}`);
+        if (breakdown.length) parts.push(breakdown.join(', '));
+        if (files > 0) parts.push(Util.humanSize(size));
+        return parts.join(' · ');
     },
 
     statusText(tab) {
