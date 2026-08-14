@@ -11,7 +11,8 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   converted yet: conversion restarts at that point and playback resumes there
   after a couple of seconds. Anything already converted, including sections you
   skipped over, replays straight from the cache without being converted again,
-  and only ever one conversion runs per open video. This covers video that has
+  and an open video only ever runs one conversion at a time — seeking moves that
+  conversion rather than starting a second one. This covers video that has
   to be re-encoded (the **⚙ Transcoding** badge). Video that only needs
   repackaging (**Remuxing** — already-H.264 sources) is unchanged: its pieces
   can't be cut to a fixed grid, so its timeline still fills in as it goes.

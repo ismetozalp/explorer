@@ -552,6 +552,223 @@ function makeApp() {
     onFfmpeg = null; produced.clear();
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-1 (C1): an ABANDONED fragment request must stop dead. hls.js
+// aborts the in-flight fragment when the media seeks; before the fix the
+// abandoned request's serve loop kept running for its full 30s deadline and
+// kept making restart decisions, so it and the new seek's request fought over
+// the encoder — reproduced as 6 spawn/kill cycles for a single seek, with
+// runStarts ping-ponging [0,1200,5,1200,5,1200]. Here: park a read-ahead
+// request for seg 5 in the wait window, abort it, then seek far away — the
+// only ffmpeg respawn allowed is the seek's.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 4000;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
+    onFfmpeg = (argv) => {
+        const i = argv.indexOf('-start_number');
+        const start = i === -1 ? 0 : parseInt(argv[i + 1], 10);
+        setTimeout(() => { for (let k = start; k < start + 3; k++) produced.add(k); }, 10);
+    };
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const sess = ExRT.video.sessions.get('w1');
+    const Loader = sess.hls.config.pLoader;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // seg 5 is inside the tolerance window of a run whose frontier is 2, so it
+    // parks in the wait branch (nothing will ever produce it here).
+    const stale = new Loader();
+    let staleOutcome = null;
+    stale.load({ url: 'explorer-preview://sid1/seg_00005.ts', responseType: 'arraybuffer' }, {}, {
+        onSuccess: () => { staleOutcome = 'success'; }, onError: (e) => { staleOutcome = e; },
+    });
+    await wait(60);
+    const runsWhileParked = spawns.filter((a) => a[0] === 'ffmpeg').length;
+    assert.strictEqual(runsWhileParked, 1, 'a read-ahead request inside the tolerance window must WAIT, not respawn ffmpeg');
+
+    stale.abort();     // hls.js does this on seek
+    const seeked = await new Promise((resolve, reject) => {
+        new Loader().load({ url: 'explorer-preview://sid1/seg_01200.ts', responseType: 'arraybuffer' }, {}, {
+            onSuccess: (r) => resolve(r.data), onError: (e) => reject(new Error(JSON.stringify(e))),
+        });
+    });
+    assert.ok(seeked && seeked.byteLength > 0, 'the seek target must still be produced and served');
+    await wait(400);   // ~80 poll intervals: ample time for an un-cancelled loop to fight back
+
+    const runs = spawns.filter((a) => a[0] === 'ffmpeg');
+    const runStarts = runs.map((a) => { const i = a.indexOf('-start_number'); return i === -1 ? 0 : parseInt(a[i + 1], 10); });
+    assert.deepStrictEqual(Array.from(runStarts), [0, 1200],
+        'exactly ONE restart, for the seek — an aborted request must never (re)start ffmpeg. Got runStarts ' + JSON.stringify(runStarts));
+    assert.strictEqual(ExRT.video.sessions.get('w1').runStart, 1200, 'the encoder must be left where the live request wants it');
+    assert.strictEqual(staleOutcome, null, 'an aborted request must not call back at all');
+    console.log('OK C1: aborted read-ahead caused 0 restarts; the seek caused exactly 1 (runStarts ' + JSON.stringify(runStarts) + ')');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    onFfmpeg = null; produced.clear();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-1 (C1, second guard): the same collision, but with the stale
+// request NEVER aborted. _vpSegMaxRestarts is then the only thing standing
+// between two live loops and an encoder ping-ponging between their targets
+// (the reviewer's [0,1200,5,1200,5,1200]). Each request may move it once, so
+// the collision costs one wasted respawn and stops — and both requests are
+// still served, because a range an earlier run completed stays readable while
+// the live run is nowhere near it.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    // Worst case on purpose: NOTHING is ever produced (no onFfmpeg hook), so
+    // neither request can be satisfied and both keep re-deciding for their
+    // whole deadline. That is the only way the two loops can actually fight —
+    // and with the budget in place each may move the encoder just once, so the
+    // spawn count is bounded no matter how long they run.
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 300;
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const sess = ExRT.video.sessions.get('w1');
+    const Loader = sess.hls.config.pLoader;
+    const req = (name) => new Promise((resolve) => {
+        new Loader().load({ url: 'explorer-preview://sid1/' + name, responseType: 'arraybuffer' }, {}, {
+            onSuccess: (r) => resolve({ ok: true, bytes: r.data.byteLength }), onError: (e) => resolve({ ok: false, e }),
+        });
+    });
+    const stalePromise = req('seg_00005.ts');          // parks in the wait window, never aborted
+    await new Promise((r) => setTimeout(r, 60));
+    const seekPromise = req('seg_01200.ts');           // the live request
+    const [staleRes, seekRes] = await Promise.all([stalePromise, seekPromise]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const runStarts2 = spawns.filter((a) => a[0] === 'ffmpeg')
+        .map((a) => { const i = a.indexOf('-start_number'); return i === -1 ? 0 : parseInt(a[i + 1], 10); });
+    assert.ok(runStarts2.length <= 3,
+        'the initial run plus at most one respawn per colliding request — got ' + runStarts2.length + ' ffmpeg runs: ' + JSON.stringify(runStarts2)
+        + '. Unbounded here is the reported ping-pong: every poll interval kills ffmpeg and respawns it with -ss into the source file.');
+    assert.ok(!staleRes.ok && !seekRes.ok, 'with nothing producible both requests must end in a clean 404, not spin forever');
+    assert.strictEqual(seekRes.e.code, 404);
+    console.log('OK C1 budget: un-aborted collision bounded to ' + runStarts2.length + ' ffmpeg runs ' + JSON.stringify(runStarts2) + ' over ' + app._vpSegWaitMs + 'ms of contention');
+    await V._teardownPreviewVideo.call(app, 'w1');
+    onFfmpeg = null; produced.clear();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fix-round-1 (C2): the frontier belongs to the run that produced it. Leaving
+// the outgoing run's value in place across a restart let a SECOND restart
+// record a doneRuns range for segments the new run had never written — and the
+// completeness gate would then read those half-written files.
+// ─────────────────────────────────────────────────────────────────────────
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 6239.024458 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const s = ExRT.video.sessions.get('w1');
+    const token = s.token;
+
+    await app._vpRunFrontier(s);                       // initial run: 3 flushed → frontier 2
+    assert.strictEqual(s.frontier, 2);
+    await app._vpRestartAt('w1', token, 1200);         // records {0,2}
+    assert.strictEqual(s.runStart, 1200);
+    assert.strictEqual(s.frontier, 1199, 'a fresh run has flushed nothing — its frontier must be reset with runStart');
+    await app._vpRunFrontier(s);                       // → 1202
+    await app._vpRestartAt('w1', token, 500);          // records {1200,1202}
+    // The run at 500 is killed before it flushes anything: its playlist is
+    // still empty when the next restart measures it, so there is nothing to
+    // record. (Pre-fix this pushed {500, <the previous run's frontier>} — a
+    // range covering ~700 segments that had never been written.)
+    catQueue = ['#EXTM3U\n#EXT-X-VERSION:3\n'];
+    await app._vpRestartAt('w1', token, 100);
+    catQueue = null;
+
+    // Array.from: doneRuns is a vm-realm array (see the deepStrictEqual note at
+    // the top of tests/videoplayer-unit.mjs).
+    const ranges = Array.from(s.doneRuns, (r) => ({ start: r.start, end: r.end }));
+    assert.deepStrictEqual(ranges, [{ start: 0, end: 2 }, { start: 1200, end: 1202 }],
+        'a run that produced nothing must contribute no completed range. Got ' + JSON.stringify(ranges));
+    for (const idx of [500, 600, 900, 1100]) {
+        assert.strictEqual(V._vpSegKnownComplete.call(app, { index: idx, runStart: s.runStart, frontier: s.frontier, doneRuns: s.doneRuns }), false,
+            'segment ' + idx + ' was never written — the completeness gate must not offer it (a half-written .ts is an MSE append error)');
+    }
+    assert.strictEqual(V._vpSegKnownComplete.call(app, { index: 1, runStart: s.runStart, frontier: s.frontier, doneRuns: s.doneRuns }), true,
+        'genuinely completed ranges must still be reusable');
+    console.log('OK C2: doneRuns after restarts 1200→500→100 = ' + JSON.stringify(ranges) + ' (no phantom range)');
+
+    // Fix-round-1 (M4): a RESTARTED run reaching EOF says nothing about the
+    // stretch before its start, so it must not flip the badge to 'done'.
+    const w = app._win('w1');
+    s.proc._exit();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.strictEqual(w.pv.transcodeState, 'transcoding',
+        'a run started at a seek target reaching the end of the file must NOT claim the whole video is converted');
+
+    // Fix-round-1 (M5): the restart path must MERGE ranges, not append blindly,
+    // or repeated seeking grows doneRuns without bound.
+    s.doneRuns = [{ start: 0, end: 99 }];
+    s.runStart = 100;                       // its measured frontier will be 100+3-1 = 102
+    await app._vpRestartAt('w1', token, 900);
+    assert.strictEqual(s.doneRuns.length, 1, 'an adjacent range must merge into the existing one, not be pushed alongside it');
+    assert.strictEqual(s.doneRuns[0].start, 0);
+    assert.strictEqual(s.doneRuns[0].end, 102);
+    console.log('OK M5: [0..99] + [100..102] merged into [0..102] at the restart call site');
+
+    // Only ONE restart in flight per session: two concurrent restart requests
+    // must collapse onto the same promise and respawn ffmpeg once. (The
+    // segment-level coalescing test above no longer proves this on its own —
+    // a second request for a NEARBY index now resolves to 'wait' before it
+    // ever asks for a restart, so the gate itself needs its own assertion.)
+    const before = spawns.filter((a) => a[0] === 'ffmpeg').length;
+    await Promise.all([app._vpRestartAt('w1', token, 700), app._vpRestartAt('w1', token, 700)]);
+    assert.strictEqual(spawns.filter((a) => a[0] === 'ffmpeg').length - before, 1,
+        'two concurrent restarts must coalesce into a single ffmpeg respawn');
+    assert.strictEqual(ExRT.video.sessions.get('w1').restarting, null, 'the in-flight restart promise must be cleared when it settles');
+    console.log('OK coalescing: 2 concurrent _vpRestartAt calls → 1 ffmpeg respawn');
+    await V._teardownPreviewVideo.call(app, 'w1');
+}
+
+// Fix-round-1 (I1b): once the run that owns a range has EXITED, a segment
+// beyond its frontier can never appear — fail immediately instead of burning
+// the whole deadline (hls.js applies no timeout to a custom loader and retries
+// a 404 six times, so waiting turns a phantom final segment into minutes of a
+// frozen player).
+{
+    const app = makeApp();
+    spawns.length = 0; procs.length = 0; hlsInstances.length = 0; uidSeq = 0;
+    ExRT.video.sessions.clear(); ExRT.video.gen.clear();
+    ExRT.video.hb = null; activeIntervals.clear(); produced.clear();
+    app._vpSegPollMs = 5;
+    app._vpSegWaitMs = 30000;      // the REAL deadline: the test must not depend on it
+    app._vpProbeStreams = async () => ({ streams: [{ codec_type: 'video', codec_name: 'mpeg4' }], duration: 100.048980 });
+    await app.startPreviewVideo('w1', { path: '/v/a.avi' });
+    const s = ExRT.video.sessions.get('w1');
+    s.proc._exit();                                     // ffmpeg reached EOF
+    await new Promise((r) => setTimeout(r, 10));
+    assert.strictEqual(s.runExited, true, 'the session must know its run has exited');
+    assert.strictEqual(app._win('w1').pv.transcodeState, 'done',
+        'the INITIAL run (runStart 0) reaching EOF does mean the whole file is converted');
+    const t0 = Date.now();
+    const err = await new Promise((resolve) => {
+        new (s.hls.config.pLoader)().load({ url: 'explorer-preview://sid1/seg_00099.ts', responseType: 'arraybuffer' }, {}, {
+            onSuccess: () => resolve(null), onError: (e) => resolve(e),
+        });
+    });
+    const ms = Date.now() - t0;
+    assert.ok(err && err.code === 404, 'a segment past a finished run must report 404');
+    assert.ok(ms < 2000, 'it must fail FAST (took ' + ms + 'ms) — waiting out the 30s deadline per 404 retry freezes the player for minutes');
+    assert.strictEqual(spawns.filter((a) => a[0] === 'ffmpeg').length, 1, 'and it must not respawn ffmpeg for a segment past the end of the file');
+    console.log('OK I1b: segment past a finished run 404s in ' + ms + 'ms instead of waiting out the deadline');
+    await V._teardownPreviewVideo.call(app, 'w1');
+}
+
 // A segment that never appears must fail the loader (not hang forever) — and a
 // session torn down mid-request must stop immediately without restarting
 // anything for a window nobody is watching.

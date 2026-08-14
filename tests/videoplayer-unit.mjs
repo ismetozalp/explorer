@@ -114,6 +114,32 @@ assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-use
     assert.strictEqual(V._vpSegCount(0), 0);
     assert.strictEqual(V._vpSegCount(null), 0);
 
+    // Fix-round-1 (I1a): a trailing remainder shorter than one frame is a
+    // PHANTOM segment — ffmpeg has no frame to put in it and writes one fewer
+    // than ceil() claims, and a segment the encoder will never produce freezes
+    // the player (no loader timeout in hls.js + six 404 retries with backoff).
+    // 100.048980 is a real probed duration: ffmpeg produced 25 segments.
+    // Absolute expectations, so the clamp cannot be silently removed.
+    assert.strictEqual(V._vpSegCount(100.048980), 25, 'a sub-frame tail must NOT get its own segment');
+    // (0.08s is comfortably clear of the 0.05 threshold — testing exactly ON it
+    // would only measure float noise: 100.05 - 100 is 0.04999999999999716.)
+    assert.strictEqual(V._vpSegCount(100.08), 26, 'a tail of one frame or more is a real segment');
+    assert.strictEqual(V._vpSegCount(100), 25, 'an exact division stays exact');
+    assert.strictEqual(V._vpSegCount(6239.024458), 1560);
+    assert.strictEqual(V._vpSegCount(2), 1, 'a file shorter than one segment is still one segment');
+    assert.strictEqual(V._vpSegCount(0.01), 1);
+    {
+        const short = V._vpBuildVodPlaylist(100.048980);
+        const shortSegs = short.match(/^seg_\d+\.ts$/gm) || [];
+        const shortInf = (short.match(/#EXTINF:([0-9.]+)/g) || []).map((s) => parseFloat(s.split(':')[1]));
+        assert.strictEqual(shortSegs.length, 25);
+        assert.ok(Math.abs(shortInf[24] - 4.048980) < 1e-6, 'the folded-in tail must extend the LAST #EXTINF, not vanish from the duration');
+        assert.ok(Math.abs(shortInf.reduce((a, b) => a + b, 0) - 100.048980) < 1e-6, 'the declared duration must still be the probed one');
+        const shortTarget = parseInt(/#EXT-X-TARGETDURATION:(\d+)/.exec(short)[1], 10);
+        assert.strictEqual(shortTarget, 5, 'TARGETDURATION must cover a last segment that is longer than the nominal length');
+        console.log('OK sub-frame tail: 100.048980s → 25 segments (last #EXTINF ' + shortInf[24].toFixed(6) + 's), TARGETDURATION ' + shortTarget);
+    }
+
     // A duration that divides exactly: 40s / 4s = 10 whole segments.
     const exact = V._vpBuildVodPlaylist(10 * SEG);
     const exactSegs = exact.match(/^seg_\d+\.ts$/gm) || [];
@@ -176,6 +202,60 @@ assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-use
     // Garbage in → restart (safe: bounded by the caller's deadline).
     assert.strictEqual(V._vpSegAction({ ready: false, index: 5, runStart: NaN, frontier: 5 }), 'restart');
     console.log('OK _vpSegAction: serve / wait (<= frontier+' + TOL + ') / restart (ahead of tolerance, or below runStart)');
+
+    // Fix-round-1 (I2): the cases above are all written in terms of TOL, so
+    // moving the constant moves the expectations with it and the tests stay
+    // green either way (a 3→2 and a 3→12 mutation both survived). These pin the
+    // boundary with ABSOLUTE indices: with the run at 0 and 41 segments flushed
+    // (frontier 40), 43 is the last index that may wait and 44 must restart.
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 41, runStart: 0, frontier: 40 }), 'wait', 'frontier+1 waits');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 42, runStart: 0, frontier: 40 }), 'wait', 'frontier+2 waits');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 43, runStart: 0, frontier: 40 }), 'wait',
+        'frontier+3 is the LAST index treated as read-ahead — a smaller tolerance would restart here and thrash the encoder during normal buffering');
+    assert.strictEqual(V._vpSegAction({ ready: false, index: 44, runStart: 0, frontier: 40 }), 'restart',
+        'frontier+4 is a seek — a larger tolerance would sit and wait for an encoder that is 16+ seconds of video away');
+    assert.strictEqual(V._vpSegAheadTolerance, 3, 'the tolerance the absolute cases above are calibrated against');
+    console.log('OK _vpSegAction boundary (absolute): frontier 40 → 43 waits, 44 restarts');
+}
+
+// (4c) run-progress read (Fix-round-1, I2): a `runStart + count` off-by-one
+// here serves the segment ffmpeg is writing RIGHT NOW — the exact failure the
+// completeness gate exists to prevent — and survived the previous round
+// because nothing tested _vpRunFrontier itself. Absolute expected values.
+{
+    const saved = sandbox.cockpit;
+    let playlist = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:4.004,\nseg_01200.ts\n#EXTINF:4.004,\nseg_01201.ts\n#EXTINF:4.004,\nseg_01202.ts\n';
+    sandbox.cockpit = { spawn: async () => playlist };
+    const s = { dir: '/c/sid', runStart: 1200 };
+    assert.strictEqual(await V._vpRunFrontier(s), 1202,
+        'a run started at 1200 having flushed 3 segments has produced up to 1202 — 1203 is still being written');
+    assert.strictEqual(s.frontier, 1202, 'the frontier must be cached on the session (a restart records it as a completed range)');
+    playlist = '#EXTM3U\n#EXT-X-VERSION:3\n';
+    assert.strictEqual(await V._vpRunFrontier(s), 1199, 'a run that has flushed nothing sits one below its start');
+    const s0 = { dir: '/c/sid', runStart: 0 };
+    playlist = '#EXTM3U\n#EXTINF:4.004,\nseg_00000.ts\n';
+    assert.strictEqual(await V._vpRunFrontier(s0), 0, 'one flushed segment on the initial run → frontier 0');
+    sandbox.cockpit = saved;
+    console.log('OK _vpRunFrontier: 1200 + 3 flushed → 1202 (absolute); nothing flushed → 1199');
+}
+
+// (4d) doneRuns range merging (Fix-round-1, M5)
+{
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(V._vpMergeRanges([], { start: 0, end: 40 }))), [{ start: 0, end: 40 }]);
+    // Adjacent ranges are one continuous stretch of segments.
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(V._vpMergeRanges([{ start: 0, end: 40 }], { start: 41, end: 90 }))),
+        [{ start: 0, end: 90 }], 'adjacent ranges must merge, or repeated seeks grow the list without bound');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(V._vpMergeRanges([{ start: 0, end: 40 }], { start: 20, end: 90 }))),
+        [{ start: 0, end: 90 }], 'overlapping ranges must merge');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(V._vpMergeRanges([{ start: 0, end: 40 }], { start: 10, end: 20 }))),
+        [{ start: 0, end: 40 }], 'a contained range must not extend anything');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(V._vpMergeRanges([{ start: 100, end: 200 }], { start: 0, end: 40 }))),
+        [{ start: 0, end: 40 }, { start: 100, end: 200 }], 'disjoint ranges stay separate and sorted');
+    // Repeated identical pushes must not accumulate.
+    let acc = [];
+    for (let i = 0; i < 50; i++) acc = V._vpMergeRanges(acc, { start: 0, end: 10 });
+    assert.strictEqual(acc.length, 1);
+    console.log('OK _vpMergeRanges: merges adjacent/overlapping, keeps disjoint, cannot grow unbounded');
 }
 
 // (4b) completeness: "the file exists" is not "the segment is playable" —
@@ -199,6 +279,16 @@ assert.ok(!j.includes('-reconnect') && !j.includes('m3u8 ') && !j.includes('-use
     assert.strictEqual(V._vpSegKnownComplete({ index: 500, runStart: 1200, frontier: 1202, doneRuns: done }), false);
     assert.strictEqual(V._vpSegKnownComplete({ index: 5, runStart: 1200, frontier: 1202, doneRuns: [] }), false);
     assert.strictEqual(V._vpSegKnownComplete({ index: 5, runStart: 0, frontier: undefined, doneRuns: [] }), false);
+    // Fix-round-1: ABOVE the live run's reach, an earlier run's record still
+    // counts — after a restart back near the start of the file, the segments a
+    // previous run produced around minute 80 are untouched and still valid.
+    assert.strictEqual(V._vpSegKnownComplete({ index: 1200, runStart: 100, frontier: 102, doneRuns: [{ start: 1200, end: 1202 }] }), true,
+        'a range an earlier run completed, which the live run has not reached, must remain reusable');
+    // …but not once the live run is encoding back over it.
+    assert.strictEqual(V._vpSegKnownComplete({ index: 103, runStart: 100, frontier: 102, doneRuns: [{ start: 0, end: 2000 }] }), false,
+        'the segment the live run is rewriting right now is half-written, whatever an older range claims');
+    assert.strictEqual(V._vpSegKnownComplete({ index: 500, runStart: 100, frontier: 102, doneRuns: [{ start: 0, end: 2000 }] }), true,
+        'further ahead the live run has not touched anything yet, so the older range still holds');
     console.log('OK _vpSegKnownComplete: current run gated by its playlist frontier, earlier runs by their recorded ranges');
 }
 
