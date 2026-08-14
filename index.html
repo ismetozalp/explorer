@@ -273,10 +273,10 @@
                 <span x-show="activePane(tab).gitInfo?.behind > 0" class="badge bg-info text-dark ms-1" :title="'Behind ' + activePane(tab).gitInfo?.remoteBranch + ' by ' + activePane(tab).gitInfo?.behind + ' commit(s)'">↓<span x-text="activePane(tab).gitInfo?.behind"></span></span>
                 <span class="text-muted ms-2 small" x-text="activePane(tab).gitInfo?.remote?.ownerRepo"></span>
                 <button class="btn btn-sm btn-link p-0 ms-2"
-                        x-show="activePane(tab).gitInfo?.remote?.ownerRepo && !isCheckoutCached(activePane(tab).gitInfo.remote.ownerRepo, activePane(tab).path)"
+                        x-show="activePane(tab).gitInfo?.remote?.ownerRepo && !pathInCachedRepo(activePane(tab).gitInfo.remote.ownerRepo, activePane(tab).path)"
                         @click="registerCurrentTab(activePane(tab))" title="Register this checkout in the repo cache">+ Register</button>
                 <span class="badge bg-success ms-2 small"
-                      x-show="activePane(tab).gitInfo?.remote?.ownerRepo && isCheckoutCached(activePane(tab).gitInfo.remote.ownerRepo, activePane(tab).path)">cached</span>
+                      x-show="activePane(tab).gitInfo?.remote?.ownerRepo && pathInCachedRepo(activePane(tab).gitInfo.remote.ownerRepo, activePane(tab).path)">cached</span>
             </span>
             <span class="ms-auto btn-group btn-group-sm">
                 <button class="btn btn-outline-secondary" x-show="gh.state === 'authed'" @click="repoFetch(activePane(tab))" title="Fetch (git fetch --all --prune)">Fetch</button>

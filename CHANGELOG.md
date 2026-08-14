@@ -2,8 +2,11 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
-## Unreleased
+## 3.1.7
 
+- **Fixed: browsing into a subfolder of an already-registered Git repository
+  no longer shows a stray "+ Register" button** — the git bar correctly
+  shows the repo as *cached* throughout its tree.
 - **Dev: committed a previewable-fixture set and preview test coverage.**
   `tests/samples/` now ships a small (~5 MB), synthetic set of sample files
   covering every preview kind Explorer supports — images (incl. SVG/AVIF),
