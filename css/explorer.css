@@ -314,6 +314,30 @@ body {
     gap: 12px;
 }
 
+/* Selection breakdown "lights up" in the accent colour when non-empty; the
+   span is always present (kept empty otherwise) so the 24px bar never
+   changes height. --ex-accent already swaps to a lighter blue under
+   [data-bs-theme="dark"] (css var block above) with verified >5:1 contrast
+   against --ex-bg-alt in both themes, so no extra dark override is needed. */
+.status-selection { color: var(--ex-accent); font-weight: 600; }
+
+/* Compact selection chip in the per-tab toolbar; echoes the status-bar
+   count from the same tab.selection source. */
+.toolbar-selection {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--ex-selected);
+    color: var(--ex-accent);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+.toolbar-selection:hover { opacity: 0.85; }
+
 /* ====== Search results header ====== */
 .search-results-bar {
     background: #fff5cc;

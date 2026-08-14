@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.4
+
+- **Selection is easier to spot.** The status-bar selection breakdown now
+  lights up in the accent colour (bold, theme-aware) instead of blending into
+  the muted status text. A new compact **`N selected`** chip also appears in
+  the toolbar next to the path bar — where your eyes already are — the moment
+  the active pane has a selection; click it to clear the selection. Hidden on
+  phones (the status bar still shows the count there); both read from the
+  same pane selection, so they can't drift apart.
+
 ## 3.1.3
 
 - **Selection summary now breaks down files vs. folders.** The status bar's
