@@ -113,7 +113,9 @@ try {
             const a = window.Alpine.$data(document.body);
             await a.navigate(a.currentPane(), dir);
         }, fixDir);
-        await app.locator('.file-list tbody tr').first().waitFor({ timeout: 10000 });
+        // Wait for the actual fixture row (not `.file-list tbody tr`.first(), which
+        // matches the hidden "empty folder" <tr> and never becomes visible).
+        await app.locator(`tr[data-path="${fixDir}/hello.txt"]`).waitFor({ state: 'visible', timeout: 10000 });
         await app.locator(`tr[data-path="${fixDir}/hello.txt"]`).dblclick();
         await app.locator('#windowHost.show').waitFor({ timeout: 10000 });
         await app.locator('.preview-code-wrap').waitFor({ timeout: 10000 });

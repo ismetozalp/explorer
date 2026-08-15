@@ -104,7 +104,7 @@ window.ExplorerGithub = {
     async registerCurrentTab(tab) {
         const owner = tab.gitInfo?.remote?.ownerRepo;
         if (!owner) {
-            this.toast('No GitHub remote detected (need an origin URL like github.com/<owner>/<repo>).', 'danger');
+            this.toast('No Git remote detected (need an origin URL like <host>/<owner>/<repo> — GitHub, GitLab, Bitbucket, self-hosted, …).', 'danger');
             return;
         }
         // Register the repository's top-level directory (where .git lives),
