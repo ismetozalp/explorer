@@ -184,23 +184,21 @@ Alpine.data('explorer', () => ({
     // ───── Init ──────────────────────────────────────────────────────────────
     async init() {
         this.homePath = await FS.homeDir();
+        // Start the repo-cache read now, but DON'T await it here — see the
+        // Promise.all beside _loadSettings() below for why. _prefillGitFromCache
+        // (js/features/github.js) reads this.repoCache to render the git bar
+        // instantly, with no subprocess, the moment a pane's path changes, so
+        // this must be resolved before tab restore / the first _loadDir()
+        // runs. Kicking it off here (rather than fire-and-forgetting it much
+        // later, as it used to, from _initExtensions — itself queued behind
+        // several other sequential, awaited fs/tmux/grub/version probes) lets
+        // it overlap reapOrphanPreviews() and the settings load below instead
+        // of serializing in front of them.
+        const repoCacheP = this._loadRepoCache();
+
         // Awaited: it deletes under the very cache root the first preview may
         // start a session in, so it must finish before anything else runs.
         await this.reapOrphanPreviews();   // clean up segment dirs a prior crash left behind (in-use dirs are skipped)
-
-        // Awaited, and awaited THIS early (before tab restore / the first
-        // _loadDir): _prefillGitFromCache (js/features/github.js) reads
-        // this.repoCache to render the git bar instantly, with no
-        // subprocess, the moment a pane's path changes. If this load were
-        // left to fire-and-forget later (as it used to, from
-        // _initExtensions — itself queued behind several other sequential,
-        // awaited fs/tmux/grub/version probes), repoCache would still be
-        // EMPTY during the entire first navigation of a session — exactly
-        // when a user opens the plugin and clicks into their repo — so the
-        // optimistic path never actually fired on the path that matters
-        // most. It's a small single file; the one-time channel-read
-        // latency here is worth paying up front.
-        await this._loadRepoCache();
 
         // Phone breakpoint drives the toolbar's ⋯ More collapse. CSS media
         // queries (max-width:640px) do the purely-visual reflow; this keeps the
@@ -248,7 +246,13 @@ Alpine.data('explorer', () => ({
 
         // Load settings from ~/.config/cockpit/explorer/settings.yml
         // Migrate from localStorage if the YAML file doesn't exist yet.
-        await this._loadSettings();
+        // Awaited together with the repo-cache read kicked off above (two
+        // independent small file reads, overlapped) — this is also the
+        // point by which repoCacheP MUST be settled, since tab restore and
+        // its first _loadDir()/_prefillGitFromCache follow immediately
+        // below. In practice repoCacheP has almost always already resolved
+        // by here (it had the whole reapOrphanPreviews() window to run).
+        await Promise.all([this._loadSettings(), repoCacheP]);
 
         // restore or create initial tab
         let restored = false;

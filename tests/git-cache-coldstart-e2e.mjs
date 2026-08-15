@@ -19,6 +19,17 @@
 // for every currently-open dir pane) at the end of _loadRepoCache() itself,
 // for any pane that was already open before that load resolved.
 //
+// Follow-up refinement: awaiting _loadRepoCache() THAT early (right after
+// reapOrphanPreviews) serialized the repo-cache read in FRONT of the first
+// directory listing — an extra cockpit-channel round trip the listing never
+// used to wait for. Fixed by starting _loadRepoCache() unawaited right after
+// homePath resolves (so it overlaps reapOrphanPreviews() and the settings
+// load, instead of sitting in front of them), and only awaiting its promise
+// (Promise.all'd with _loadSettings()) immediately before tab restore — the
+// last point it can still be "before the first _loadDir()/prefill" without
+// serializing needlessly. Part 0 below measures this: time from the frame's
+// own navigation start to the initial tab's listing being loaded.
+//
 // This test measures, with real wall-clock numbers, the very first
 // navigation of a FRESH page load (deliberately not pre-waiting for
 // anything beyond "a pane exists" — that's the real user scenario) into
@@ -66,6 +77,13 @@ const tabsYmlBeforeSum = sha256(TABS_YML);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--ignore-certificate-errors'] });
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1400, height: 900 } });
+// Runs in EVERY new document this context creates — including the plugin's
+// iframe — before any of that document's own scripts, so it's a true "this
+// document's navigation just started" timestamp. Used by Part 0 below to
+// measure elapsed time to the initial listing without depending on when our
+// OUTER script happens to get around to calling evaluate() (which would
+// already be well after the frame's own init() started running).
+await ctx.addInitScript(() => { window.__t0 = performance.now(); });
 const page = await ctx.newPage();
 page.on('pageerror', e => errors.push({ kind: 'pageerror', text: String(e.message || e) }));
 page.on('console', m => { if (m.type() === 'error' && !BENIGN.test(m.text())) errors.push({ kind: 'console', text: m.text() }); });
@@ -100,6 +118,26 @@ try {
         if (fr) { app = await fr.contentFrame(); if (app) break; }
     }
     if (!app) fail('no plugin frame');
+
+    // ── Part 0: first directory listing must not be delayed by the
+    // repo-cache read. Measures elapsed time from the frame's OWN
+    // navigation start (window.__t0, stamped before any of the frame's
+    // scripts run — see addInitScript above) to pane.loaded becoming true
+    // for the initial (restored/created) tab — the natural, un-prompted
+    // first listing that happens inside init() itself, not one we trigger. ──
+    const listingMs = await app.evaluate(async () => {
+        const t0 = (typeof window.__t0 === 'number') ? window.__t0 : 0;
+        await new Promise((resolve) => {
+            const iv = setInterval(() => {
+                const a = window.Alpine && window.Alpine.$data && window.Alpine.$data(document.body);
+                const pane = a && a.currentPane && a.currentPane();
+                if (pane && pane.loaded === true) { clearInterval(iv); resolve(); }
+            }, 2);
+            setTimeout(() => { clearInterval(iv); resolve(); }, 10000); // safety timeout
+        });
+        return performance.now() - t0;
+    });
+    console.log(`MEASURED: initial-listing-loaded at ${listingMs.toFixed(1)}ms from frame navigation start`);
 
     // ── Part 1: cold-start timing measurement ──
     // Deliberately the ONLY readiness wait is "a pane exists" — no extra
