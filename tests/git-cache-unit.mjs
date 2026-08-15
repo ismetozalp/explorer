@@ -165,4 +165,57 @@ function assertHit(hit, ownerRepo, root, branch, msg) {
     console.log('OK mutation guard: "only save when changed" comparison is load-bearing (broken version thrashes repos.json)');
 }
 
+// ─── _rearmGitPrefill (v3.1.9) ──────────────────────────────────────────────
+// Belt-and-suspenders companion to the init()-time `await
+// this._loadRepoCache()`: re-runs the REAL _prefillGitFromCache for every
+// currently-open dir pane (both panes in dual mode), so a folder opened
+// before the cache resolved gets the instant bar retroactively.
+{
+    const dirA = { kind: 'dir', path: ROOT, gitInfo: null };
+    const dirB_paneB = { kind: 'dir', path: ROOT + '/tests', gitInfo: null };
+    const dualTab = { kind: 'dir', path: ROOT, gitInfo: null, dual: true, paneB: dirB_paneB };
+    const terminalTab = { kind: 'terminal', path: '/tmp', gitInfo: null };
+    const ctx = {
+        repoCache: { [OWNER_REPO]: [{ path: ROOT, title: 'explorer', branch: 'main' }] },
+        repoCheckouts: Github.repoCheckouts,
+        cachedRepoForPath: Github.cachedRepoForPath,
+        _prefillGitFromCache: Github._prefillGitFromCache,
+        tabs: [dirA, dualTab, terminalTab],
+    };
+    Github._rearmGitPrefill.call(ctx);
+
+    assert.ok(dirA.gitInfo && dirA.gitInfo._optimistic, 'pane A (a plain dir tab) must get pre-filled');
+    assert.strictEqual(dirA.gitInfo.remote.ownerRepo, OWNER_REPO);
+    assert.ok(dualTab.gitInfo && dualTab.gitInfo._optimistic, 'the dual tab\'s own pane A must ALSO get pre-filled');
+    assert.ok(dirB_paneB.gitInfo && dirB_paneB.gitInfo._optimistic, 'dual-mode pane B must get pre-filled too, not just pane A');
+    assert.strictEqual(dirB_paneB.gitInfo.remote.ownerRepo, OWNER_REPO);
+    assert.strictEqual(terminalTab.gitInfo, null, 'a non-dir (terminal) tab must be left alone — no gitInfo concept there');
+    console.log('OK _rearmGitPrefill: pre-fills every dir pane, INCLUDING dual-mode pane B, skips non-dir tabs');
+}
+
+// Respects the existing no-clobber guard: an already-resolved, non-optimistic
+// status for the pane's repo must not be reset back to the placeholder.
+{
+    const realInfo = { branch: 'main', dirty: true, dirtyCount: 4, ahead: 1, behind: 0, remoteBranch: 'origin/main', remote: { ownerRepo: OWNER_REPO }, statusLines: ['x'] };
+    const dirA = { kind: 'dir', path: ROOT, gitInfo: realInfo };
+    const ctx = {
+        repoCache: { [OWNER_REPO]: [{ path: ROOT, title: 'explorer', branch: 'main' }] },
+        repoCheckouts: Github.repoCheckouts,
+        cachedRepoForPath: Github.cachedRepoForPath,
+        _prefillGitFromCache: Github._prefillGitFromCache,
+        tabs: [dirA],
+    };
+    Github._rearmGitPrefill.call(ctx);
+    assert.strictEqual(dirA.gitInfo, realInfo, 'an already-resolved real status must NOT be clobbered back to the optimistic placeholder');
+    assert.strictEqual(dirA.gitInfo.dirtyCount, 4, 'real dirtyCount must survive re-arm untouched');
+    console.log('OK _rearmGitPrefill: does not clobber an already-resolved, non-optimistic status (reuses _prefillGitFromCache\'s own guard)');
+}
+
+// Safe with zero tabs.
+{
+    const ctx = { repoCache: {}, repoCheckouts: Github.repoCheckouts, cachedRepoForPath: Github.cachedRepoForPath, _prefillGitFromCache: Github._prefillGitFromCache, tabs: [] };
+    assert.doesNotThrow(() => Github._rearmGitPrefill.call(ctx), 'must be a no-op, not a throw, with zero tabs');
+    console.log('OK _rearmGitPrefill: safe no-op with zero tabs');
+}
+
 console.log('git-cache-unit: OK');
