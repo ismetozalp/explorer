@@ -61,6 +61,7 @@ window.ExplorerDeepLink = {
         this.tabs.push(raw);
         this.activeTabId = raw.id;
         const tab = this.tabs.find(t => t.id === raw.id);   // reactive proxy (raw refs don't trigger Alpine re-render)
+        this._refreshTabGit(tab);                        // authoritative reconcile — see newTab() in js/core/tabs.js
         await this._loadDir(tab);                       // single awaited load (not newTab's $nextTick load)
         tab.selection = [filePath];
         this.$nextTick(() => this._scrollToPath(filePath));

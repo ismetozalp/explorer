@@ -547,24 +547,42 @@ Alpine.data('explorer', () => ({
     // The single authoritative git check: is this a work-tree, and if so
     // what's its real status? Used everywhere gitInfo needs to be resolved
     // for real (init scan, throttled poll, tab activate, and — fired in the
-    // background, not awaited — right after navigate()). On success it also
+    // background, not awaited — right after every path change: navigate(),
+    // goBack/goForward, newTab, duplicateTab, deeplink). On success it also
     // writes the observed branch back into the repo cache (see
     // _updateCachedBranch in js/features/github.js) so the NEXT visit can
     // render instantly from cache. On failure/non-work-tree it clears
     // gitInfo outright, which is what self-corrects a stale optimistic
     // pre-fill from a moved/deleted cached repo — see _prefillGitFromCache.
-    async _refreshTabGit(tab) {
-        if (!tab || tab.kind !== 'dir') return;
+    //
+    // Race guard: `pane` is a live, mutable object — navigating it to a
+    // DIFFERENT path while this check is still in flight (isWorkTree/status
+    // are each a real subprocess round trip, slow enough to overlap a fast
+    // subsequent navigation) must not let this now-stale result win. Pin the
+    // path this call is FOR at entry and re-check it immediately before
+    // every assignment; if the pane has moved on, bail without touching
+    // gitInfo/gitChecked at all — whichever check is actually running for
+    // the pane's CURRENT path owns that job.
+    async _refreshTabGit(pane) {
+        if (!pane || pane.kind !== 'dir') return;
+        const p = pane.path;
         try {
-            if (await GIT.isWorkTree(tab.path)) {
-                const info = await GIT.status(tab.path);
-                tab.gitInfo = info;
-                if (info) await this._updateCachedBranch(info.remote && info.remote.ownerRepo, tab.path, info.branch);
+            const isRepo = await GIT.isWorkTree(p);
+            if (pane.path !== p) return; // navigated away while isWorkTree was in flight
+            if (isRepo) {
+                const info = await GIT.status(p);
+                if (pane.path !== p) return; // navigated away while status was in flight
+                pane.gitInfo = info;
+                if (info) await this._updateCachedBranch(info.remote && info.remote.ownerRepo, p, info.branch);
             } else {
-                tab.gitInfo = null;
+                pane.gitInfo = null;
             }
-        } catch (e) { tab.gitInfo = null; }
-        tab.gitChecked = true;
+        } catch (e) {
+            if (pane.path !== p) return;
+            pane.gitInfo = null;
+        }
+        if (pane.path !== p) return;
+        pane.gitChecked = true;
     },
 
     terminalAvailable: false,

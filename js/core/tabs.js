@@ -157,7 +157,17 @@ window.ExplorerTabs = {
         this.activeTabId = raw.id;
         // Re-acquire the reactive proxy (see comment in addTerminalToTab).
         const tab = this.tabs.find(t => t.id === raw.id);
-        if (tab.kind === 'dir') this.$nextTick(() => this._loadDir(tab));
+        if (tab.kind === 'dir') {
+            // Authoritative reconcile — same reasoning as navigate(): fired
+            // now (not awaited), independent of the $nextTick-deferred
+            // listing, so a new tab opened straight into a repo (e.g. "open
+            // cached repo in new tab") gets the real status promptly instead
+            // of waiting for the 8s poll, and a stale cached repo's
+            // optimistic bar (from _prefillGitFromCache in _loadDir) gets
+            // cleared instead of lingering.
+            this._refreshTabGit(tab);
+            this.$nextTick(() => this._loadDir(tab));
+        }
         return tab;
     },
 
@@ -252,6 +262,7 @@ window.ExplorerTabs = {
         this.tabs.splice(this.tabs.findIndex(t => t.id === id) + 1, 0, raw);
         this.activeTabId = raw.id;
         const tab = this.tabs.find(t => t.id === raw.id);
+        this._refreshTabGit(tab); // authoritative reconcile — see newTab()
         this._loadDir(tab);
     },
 
@@ -399,6 +410,7 @@ window.ExplorerTabs = {
         tab.historyIdx--;
         tab.path = tab.history[tab.historyIdx];
         tab.selection = [];
+        this._refreshTabGit(tab); // authoritative reconcile — see newTab()
         this._loadDir(tab);
     },
     goForward(tab) {
@@ -406,6 +418,7 @@ window.ExplorerTabs = {
         tab.historyIdx++;
         tab.path = tab.history[tab.historyIdx];
         tab.selection = [];
+        this._refreshTabGit(tab); // authoritative reconcile — see newTab()
         this._loadDir(tab);
     },
     goUp(tab) { this.navigate(tab, Util.dirname(tab.path)); },
