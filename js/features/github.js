@@ -28,6 +28,19 @@ window.ExplorerGithub = {
         return this.repoCheckouts(ownerRepo).some(e =>
             e.path && (path === e.path || path.startsWith(e.path + '/')));
     },
+    // The registered checkout whose root is AT or ABOVE `path`, else null.
+    // Pure + instant (no subprocess) — used to render the git bar
+    // optimistically before the authoritative GIT.status() resolves.
+    cachedRepoForPath(path) {
+        if (!path) return null;
+        for (const [ownerRepo, list] of Object.entries(this.repoCache || {})) {
+            for (const e of (Array.isArray(list) ? list : [])) {
+                if (e && e.path && (path === e.path || path.startsWith(e.path + '/')))
+                    return { ownerRepo, root: e.path, branch: e.branch || null };
+            }
+        }
+        return null;
+    },
     repoTitleOf(ownerRepo, path) {
         const e = this.repoCheckouts(ownerRepo).find(x => x.path === path);
         return (e && e.title) || this._defaultRepoTitle(ownerRepo, path);
@@ -39,15 +52,34 @@ window.ExplorerGithub = {
         const base = (path || '').split('/').filter(Boolean).pop();
         return base ? `${repo} (${base})` : repo;
     },
-    async _addRepoCheckout(ownerRepo, path, title) {
+    async _addRepoCheckout(ownerRepo, path, title, branch) {
         if (!ownerRepo || !path) return;
         const list = this.repoCheckouts(ownerRepo).slice();
         const existing = list.find(e => e.path === path);
         if (existing) {
             if (title) existing.title = title;
+            if (branch) existing.branch = branch;
         } else {
-            list.push({ path, title: title || this._defaultRepoTitle(ownerRepo, path) });
+            const entry = { path, title: title || this._defaultRepoTitle(ownerRepo, path) };
+            if (branch) entry.branch = branch;
+            list.push(entry);
         }
+        this.repoCache[ownerRepo] = list;
+        await this._saveRepoCache();
+    },
+    // Write the observed branch back onto the cached repo's ROOT entry (not
+    // whatever subfolder GIT.status() was actually run against — use the
+    // same prefix match as pathInCachedRepo/cachedRepoForPath), so the next
+    // visit renders from a real branch name instead of the "…" placeholder.
+    // Only writes — and only touches disk via _saveRepoCache — when the
+    // branch actually changed, so ordinary navigation/polling doesn't
+    // rewrite repos.json on every tick.
+    async _updateCachedBranch(ownerRepo, path, branch) {
+        if (!ownerRepo || !branch) return;
+        const list = this.repoCheckouts(ownerRepo);
+        const entry = list.find(e => e.path && (path === e.path || path.startsWith(e.path + '/')));
+        if (!entry || entry.branch === branch) return;
+        entry.branch = branch;
         this.repoCache[ownerRepo] = list;
         await this._saveRepoCache();
     },
@@ -86,7 +118,11 @@ window.ExplorerGithub = {
             this.toast(`${owner} already registered at ${repoPath}`);
             return;
         }
-        await this._addRepoCheckout(owner, repoPath);
+        // Seed the cache entry's branch from the tab's already-resolved
+        // gitInfo (branch is repo-wide, not path-dependent, so it's the same
+        // at the root as at tab.path — no extra GIT.currentBranch() call
+        // needed) so even the FIRST visit after registering renders instantly.
+        await this._addRepoCheckout(owner, repoPath, undefined, tab.gitInfo?.branch);
         this.toast(`Registered ${owner} → ${repoPath}`);
     },
 
@@ -126,23 +162,41 @@ window.ExplorerGithub = {
     },
 
     async _refreshAllGitInfo() {
-        // Refresh both the tab (pane A) and pane B if present.
+        // Refresh both the tab (pane A) and pane B if present. Delegates the
+        // actual isWorkTree+status check to _refreshTabGit (js/app.js) so
+        // there's one place doing the real subprocess work + repo-cache
+        // branch write-back, instead of two copies drifting apart.
         const panes = [];
         for (const tab of this.tabs) {
             if (tab.kind !== 'dir') continue;
             panes.push(tab);
             if (tab.dual && tab.paneB) panes.push(tab.paneB);
         }
-        for (const pane of panes) {
-            try {
-                if (await GIT.isWorkTree(pane.path)) {
-                    pane.gitInfo = await GIT.status(pane.path);
-                } else {
-                    pane.gitInfo = null;
-                }
-            } catch (e) { pane.gitInfo = null; }
-            pane.gitChecked = true;
-        }
+        for (const pane of panes) await this._refreshTabGit(pane);
+    },
+
+    // Instant, synchronous git-bar pre-fill from the repo cache — no
+    // subprocess. Called the moment a pane's path changes (see _loadDir in
+    // js/core/tabs.js) so the branch/owner-repo render immediately instead
+    // of waiting for the authoritative GIT.status() round trip, which
+    // navigate() also kicks off right after (in the background) and which
+    // will REPLACE this value — including clearing it to null if the cached
+    // repo turns out to be stale (moved/deleted).
+    //
+    // Guarded against clobbering an already-resolved, non-optimistic status
+    // for the SAME repo: git status is repo-wide (not subfolder-scoped), so
+    // e.g. re-listing the same directory after a commit/push (reload()) must
+    // not flash the real dirty/ahead/behind counts back to the placeholder.
+    _prefillGitFromCache(pane) {
+        if (!pane || pane.kind !== 'dir') return;
+        const hit = this.cachedRepoForPath(pane.path);
+        if (!hit) return;
+        const cur = pane.gitInfo;
+        if (cur && !cur._optimistic && cur.remote && cur.remote.ownerRepo === hit.ownerRepo) return;
+        pane.gitInfo = {
+            branch: hit.branch || '…', dirty: false, dirtyCount: 0, ahead: 0, behind: 0,
+            remoteBranch: null, remote: { ownerRepo: hit.ownerRepo }, statusLines: [], _optimistic: true,
+        };
     },
 
     // ─── GITHUB PANEL ────────────────────────────────────────────────────────

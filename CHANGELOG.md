@@ -2,6 +2,17 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.8
+
+- **Faster: the git bar now appears instantly when you enter a folder
+  inside a repository you've already registered.** Its owner/repo and
+  last-known branch are remembered in the repo cache, so browsing in no
+  longer waits for Git to finish scanning the working tree before the bar
+  can render. The real status (uncommitted changes, ahead/behind) still
+  fills in a moment later, and a repository that was moved or deleted
+  since it was cached self-corrects — the bar clears instead of showing
+  stale information.
+
 ## 3.1.7
 
 - **Fixed: browsing into a subfolder of an already-registered Git repository
