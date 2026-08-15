@@ -199,6 +199,23 @@ window.ExplorerGithub = {
         };
     },
 
+    // Belt-and-suspenders companion to the init()-time `await
+    // this._loadRepoCache()`: re-runs _prefillGitFromCache for every dir
+    // pane currently open (both panes in dual mode), called right after
+    // repoCache is (re)populated (see _loadRepoCache in js/app.js). Covers
+    // any pane that was already open/loaded before the cache resolved —
+    // it gets the instant bar retroactively instead of waiting out the
+    // reconcile poll. Safe with zero tabs; respects _prefillGitFromCache's
+    // own no-clobber guard, so it never disturbs an already-resolved,
+    // non-optimistic status for the same repo.
+    _rearmGitPrefill() {
+        for (const tab of this.tabs) {
+            if (tab.kind !== 'dir') continue;
+            this._prefillGitFromCache(tab);
+            if (tab.dual && tab.paneB) this._prefillGitFromCache(tab.paneB);
+        }
+    },
+
     // ─── GITHUB PANEL ────────────────────────────────────────────────────────
     async openGithubPanel(tab) {
         bootstrap.Modal.getOrCreateInstance(this.ghModalEl).show();

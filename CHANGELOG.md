@@ -2,6 +2,14 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.9
+
+- **Fixed: the instant git bar (3.1.8) now actually works on the first
+  navigation after opening the plugin.** The repo cache it reads from is
+  now loaded up front, before the first folder opens, instead of a beat
+  later — so entering a registered repository no longer briefly waits for
+  a full Git scan the very first time you click into it each session.
+
 ## 3.1.8
 
 - **Faster: the git bar now appears instantly when you enter a folder

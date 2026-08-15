@@ -188,6 +188,20 @@ Alpine.data('explorer', () => ({
         // start a session in, so it must finish before anything else runs.
         await this.reapOrphanPreviews();   // clean up segment dirs a prior crash left behind (in-use dirs are skipped)
 
+        // Awaited, and awaited THIS early (before tab restore / the first
+        // _loadDir): _prefillGitFromCache (js/features/github.js) reads
+        // this.repoCache to render the git bar instantly, with no
+        // subprocess, the moment a pane's path changes. If this load were
+        // left to fire-and-forget later (as it used to, from
+        // _initExtensions — itself queued behind several other sequential,
+        // awaited fs/tmux/grub/version probes), repoCache would still be
+        // EMPTY during the entire first navigation of a session — exactly
+        // when a user opens the plugin and clicks into their repo — so the
+        // optimistic path never actually fired on the path that matters
+        // most. It's a small single file; the one-time channel-read
+        // latency here is worth paying up front.
+        await this._loadRepoCache();
+
         // Phone breakpoint drives the toolbar's ⋯ More collapse. CSS media
         // queries (max-width:640px) do the purely-visual reflow; this keeps the
         // JS-driven toolbar in sync with the same 640px threshold.
@@ -530,8 +544,8 @@ Alpine.data('explorer', () => ({
             this._cachedGroups = out.trim().split('\n').filter(Boolean);
         } catch (e) { this._cachedGroups = []; }
 
-        // Load repo cache registry
-        this._loadRepoCache();
+        // Repo cache registry is loaded up front in init() (before tab
+        // restore), not here — see the comment there.
 
         // Initial git scan (all tabs)
         this._refreshAllGitInfo();
@@ -624,6 +638,12 @@ Alpine.data('explorer', () => ({
                 }
             }
             this.repoCache = out;
+            // Belt-and-suspenders: re-arm the optimistic pre-fill for any
+            // dir pane that's ALREADY open — e.g. the initial tab, whose
+            // first _loadDir() ran before this awaited load resolved (or
+            // any other caller/timing) — so it gets the instant bar
+            // retroactively instead of waiting for the reconcile poll.
+            this._rearmGitPrefill();
         } catch (e) {}
     },
 
