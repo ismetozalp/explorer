@@ -16,6 +16,18 @@
 // fixture repo needs to be created for the "happy path" half of this test.
 // The "stale cache" half creates and then deletes a throwaway repo.
 //
+// Fix round 1 (v3.1.8) also covers two more scenarios, both against real
+// throwaway git repos:
+//   - a rapid A->B navigation must never let a slow, now-stale reconcile for
+//     A clobber the pane once it's showing B (the race _refreshTabGit's
+//     path-pin guard fixes) — proven live by temporarily delaying
+//     window.GIT.status() for path A only, so the race is deterministic
+//     instead of depending on incidental subprocess timing;
+//   - goBack/goForward into a cached repo that was deleted in the meantime
+//     must self-correct (clear the bar) within a SHORT bound, not only on
+//     the next 8s poll tick — proving the reconcile these fixes wire into
+//     goBack/goForward actually fires.
+//
 // Registering/updating the cache writes to
 // ~/.config/cockpit/explorer/repos.json and touches
 // ~/.config/cockpit/explorer/tabs.yml (tab-persistence debounce writes the
@@ -46,6 +58,20 @@ const TABS_YML = path.join(os.homedir(), '.config', 'cockpit', 'explorer', 'tabs
 // created fresh, registered, then its .git (and the dir) deleted so the
 // cache still points at a path that is no longer a work-tree at all.
 const STALE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'git-cache-e2e-stale-'));
+// A second, independent throwaway repo used as navigation target "B" in the
+// rapid-navigation race test, and reused (then deleted) for the
+// back/forward-into-a-stale-repo test.
+const FAST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'git-cache-e2e-fast-'));
+
+function makeRealRepo(dir, ownerRepo) {
+    fs.writeFileSync(path.join(dir, 'README.md'), 'fixture\n');
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
+    execFileSync('git', ['config', 'user.email', 'e2e@example.com'], { cwd: dir });
+    execFileSync('git', ['config', 'user.name', 'e2e'], { cwd: dir });
+    execFileSync('git', ['add', 'README.md'], { cwd: dir });
+    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir });
+    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/' + ownerRepo + '.git'], { cwd: dir });
+}
 
 const BENIGN = /\b401\b|handshake failed/i;
 const errors = [];
@@ -199,13 +225,7 @@ try {
     // GIT.status() behave exactly as they would for any genuine checkout —
     // then it gets deleted below so a subsequent visit's GIT.isWorkTree()
     // is definitely false.
-    fs.writeFileSync(path.join(STALE_DIR, 'README.md'), 'stale fixture\n');
-    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: STALE_DIR });
-    execFileSync('git', ['config', 'user.email', 'e2e@example.com'], { cwd: STALE_DIR });
-    execFileSync('git', ['config', 'user.name', 'e2e'], { cwd: STALE_DIR });
-    execFileSync('git', ['add', 'README.md'], { cwd: STALE_DIR });
-    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: STALE_DIR });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/' + STALE_OWNER + '.git'], { cwd: STALE_DIR });
+    makeRealRepo(STALE_DIR, STALE_OWNER);
 
     await app.evaluate(async ({ owner, dir, branch }) => {
         const a = window.Alpine.$data(document.body);
@@ -243,13 +263,99 @@ try {
     if (afterInvalidate !== null) fail('REGRESSION: gitInfo was not cleared after the cached repo was deleted — a false git bar would persist: ' + JSON.stringify(afterInvalidate));
     console.log('OK stale-safety: after the cached repo was deleted, reconcile CLEARED gitInfo (no false bar)');
 
-    // Forget the synthetic cache entry so it doesn't linger in the user's
+    // ── Fix round 1, defect #1: rapid A->B navigation must not let a slow,
+    // now-stale reconcile for A clobber the pane once it shows B. Register a
+    // second real repo as "B", then temporarily delay window.GIT.status()
+    // for A's path only — this exercises the REAL navigate() ->
+    // _refreshTabGit() -> GIT.status() path with a deterministic race
+    // instead of hoping real subprocess timing happens to overlap. ──
+    const FAST_OWNER = 'e2e-fixture/fast-repo';
+    makeRealRepo(FAST_DIR, FAST_OWNER);
+    await app.evaluate(async ({ owner, dir }) => {
+        const a = window.Alpine.$data(document.body);
+        await a._addRepoCheckout(owner, dir, 'fast-repo');
+    }, { owner: FAST_OWNER, dir: FAST_DIR });
+
+    const raceResult = await app.evaluate(async ({ pathA, pathB }) => {
+        const a = window.Alpine.$data(document.body);
+        const realStatus = window.GIT.status;
+        window.GIT.status = async (p) => {
+            if (p === pathA) await new Promise(r => setTimeout(r, 900)); // artificially slow A only
+            return realStatus(p);
+        };
+        try {
+            // Navigate to A first so there's something for the slow reconcile
+            // to chase; don't await its background reconcile settling.
+            await a.navigate(a.currentPane(), pathA);
+            // Immediately navigate on to B — A's _refreshTabGit(A) is still
+            // in flight (parked in the artificial 900ms delay) when this
+            // fires, exactly reproducing the reviewer's timeline.
+            await a.navigate(a.currentPane(), pathB);
+            // Outlast A's artificially delayed status (900ms) with margin,
+            // so if the guard were missing, A's late resolution would have
+            // clobbered gitInfo by the time we read it.
+            await new Promise(r => setTimeout(r, 1400));
+            const info = a.currentPane().gitInfo;
+            return {
+                path: a.currentPane().path,
+                ownerRepo: info && info.remote && info.remote.ownerRepo,
+            };
+        } finally {
+            window.GIT.status = realStatus; // always restore, pass or fail
+        }
+    }, { pathA: SUBDIR, pathB: FAST_DIR });
+
+    if (raceResult.path !== FAST_DIR) fail('test bug: pane did not end on B: ' + raceResult.path);
+    if (raceResult.ownerRepo !== FAST_OWNER) {
+        fail(`REGRESSION: rapid A->B navigation left gitInfo showing "${raceResult.ownerRepo}" (repo A) while the pane is on B (${FAST_DIR}) — the stale-reconcile race guard did not hold`);
+    }
+    console.log(`OK race guard (live): rapid navigate(${path.relative(REPO_ROOT, SUBDIR)}) -> navigate(fast-repo) with A's status() artificially delayed 900ms — gitInfo correctly ends on B (${FAST_OWNER}), A's late resolution did not clobber it`);
+
+    // ── Fix round 1, defect #2: goBack into a cached repo that was deleted
+    // in the meantime must self-correct within a SHORT bound (not only on
+    // the next 8s poll tick) — proving the reconcile now wired into
+    // goBack()/goForward() actually fires. Reuses FAST_DIR (still a real,
+    // valid, registered repo at this point). ──
+    await app.evaluate(async (dir) => {
+        const a = window.Alpine.$data(document.body);
+        await a.navigate(a.currentPane(), dir); // into FAST_DIR — creates history
+    }, FAST_DIR);
+    await app.evaluate(async (home) => {
+        const a = window.Alpine.$data(document.body);
+        await a.navigate(a.currentPane(), home); // away — FAST_DIR now behind us in history
+    }, os.homedir());
+
+    fs.rmSync(FAST_DIR, { recursive: true, force: true }); // invalidate it while we're not looking at it
+
+    const backT0 = Date.now();
+    const backImmediate = await app.evaluate(() => {
+        const a = window.Alpine.$data(document.body);
+        a.goBack(a.currentPane()); // synchronous: sets path + fires the (unawaited) reconcile + starts _loadDir
+        const info = a.currentPane().gitInfo;
+        return info ? { ownerRepo: info.remote && info.remote.ownerRepo, optimistic: !!info._optimistic } : null;
+    });
+    if (!backImmediate || backImmediate.ownerRepo !== FAST_OWNER) {
+        fail('expected goBack() into the (about-to-be-invalidated) cached repo to pre-fill optimistically too, got: ' + JSON.stringify(backImmediate));
+    }
+    console.log('OK back/forward stale-safety setup: goBack() DID pre-fill optimistically for the deleted-out-from-under-us repo');
+
+    // Must clear well within the 8s poll interval — assert a tight bound.
+    const CLEAR_BOUND_MS = 5000;
+    await app.waitForFunction(() => {
+        const a = window.Alpine.$data(document.body);
+        return a.currentPane().gitInfo === null;
+    }, { timeout: CLEAR_BOUND_MS }).catch(() => fail(`REGRESSION: goBack() into a deleted cached repo did not clear gitInfo within ${CLEAR_BOUND_MS}ms — a false bar would linger until the 8s poll`));
+    const backElapsedMs = Date.now() - backT0;
+    console.log(`OK back/forward stale-safety: gitInfo cleared to null ${backElapsedMs}ms after goBack() into a deleted repo (bound was ${CLEAR_BOUND_MS}ms, well under the 8s poll)`);
+
+    // Forget the synthetic cache entries so they don't linger in the user's
     // real repo cache after restore (restore() below overwrites the whole
     // file anyway, but be tidy in case restore ever changes).
-    await app.evaluate(async (owner) => {
+    await app.evaluate(async ({ o1, o2 }) => {
         const a = window.Alpine.$data(document.body);
-        delete a.repoCache[owner];
-    }, STALE_OWNER);
+        delete a.repoCache[o1];
+        delete a.repoCache[o2];
+    }, { o1: STALE_OWNER, o2: FAST_OWNER });
 
     // ── Cleanup: restore tab state, then restore both settings files ──
     await restoreTabState();
@@ -266,6 +372,7 @@ try {
     if (tabsYmlBeforeSum !== tabsYmlAfterSum) { console.log('FAIL: tabs.yml not restored byte-identical'); process.exit(1); }
 
     try { fs.rmSync(STALE_DIR, { recursive: true, force: true }); } catch (e) {}
+    try { fs.rmSync(FAST_DIR, { recursive: true, force: true }); } catch (e) {}
 
     const risky = errors.filter(e => e.kind === 'pageerror' || e.kind === 'console');
     if (risky.length) { console.log('FAIL: unexpected page/console errors: ' + JSON.stringify(risky)); process.exit(1); }
@@ -279,6 +386,7 @@ try {
         restore(TABS_YML, tabsYmlBefore);
     } catch (e3) {}
     try { fs.rmSync(STALE_DIR, { recursive: true, force: true }); } catch (e4) {}
+    try { fs.rmSync(FAST_DIR, { recursive: true, force: true }); } catch (e4b) {}
     try { await browser.close(); } catch (e5) {}
     console.log('FAIL: ' + (e && e.message ? e.message : String(e)));
     process.exit(1);
