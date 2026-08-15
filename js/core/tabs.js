@@ -332,6 +332,13 @@ window.ExplorerTabs = {
     // ───── Navigation ────────────────────────────────────────────────────────
     async _loadDir(tab, opts) {
         if (tab.kind !== 'dir') return;
+        // Render the git bar instantly from the repo cache (no subprocess),
+        // before the directory listing (or the authoritative git status
+        // kicked off by navigate()) resolves. Covers every path that loads a
+        // directory — navigate, back/forward, new/duplicate tab, tab
+        // activation, dual-pane — from one place; see _prefillGitFromCache's
+        // own comment for why it's safe to call unconditionally here.
+        this._prefillGitFromCache(tab);
         opts = opts || {};
         // Admin listing sticks to the path it was granted for, so reloads and
         // post-save refreshes of the same directory don't drop back to a
@@ -376,6 +383,14 @@ window.ExplorerTabs = {
         tab.history = tab.history.slice(0, tab.historyIdx + 1);
         if (tab.history[tab.history.length - 1] !== path) tab.history.push(path);
         tab.historyIdx = tab.history.length - 1;
+        // Authoritative reconcile, fired now (not awaited) so it runs
+        // alongside the directory listing rather than gating navigate() on
+        // it. This is what turns the optimistic cache-based bar — rendered
+        // synchronously by _prefillGitFromCache inside _loadDir below — into
+        // the real status within moments, and is also what self-corrects a
+        // stale/moved cached repo instead of leaving a false bar up until
+        // the next 8s poll tick.
+        this._refreshTabGit(tab);
         await this._loadDir(tab, opts);
     },
 

@@ -544,11 +544,22 @@ Alpine.data('explorer', () => ({
         }, 8000);
     },
 
+    // The single authoritative git check: is this a work-tree, and if so
+    // what's its real status? Used everywhere gitInfo needs to be resolved
+    // for real (init scan, throttled poll, tab activate, and — fired in the
+    // background, not awaited — right after navigate()). On success it also
+    // writes the observed branch back into the repo cache (see
+    // _updateCachedBranch in js/features/github.js) so the NEXT visit can
+    // render instantly from cache. On failure/non-work-tree it clears
+    // gitInfo outright, which is what self-corrects a stale optimistic
+    // pre-fill from a moved/deleted cached repo — see _prefillGitFromCache.
     async _refreshTabGit(tab) {
         if (!tab || tab.kind !== 'dir') return;
         try {
             if (await GIT.isWorkTree(tab.path)) {
-                tab.gitInfo = await GIT.status(tab.path);
+                const info = await GIT.status(tab.path);
+                tab.gitInfo = info;
+                if (info) await this._updateCachedBranch(info.remote && info.remote.ownerRepo, tab.path, info.branch);
             } else {
                 tab.gitInfo = null;
             }
@@ -584,11 +595,14 @@ Alpine.data('explorer', () => ({
             for (const [k, v] of Object.entries(raw)) {
                 const repoName = k.split('/').pop();
                 if (Array.isArray(v)) {
-                    out[k] = v.filter(e => e && e.path).map(e => ({ path: e.path, title: e.title || repoName }));
+                    out[k] = v.filter(e => e && e.path).map(e => ({
+                        path: e.path, title: e.title || repoName,
+                        ...(e.branch ? { branch: e.branch } : {}),
+                    }));
                 } else if (typeof v === 'string') {
                     out[k] = [{ path: v, title: repoName }];
                 } else if (v && v.path) {
-                    out[k] = [{ path: v.path, title: v.title || repoName }];
+                    out[k] = [{ path: v.path, title: v.title || repoName, ...(v.branch ? { branch: v.branch } : {}) }];
                 }
             }
             this.repoCache = out;

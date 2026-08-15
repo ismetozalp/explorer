@@ -887,6 +887,12 @@ lives — even when you trigger it from a subfolder of the repo, so the
 cache entry points at the repo root rather than wherever you happened
 to be browsing.
 
+Once a checkout is registered, entering it (or any subfolder of it)
+shows the repo strip **instantly**, from the cached owner/repo and
+last-known branch — no waiting on Git. The real status (uncommitted
+changes, ahead/behind) fills in a moment later, and a moved or deleted
+checkout self-corrects (the bar clears) once that real check runs.
+
 #### Commit browser
 
 A fullscreen modal with three panes:
