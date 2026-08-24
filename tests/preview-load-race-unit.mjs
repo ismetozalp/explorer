@@ -17,11 +17,11 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 
 const sandbox = { window: {}, console };
-vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
 sandbox.Util = sandbox.window.Util;   // editor.js refers to the bare global, same as in a real page (window IS global there)
-vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/runtime.js', import.meta.url).pathname });
 sandbox.ExRT = sandbox.window.ExRT;
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/editor.js', import.meta.url).pathname });
 const Util = sandbox.window.Util;
 const E = sandbox.window.ExplorerEditor;
 const ExRT = sandbox.ExRT;

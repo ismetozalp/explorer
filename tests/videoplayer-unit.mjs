@@ -6,7 +6,7 @@ import fs from 'node:fs';
 // globals automatically, so they're supplied here to match what a page
 // actually provides — the loader class calls `new TextDecoder()` at runtime.
 const sandbox = { window: {}, console, TextDecoder, TextEncoder };
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/videoplayer.js', import.meta.url).pathname });
 const V = sandbox.window.ExplorerVideo;
 
 // codec args

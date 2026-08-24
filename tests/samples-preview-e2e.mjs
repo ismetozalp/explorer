@@ -34,7 +34,11 @@ const PASS = process.env.COCKPIT_PASS || '';
 const SHOT = process.env.SMOKE_SHOT   || '/tmp/samples-preview-e2e.png';
 
 const errors = [];
-const BENIGN = /\b401\b|handshake failed/i;
+// "Blocked script execution in 'about:srcdoc' … 'allow-scripts' permission is
+// not set" is the HTML preview working as designed: sample.html carries a
+// <script>, and with scripts off the sandbox refuses to run it. Chrome logs that
+// refusal as a console error; it is the expected, correct behaviour, not a fault.
+const BENIGN = /\b401\b|handshake failed|Blocked script execution/i;
 
 class TestFailure extends Error {}
 function fail(msg) { throw new TestFailure(msg); }
@@ -175,11 +179,30 @@ try {
         };
     });
 
+    // This suite assumes a single-pane tab — its status-bar assertion reads the
+    // single-view footer, and every preview step drives one pane. If the restored
+    // tab state happens to be split, collapse it so the run is deterministic
+    // regardless of the machine's persisted layout. (tabs.yml is restored at the
+    // end, so this doesn't leak into the user's session.)
+    await app.evaluate(() => {
+        const a = window.Alpine.$data(document.body);
+        const t = a.activeTab();
+        if (t && t.dual) a.toggleDualPane(t);
+    });
+
     // ── Navigate to tests/samples/ and sanity-check the listing ──
     await navTo(SAMPLES);
     const rowCount = await app.locator('.file-list tbody tr[data-path]').count();
     if (rowCount !== 36) fail(`expected 36 rows (34 files + 2 subfolders) in tests/samples, got ${rowCount}`);
-    const statusText = (await app.locator('.status-bar span').first().innerText()).trim();
+    // Read the ACTIVE pane's status directly rather than by DOM order: with
+    // several tabs (or a split) open, `.status-bar span` first() can resolve to a
+    // different tab's footer. statusText(currentPane()) is exactly what the
+    // single-view footer binds to, so this asserts the same thing without the
+    // ordering fragility.
+    const statusText = (await app.evaluate(() => {
+        const a = window.Alpine.$data(document.body);
+        return a.statusText(a.currentPane());
+    })).trim();
     if (statusText !== '36 item(s) · 2 folder(s) · 34 file(s)') fail('unexpected status bar text: ' + statusText);
     ok(`selection-count sanity: ${rowCount} rows listed, status bar reads "${statusText}"`);
 
@@ -225,11 +248,11 @@ try {
         await docFrame.waitFor({ timeout: 10000 });
         const srcdoc = await docFrame.getAttribute('srcdoc');
         if (!srcdoc || !/<h1/i.test(srcdoc)) fail('markdown: srcdoc missing rendered <h1>: ' + String(srcdoc).slice(0, 200));
-        const toggleBtn = app.locator('.win-controls button', { hasText: /^(Source|Rendered)$/ });
+        const toggleBtn = app.locator('.preview-md-toggle');
         await toggleBtn.waitFor({ timeout: 5000 });
         if ((await toggleBtn.innerText()).trim() !== 'Source') fail('markdown: expected the toggle to read "Source" while rendered');
         await toggleBtn.click();
-        await app.locator('.win-controls button', { hasText: 'Rendered' }).waitFor({ timeout: 5000 });
+        await app.locator('.preview-md-toggle', { hasText: 'Rendered' }).waitFor({ timeout: 5000 });
         const rawText = await app.locator('.preview-code-wrap .preview-code').innerText();
         if (!rawText.includes('# Explorer Markdown Preview Sample')) fail('markdown: Source toggle did not reveal raw markdown text: ' + rawText.slice(0, 200));
         await toggleBtn.click(); // back to rendered
@@ -303,6 +326,43 @@ try {
         const cls = await app.locator('.preview-code-wrap .preview-code code').getAttribute('class');
         if (!/language-javascript/.test(cls || '')) fail('text: expected a language-javascript code class, got ' + cls);
         ok('text (sample.js): syntax-highlighted preview shows file content (language-javascript)');
+    }
+    await closePreview();
+
+    // ── html: rendered in a sandboxed iframe (scripts OFF by default), with a
+    //    Source/Rendered toggle and an explicit Enable-scripts opt-in. The
+    //    security-critical assertion is the sandbox attribute value. ──
+    await openRow(SAMPLES, 'sample.html');
+    {
+        const kind = await pvField('kind');
+        if (kind !== 'html') fail('html: expected pv.kind === "html", got ' + kind);
+        if (await pvField('scriptsEnabled') !== false) fail('html: scripts must be OFF by default');
+        const docFrame = app.locator('iframe.preview-doc');
+        await docFrame.waitFor({ timeout: 10000 });
+        await waitSrcdocContains('Explorer HTML Preview Sample');
+        let sandbox = await docFrame.getAttribute('sandbox');
+        if (sandbox !== '') fail(`html: default iframe sandbox must be "" (no scripts), got "${sandbox}"`);
+
+        // Opt in to scripts: the iframe is recreated with sandbox="allow-scripts"
+        // and MUST NEVER include allow-same-origin (that would let it reach Cockpit).
+        const scriptsBtn = app.locator('.preview-scripts-toggle');
+        await scriptsBtn.waitFor({ timeout: 5000 });
+        if ((await scriptsBtn.innerText()).trim() !== 'Enable scripts') fail('html: scripts toggle should read "Enable scripts" while off');
+        await scriptsBtn.click();
+        await app.locator('.preview-scripts-toggle', { hasText: 'Disable scripts' }).waitFor({ timeout: 5000 });
+        sandbox = await app.locator('iframe.preview-doc').getAttribute('sandbox');
+        if (sandbox !== 'allow-scripts') fail(`html: enabling scripts must set sandbox="allow-scripts", got "${sandbox}"`);
+        if (/allow-same-origin/.test(sandbox || '')) fail('html: sandbox must never include allow-same-origin');
+        await scriptsBtn.click(); // back to scripts off
+        await app.locator('.preview-scripts-toggle', { hasText: 'Enable scripts' }).waitFor({ timeout: 5000 });
+
+        // Source toggle reveals the raw markup in the code view.
+        const modeBtn = app.locator('.preview-html-toggle');
+        await modeBtn.click();
+        const rawText = await app.locator('.preview-code-wrap .preview-code').innerText();
+        if (!/<h1>/.test(rawText)) fail('html: Source toggle did not reveal raw markup: ' + rawText.slice(0, 200));
+        await modeBtn.click(); // back to rendered
+        ok('html (sample.html): sandboxed iframe (scripts off by default, allow-scripts on opt-in, never same-origin); Source/Rendered toggle works');
     }
     await closePreview();
 

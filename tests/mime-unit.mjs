@@ -4,7 +4,7 @@ import fs from 'node:fs';
 // Load utils.js into a sandbox that provides the `window` it assigns to.
 const src = fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8');
 const sandbox = { window: {} };
-vm.runInNewContext(src, sandbox);
+vm.runInNewContext(src, sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
 const U = sandbox.window.Util;
 const f = (name) => ({ name, type: 'f' });
 

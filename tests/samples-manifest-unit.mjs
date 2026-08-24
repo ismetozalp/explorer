@@ -21,7 +21,7 @@ const SAMPLES = path.join(__dirname, 'samples');
 
 const src = fs.readFileSync(path.join(__dirname, '../js/utils.js'), 'utf8');
 const sandbox = { window: {} };
-vm.runInNewContext(src, sandbox);
+vm.runInNewContext(src, sandbox, { filename: path.join(__dirname, '../js/utils.js') });
 const U = sandbox.window.Util;
 const f = (name) => ({ name, type: 'f' });
 
@@ -52,7 +52,8 @@ const GROUPS = {
     'sample.docx': 'docx',
     'sample.xlsx': 'spreadsheet', 'sample.ods': 'spreadsheet', 'sample.csv': 'spreadsheet',
     'sample.md': 'markdown', 'sample.markdown': 'markdown',
-    'sample.conf': 'text', 'sample.css': 'text', 'sample.html': 'text', 'sample.ini': 'text',
+    'sample.html': 'html',
+    'sample.conf': 'text', 'sample.css': 'text', 'sample.ini': 'text',
     'sample.js': 'text', 'sample.json': 'text', 'sample.log': 'text', 'sample.py': 'text',
     'sample.sh': 'text', 'sample.sql': 'text', 'sample.ts': 'text', 'sample.txt': 'text',
     'sample.xml': 'text', 'sample.yaml': 'text', 'sample.yml': 'text',
@@ -92,6 +93,12 @@ for (const rel of files) {
         case 'markdown':
             assert.ok(U.isMarkdown(file), `${rel}: Util.isMarkdown should be true`);
             break;
+        case 'html':
+            // isHtml routes it to the rendered HTML preview; it must win over the
+            // generic text path (which also matches, since HTML is text-like).
+            assert.ok(U.isHtml(file), `${rel}: Util.isHtml should be true`);
+            assert.ok(U.isTextLike(file), `${rel}: Util.isTextLike should also be true (source view)`);
+            break;
         case 'audio':
             assert.ok(U.isAudio(file), `${rel}: Util.isAudio should be true`);
             break;
@@ -117,5 +124,6 @@ for (const rel of files) {
 assert.ok(U.isVideoNative(f('sample.mp4')) && GROUPS['video/sample.mp4'] === 'video-native', 'mp4 must stay the native-video fixture');
 assert.ok(!U.isVideoNative(f('sample.ogv')) && U.isVideo(f('sample.ogv')), 'ogv must stay routed through ffmpeg (3.1.6 black-picture regression)');
 assert.ok(U.isSpreadsheet(f('sample.csv')), 'csv must route to the spreadsheet renderer, not plain text');
+assert.ok(U.isHtml(f('sample.html')) && GROUPS['sample.html'] === 'html', 'html must route to the rendered HTML preview (3.2), not plain text');
 
 console.log(`samples-manifest-unit: OK — ${files.length} sample files present under tests/samples/ and correctly classified`);

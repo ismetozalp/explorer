@@ -2,6 +2,25 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.2.0
+
+- **HTML files now preview as rendered web pages.** Opening a `.html`/`.htm`
+  file shows the page in a sandboxed frame, with a **Rendered ⇄ Source** toggle
+  in the window header (they previously showed only as syntax-highlighted
+  source). The page's own scripts are **off by default**; an **Enable scripts**
+  button in the header runs them on request. Either way the frame is a null
+  origin — it can never reach Cockpit's session, cookies, or DOM — and the
+  plugin's content-security-policy keeps even a script-enabled page from calling
+  out to external hosts. Relative resources (`./style.css`, local images) don't
+  resolve, since the frame has no filesystem base.
+- **Coverage reporting for the unit suite.** `make test` runs the pure-node unit
+  tests under node's built-in runner with `--experimental-test-coverage` and
+  fails if coverage falls below the floors in the Makefile; `make coverage` also
+  writes a committed, sortable `COVERAGE.html` plus `coverage/lcov.info` (machine
+  output, git-ignored). A new `make release` target gates a release on the tests
+  and records the report before publishing. Dev tooling only — nothing in the
+  shipped plugin changes, and the report is never included in the release zip.
+
 ## 3.1.10
 
 - **Fixed: the built-in "List archive contents" action failed on file

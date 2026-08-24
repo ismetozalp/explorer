@@ -188,6 +188,14 @@ try {
             const content = await app.locator('.preview-code-wrap .preview-code').innerText();
             if (!content.includes('function greet')) throw new Error('text preview: missing expected file content');
         });
+        await openAndCheck('sample.html', async () => {
+            const doc = app.locator('iframe.preview-doc');
+            await doc.waitFor({ timeout: 5000 });
+            const sandbox = await doc.getAttribute('sandbox');
+            if (sandbox !== '') throw new Error('html preview: iframe must default to sandbox="" (scripts off), got ' + sandbox);
+            const srcdoc = await doc.getAttribute('srcdoc');
+            if (!srcdoc || !/<h1>/.test(srcdoc)) throw new Error('html preview: srcdoc missing rendered <h1>');
+        });
 
         samplesOK = true;
     } catch (e) {
@@ -205,7 +213,7 @@ try {
     await page.screenshot({ path: SHOT }).catch(() => {});
     const risky = errors.filter(e => e.kind === 'pageerror' || RISK.test(e.text) || (e.kind === 'interaction' && (!settingsOK || !previewOK || !samplesOK)));
     if (risky.length) done(1, `FAIL — ${risky.length} issue(s) after plugin load (see below). files=${fileCount}, settings=${settingsOK}, preview=${previewOK}, samples=${samplesOK}. Screenshot: ${SHOT}`);
-    else done(0, `OK — 3.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}, samples preview (image/pdf/markdown/text)=${samplesOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
+    else done(0, `OK — 3.0.0 functional: visible toolbar, file list populated (${fileCount} rows), Settings modal open+close=${settingsOK}, preview controls=${previewOK}, samples preview (image/pdf/markdown/text/html)=${samplesOK}; no uncaught/risky JS errors. Screenshot: ${SHOT}`);
 } catch (e) {
     restoreTabsFile();
     await page.screenshot({ path: SHOT }).catch(() => {});
