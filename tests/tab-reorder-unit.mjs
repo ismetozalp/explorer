@@ -7,7 +7,7 @@ import assert from 'assert';
 const src = readFileSync(new URL('../js/core/tabs.js', import.meta.url), 'utf8');
 const sandbox = { window: {}, Util: {}, FS: {}, ExRT: { term: { del() {} } }, cockpit: {}, console };
 vm.createContext(sandbox);
-vm.runInContext(src, sandbox);
+vm.runInContext(src, sandbox, { filename: new URL('../js/core/tabs.js', import.meta.url).pathname });
 const T = sandbox.window.ExplorerTabs;
 assert.ok(T && typeof T.moveTab === 'function', 'moveTab should be defined');
 assert.ok(typeof T.moveTerminal === 'function', 'moveTerminal should be defined');

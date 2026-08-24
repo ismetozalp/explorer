@@ -16,7 +16,11 @@ window.ExplorerEditor = {
     // (no secure-context clipboard). Shows a brief "Copied ✓" on the button.
     copyPreviewContent() {
         const w = this.activeWin();
-        if (!w || w.kind !== 'preview' || !w.pv || w.pv.kind !== 'text') return;
+        // Text previews, and HTML previews while showing their source, both keep
+        // the raw text in pv.content.
+        const copyable = w && w.kind === 'preview' && w.pv &&
+            (w.pv.kind === 'text' || (w.pv.kind === 'html' && w.pv.htmlMode === 'source'));
+        if (!copyable) return;
         const ok = this._copyToClipboard(w.pv.content || '');
         if (!ok) { this.toast('Could not copy to clipboard', 'danger'); return; }
         this.copiedWinId = w.id;   // scoped to this window so other previews don't show it
@@ -203,6 +207,25 @@ window.ExplorerEditor = {
             if (isCurrent()) this._vpMaybeStart(id);
             return;
         }
+        if (Util.isHtml(file)) {
+            if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
+            try {
+                const txt = await FS.readText(file.path, ropts);
+                // Source mode reuses the text preview's Prism <pre>; load the markup
+                // grammar so a toggle to Source renders highlighted.
+                const lang = Util.langFromExt(file.name);
+                if (lang !== 'plain' && window.loadPrismLanguage) await window.loadPrismLanguage(lang);
+                // Rendered mode drops the raw document straight into a sandboxed
+                // iframe — scripts OFF by default (sandbox=""), NEVER allow-same-origin
+                // (see windows.html). The file is already a full HTML document, so it
+                // is deliberately NOT wrapped in _docIframeShell. scriptsEnabled is an
+                // explicit per-window opt-in via the header toggle; htmlMode flips
+                // rendered<->source. Both are pure view switches — no re-read (srcdoc
+                // and content are both held here).
+                set({ kind: 'html', content: txt || '', htmlMode: 'rendered', scriptsEnabled: false, lang, srcdoc: txt || '' });
+            } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
+            return;
+        }
         if (Util.isTextLike(file)) {
             if (file.size > limit) { set({ kind: 'binary', reason: `File too large (${Util.humanSize(file.size)}; limit ${this.settings.previewLimitMB} MB).` }); return; }
             try {
@@ -249,6 +272,24 @@ window.ExplorerEditor = {
         if (!w.pv.srcdoc) return;
         w.pv.mdMode = w.pv.mdMode === 'source' ? 'rendered' : 'source';
         w.pv.kind = w.pv.mdMode === 'source' ? 'text' : 'markdown';
+    },
+    // HTML preview stays a single kind ('html'); only htmlMode flips, and the
+    // template picks the sandboxed iframe (rendered) or the Prism <pre> (source)
+    // off it. Both srcdoc and content are already loaded, so this never re-reads.
+    toggleHtmlMode(id) {
+        const w = this._win(id);
+        if (!w || !w.pv || w.pv.kind !== 'html') return;
+        w.pv.htmlMode = w.pv.htmlMode === 'source' ? 'rendered' : 'source';
+    },
+    // Opt in/out of running the page's own scripts. The template keys the
+    // rendered iframe on this flag (two x-if branches, sandbox="" vs
+    // sandbox="allow-scripts"), so flipping it recreates the iframe and the
+    // document is re-parsed under the correct sandbox — never allow-same-origin,
+    // so scripts can never reach Cockpit even when enabled.
+    toggleHtmlScripts(id) {
+        const w = this._win(id);
+        if (!w || !w.pv || w.pv.kind !== 'html') return;
+        w.pv.scriptsEnabled = !w.pv.scriptsEnabled;
     },
     _selectSheet(id, i) {
         const w = this._win(id);

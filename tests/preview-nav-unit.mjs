@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 // Load utils (for isPreviewable) + editor mixin into one sandbox.
 const sandbox = { window: {}, console };
-vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
 // js/runtime.js defines the ExRT global (non-reactive registries) that
 // editor.js reads directly — in the page it's loaded before every feature
 // mixin, so the vm context needs it too.
-vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/runtime.js', import.meta.url).pathname });
 sandbox.ExRT = sandbox.window.ExRT;
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/editor.js', import.meta.url).pathname });
 const Util = sandbox.window.Util;
 const E = sandbox.window.ExplorerEditor;
 

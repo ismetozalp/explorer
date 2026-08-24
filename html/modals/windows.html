@@ -31,14 +31,24 @@
                 </div>
                 <div class="win-controls ms-auto">
                     <button type="button" class="btn btn-sm btn-outline-secondary me-2 win-copy-btn"
-                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv && activeWin().pv.kind === 'text'"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv && (activeWin().pv.kind === 'text' || (activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'source'))"
                             @click="copyPreviewContent()"
                             title="Copy file contents to clipboard" aria-label="Copy file contents to clipboard"
                             x-text="(activeWin() && copiedWinId === activeWin().id) ? 'Copied ✓' : 'Copy'"></button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2 preview-md-toggle"
                             x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.srcdoc && (activeWin().pv.kind === 'markdown' || (activeWin().pv.kind === 'text' && activeWin().pv.lang === 'markdown'))"
                             @click="toggleMarkdownMode(activeWin().id)"
                             x-text="activeWin() && activeWin().pv.kind === 'markdown' ? 'Source' : 'Rendered'"></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2 preview-html-toggle"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'html'"
+                            @click="toggleHtmlMode(activeWin().id)"
+                            x-text="activeWin() && activeWin().pv.htmlMode === 'source' ? 'Rendered' : 'Source'"></button>
+                    <button type="button" class="btn btn-sm me-2 preview-scripts-toggle"
+                            :class="activeWin() && activeWin().pv.scriptsEnabled ? 'btn-warning' : 'btn-outline-secondary'"
+                            x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'rendered'"
+                            @click="toggleHtmlScripts(activeWin().id)"
+                            :title="activeWin() && activeWin().pv.scriptsEnabled ? 'Scripts are running in this page — click to disable' : 'This page\'s scripts are disabled — click to run them (still sandboxed away from Cockpit)'"
+                            x-text="activeWin() && activeWin().pv.scriptsEnabled ? 'Disable scripts' : 'Enable scripts'"></button>
                     <select class="form-select form-select-sm me-2" style="width:auto"
                             x-show="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'sheet' && activeWin().pv.sheets.length > 1"
                             @change="_selectSheet(activeWin().id, parseInt($event.target.value))">
@@ -68,11 +78,21 @@
                     <div id="quillContainer"></div>
                 </div>
                 <!-- Preview surfaces -->
-                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'text'">
+                <template x-if="activeWin() && activeWin().kind === 'preview' && (activeWin().pv.kind === 'text' || (activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'source'))">
                     <div class="preview-code-wrap">
                         <pre class="preview-gutter" aria-hidden="true" x-text="pvLineNumbers(activeWin().pv.content)"></pre>
                         <pre class="preview-code"><code :class="'language-' + (activeWin().pv.lang || 'plain')" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && Prism.highlightElement($el)"></code></pre>
                     </div>
+                </template>
+                <!-- HTML file, rendered. Two branches so toggling scripts recreates the
+                     iframe (a live sandbox attribute change would not re-parse srcdoc).
+                     Neither branch grants allow-same-origin: the page is a null origin
+                     that can never reach Cockpit's DOM, cookies, or session. -->
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'rendered' && !activeWin().pv.scriptsEnabled">
+                    <iframe class="preview-doc" sandbox :srcdoc="activeWin().pv.srcdoc"></iframe>
+                </template>
+                <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'rendered' && activeWin().pv.scriptsEnabled">
+                    <iframe class="preview-doc" sandbox="allow-scripts" :srcdoc="activeWin().pv.srcdoc"></iframe>
                 </template>
                 <template x-if="activeWin() && activeWin().kind === 'preview' && activeWin().pv.kind === 'image'">
                     <img :src="activeWin().pv.url" class="preview-img" alt="">

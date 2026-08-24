@@ -52,7 +52,7 @@ function loadApp(gitStub) {
     vm.createContext(sandbox);
     for (const rel of ['../js/runtime.js', '../js/features/github.js', '../js/app.js']) {
         const src = fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
-        vm.runInContext(src, sandbox);
+        vm.runInContext(src, sandbox, { filename: new URL(rel, import.meta.url).pathname });
         // In a real browser `window` IS the global object, so `window.ExRT =`
         // also creates a bare global `ExRT` automatically — app.js's state
         // initializer reads it as a bare identifier. Our sandboxed `window`

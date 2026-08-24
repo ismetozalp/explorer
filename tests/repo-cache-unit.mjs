@@ -7,7 +7,7 @@ import fs from 'node:fs';
 // against a stub `this`.
 const src = fs.readFileSync(new URL('../js/features/github.js', import.meta.url), 'utf8');
 const sandbox = { window: {} };
-vm.runInNewContext(src, sandbox);
+vm.runInNewContext(src, sandbox, { filename: new URL('../js/features/github.js', import.meta.url).pathname });
 const Github = sandbox.window.ExplorerGithub;
 
 // Stub `this` providing repoCheckouts() the way app.js's repoCache model

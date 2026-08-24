@@ -144,9 +144,9 @@ const sandbox = {
     setTimeout, clearTimeout, Promise, Date, TextEncoder, TextDecoder,
     setInterval: fakeSetInterval, clearInterval: fakeClearInterval,
 };
-vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/runtime.js', import.meta.url).pathname });
 sandbox.ExRT = sandbox.window.ExRT;
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/videoplayer.js', import.meta.url).pathname });
 const V = sandbox.window.ExplorerVideo;
 const ExRT = sandbox.ExRT;
 

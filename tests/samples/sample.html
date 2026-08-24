@@ -11,13 +11,21 @@
 </head>
 <body>
   <h1>Explorer HTML Preview Sample</h1>
-  <p>This is a synthetic HTML file for exercising Explorer's syntax-highlighted /
-     rendered text preview path.</p>
-  <p>File: <code>/home/ismet/sample/sample.html</code></p>
+  <p>This is a synthetic HTML file for exercising Explorer's rendered HTML
+     preview path (a sandboxed iframe), the <code>Source</code>/<code>Rendered</code>
+     toggle, and the opt-in <code>Enable scripts</code> control.</p>
   <ul>
     <li>Item one</li>
     <li>Item two</li>
     <li>Item three</li>
   </ul>
+  <p id="js-status">Scripts are disabled (this text is set in the markup).</p>
+  <script>
+    // Runs only when the viewer opts in via "Enable scripts". Deliberately
+    // trivial and error-free so it never trips the e2e console/pageerror
+    // collectors — its only job is to make the scripts toggle observable.
+    document.getElementById('js-status').textContent =
+      'Scripts are enabled (this text was set by JavaScript).';
+  </script>
 </body>
 </html>

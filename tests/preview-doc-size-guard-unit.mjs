@@ -8,14 +8,14 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 
 const sandbox = { window: {}, console };
-vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
 // editor.js references bare `Util`/`FS` (as it would via <script> globals in
 // the browser) — expose them as bare globals in this same vm context, not
 // just as window.* properties, before editor.js's methods actually run.
 sandbox.Util = sandbox.window.Util;
 // Same for ExRT (js/runtime.js): editor.js keeps the parsed workbook and the
 // Monaco/Quill instances there, off Alpine reactive state.
-vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/runtime.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/runtime.js', import.meta.url).pathname });
 sandbox.ExRT = sandbox.window.ExRT;
 let readBinaryCalls = 0;
 let readTextCalls = 0;
@@ -23,7 +23,7 @@ sandbox.FS = {
     readBinaryAsBlob: async () => { readBinaryCalls++; return { arrayBuffer: async () => new ArrayBuffer(8) }; },
     readText: async () => { readTextCalls++; return 'text'; },
 };
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/editor.js', import.meta.url).pathname });
 const E = sandbox.window.ExplorerEditor;
 const Util = sandbox.window.Util;
 

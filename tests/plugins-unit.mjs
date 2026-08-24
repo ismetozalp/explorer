@@ -8,7 +8,7 @@ import assert from 'assert';
 const src = readFileSync(new URL('../js/features/plugins.js', import.meta.url), 'utf8');
 const sandbox = { window: {} };
 vm.createContext(sandbox);
-vm.runInContext(src, sandbox);
+vm.runInContext(src, sandbox, { filename: new URL('../js/features/plugins.js', import.meta.url).pathname });
 const P = sandbox.window.ExplorerPlugins;
 assert.ok(P, 'window.ExplorerPlugins should be defined');
 

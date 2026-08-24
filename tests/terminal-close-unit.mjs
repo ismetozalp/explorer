@@ -14,7 +14,7 @@ const sandbox = {
   Util: {}, cockpit: {}, document: {}, console,
 };
 vm.createContext(sandbox);
-vm.runInContext(src, sandbox);
+vm.runInContext(src, sandbox, { filename: new URL('../js/features/terminal.js', import.meta.url).pathname });
 const T = sandbox.window.ExplorerTerminal;
 assert.ok(T && typeof T.closeTerminal === 'function', 'ExplorerTerminal.closeTerminal should be defined');
 

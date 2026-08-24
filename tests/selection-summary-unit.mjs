@@ -6,9 +6,9 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 
 const sandbox = { window: {}, console };
-vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
 sandbox.Util = sandbox.window.Util; // filelist.js refers to the bare global, same as in a real page
-vm.runInNewContext(fs.readFileSync(new URL('../js/core/filelist.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/core/filelist.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/core/filelist.js', import.meta.url).pathname });
 const FL = sandbox.window.ExplorerFileList;
 
 // Builds a stub `this` exposing exactly what selectionSummary() calls:

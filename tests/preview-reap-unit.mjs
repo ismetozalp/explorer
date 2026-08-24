@@ -29,7 +29,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const sandbox = { window: {} };
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/videoplayer.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/videoplayer.js', import.meta.url).pathname });
 const V = sandbox.window.ExplorerVideo;
 const script = V._vpReapScript();
 assert.strictEqual(typeof script, 'string');

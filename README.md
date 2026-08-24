@@ -275,7 +275,17 @@ Or use the included Makefile:
 sudo make install        # → /usr/share/cockpit/explorer
 sudo make uninstall      # remove
 make zip                 # produces explorer-<version>.zip
+make test                # unit tests (tests/*-unit.mjs) with a gated coverage report
+make coverage            # the same, plus coverage/lcov.info and COVERAGE.html
 ```
+
+`make test` runs the pure-node unit suite under node's built-in test runner
+with `--experimental-test-coverage`; the run fails if coverage drops below the
+floors in the Makefile. `make coverage` additionally writes
+[`COVERAGE.html`](COVERAGE.html) — a sortable, committed per-file report — and
+`coverage/lcov.info` (machine output, git-ignored). The e2e/smoke suites
+(`tests/*-e2e.mjs`, `tests/smoke.mjs`) run against a real Cockpit in a browser
+and are not part of `make test`; they need Playwright and login credentials.
 
 Verify Cockpit sees the new package:
 
@@ -513,6 +523,14 @@ handles:
   picker when there's more than one sheet — all in a sandboxed frame (no
   scripts run). Files over the preview size limit fall back to the
   "too large" panel instead of rendering.
+- **HTML** (`.html`/`.htm`) renders as a web page (new in 3.2), in a
+  sandboxed frame with a **Rendered ⇄ Source** toggle. The page's own
+  **scripts are off by default**; an **Enable scripts** button in the window
+  header runs them on request. Either way the frame is a null origin — it can
+  never reach Cockpit's session, cookies, or DOM — and the plugin's
+  content-security-policy keeps even a script-enabled page from calling out to
+  external hosts. (Relative resources like `./style.css` don't resolve, since
+  the frame has no filesystem base.)
 - Binary fallback explains why the file can't be previewed.
 
 ![Code preview with line numbers](screenshots/preview-code.svg)

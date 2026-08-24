@@ -3,3 +3,6 @@ package-lock.json
 docs/
 explorer-*.zip
 .superpowers/
+# Machine coverage output. COVERAGE.html (the human report) IS committed; the
+# per-line lcov it is generated from is regenerated on demand and is not.
+coverage/

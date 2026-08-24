@@ -12,8 +12,8 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 
 const sandbox = { window: {}, console };
-vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox);
-vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(fs.readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/utils.js', import.meta.url).pathname });
+vm.runInNewContext(fs.readFileSync(new URL('../js/features/editor.js', import.meta.url), 'utf8'), sandbox, { filename: new URL('../js/features/editor.js', import.meta.url).pathname });
 const E = sandbox.window.ExplorerEditor;
 
 function stubWith(pv) {

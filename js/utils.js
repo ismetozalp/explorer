@@ -207,6 +207,10 @@ window.Util = (function () {
         const ext = (file && file.name || '').toLowerCase().split('.').pop();
         return file && file.type === 'f' && ['md', 'markdown'].includes(ext);
     }
+    function isHtml(file) {
+        const ext = (file && file.name || '').toLowerCase().split('.').pop();
+        return file && file.type === 'f' && ['html', 'htm'].includes(ext);
+    }
     function isDocx(file) {
         return file && file.type === 'f' && (file.name || '').toLowerCase().endsWith('.docx');
     }
@@ -332,7 +336,7 @@ window.Util = (function () {
     return {
         humanSize, formatDate, joinPath, dirname, basename, normalizePath, shq, pathSegments,
         langFromExt, isTextLike, looksBinary, isImage, isPdf, isVideo, isAudio, isArchive, archiveFormat,
-        isMarkdown, isDocx, isSpreadsheet, isVideoNative, isPreviewable, mimeType,
+        isMarkdown, isHtml, isDocx, isSpreadsheet, isVideoNative, isPreviewable, mimeType,
         fileIcon, typeLabel, uid, fillTemplate, fillText
     };
 })();
