@@ -2,6 +2,17 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.1.10
+
+- **Fixed: the built-in "List archive contents" action failed on file
+  names containing spaces, parentheses, or other shell characters,
+  reporting `syntax error near unexpected token`.** The command template
+  quoted the file name itself, on top of the quoting the action runner
+  already applies to every value — producing a doubled-quote `case`
+  statement the shell couldn't parse. The redundant quotes are removed;
+  the runner's own quoting is safe and complete, so archive listing now
+  works whatever the file is named.
+
 ## 3.1.9
 
 - **Fixed: the instant git bar (3.1.8) now actually works on the first

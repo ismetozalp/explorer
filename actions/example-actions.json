@@ -113,7 +113,7 @@
         {
             "id": "tar-list",
             "label": "List archive contents",
-            "command": "case '{name}' in *.zip) unzip -l {path};; *.tar*|*.tgz|*.tbz|*.txz) tar -tvf {path};; *) echo 'Unsupported archive type';; esac",
+            "command": "case {name} in *.zip) unzip -l {path};; *.tar*|*.tgz|*.tbz|*.txz) tar -tvf {path};; *) echo 'Unsupported archive type';; esac",
             "appliesTo": "archive",
             "pattern": "",
             "output": "modal",
