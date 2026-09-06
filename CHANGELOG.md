@@ -2,6 +2,19 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.2.1
+
+- **Fixed: the plugin failed to load when `/etc/shells` listed the same shell
+  twice.** The shell list is rendered by an `x-for` keyed on the shell path, so
+  a repeated line produced two identical `:key` values; Alpine's keyed diff then
+  worked from a stale node reference and threw `Cannot read properties of
+  undefined (reading 'after')`. Because it happened during init the whole
+  component died and Cockpit showed "Ooops!" instead of the file manager.
+  `/etc/shells` is now de-duplicated when it is read, so the uniqueness the key
+  depends on holds regardless of what the file contains. Reported as
+  [#1](https://github.com/ismetozalp/explorer/issues/1), with the diagnosis and
+  the fix, by [@Inter-Galactic-App](https://github.com/Inter-Galactic-App).
+
 ## 3.2.0
 
 - **HTML files now preview as rendered web pages.** Opening a `.html`/`.htm`
