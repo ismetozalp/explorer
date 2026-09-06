@@ -2,6 +2,24 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.2.2
+
+- **The `/etc/shells` parsing from 3.2.1 is now a pure, unit-tested pair of
+  helpers.** `_parseShells()` and `_pickDefaultShell()` moved out of
+  `_initExtensions()`'s I/O into `js/core/settings.js`, matching the shape of
+  the other parsers that feed keyed `x-for`s (`_parseSmbShares`,
+  `_parseExports`). `tests/shells-unit.mjs` covers the reported duplicate line,
+  the "no two entries are equal" invariant the markup depends on, comment and
+  whitespace handling, tmux exclusion, and default-shell selection. No
+  behaviour change from 3.2.1 for a normal `/etc/shells`.
+- **Fixed: a `/etc/shells` that listed nothing but tmux left the shell list
+  empty.** tmux is excluded from the list (the session manager drives it), and
+  the exclusion used to run after the list was assigned — so a file offering
+  only tmux emptied it, leaving `this.shells[0]` undefined for the terminal and
+  Run-command paths. The fallback is now applied after exclusion, so the list is
+  never empty; an unreadable, empty, comments-only, or tmux-only file keeps the
+  built-in defaults.
+
 ## 3.2.1
 
 - **Fixed: the plugin failed to load when `/etc/shells` listed the same shell

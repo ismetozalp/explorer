@@ -78,6 +78,44 @@ window.ExplorerSettings = {
     },
 
 
+    // ───── Shells (/etc/shells) ──────────────────────────────────────────────
+
+    // Turn the raw text of /etc/shells into the list Explorer offers. Pure, so
+    // the part with the edge cases is testable away from _initExtensions()'s
+    // I/O — see tests/shells-unit.mjs.
+    //
+    // De-duplication is load-bearing, not tidiness: the list is rendered by an
+    // x-for keyed on the shell path (html/modals/toolbar.html), and `:key` must
+    // be unique within an x-for. A repeated line in /etc/shells — package
+    // installs and hand edits both produce them — gave Alpine two identical
+    // keys, and its keyed diff then worked from a stale node reference and
+    // threw `Cannot read properties of undefined (reading 'after')`. Since this
+    // runs during init, the throw took the whole component with it and Cockpit
+    // rendered "Ooops!" instead of the file manager (issue #1).
+    //
+    // tmux is dropped even when listed: it is driven by the dedicated session
+    // manager (toolbar button), never offered as a "default shell".
+    //
+    // `fallback` (the caller's current list) is returned, normalised the same
+    // way, when the file is unreadable, empty, comments-only, or tmux-only —
+    // never an empty list, because this.shells[0] is a real code path
+    // (js/core/output.js).
+    _parseShells(txt, fallback) {
+        const norm = (lines) => [...new Set(
+            lines.map(s => String(s).trim()).filter(s => s && !s.startsWith('#'))
+        )].filter(s => s.replace(/.*\//, '') !== 'tmux');
+        const shells = norm(String(txt == null ? '' : txt).split('\n'));
+        return shells.length ? shells : norm(fallback || []);
+    },
+
+    // Keep the configured default shell if the host still offers it; otherwise
+    // prefer bash, then whatever is first. Pure — see tests/shells-unit.mjs.
+    _pickDefaultShell(shells, current) {
+        if (current && shells.includes(current)) return current;
+        return shells.find(s => s.endsWith('/bash')) || shells[0] || '';
+    },
+
+
     // ───── Keyboard ──────────────────────────────────────────────────────────
     onKey(ev) {
         // Don't intercept when typing in inputs
