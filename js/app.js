@@ -484,10 +484,15 @@ Alpine.data('explorer', () => ({
 
     // ─── Init for these features (called from main init) ─────────────────────
     async _initExtensions() {
-        // Load /etc/shells
+        // Load /etc/shells. De-duplicated: the list is rendered by an x-for
+        // keyed on the shell path, and a repeated line in /etc/shells (package
+        // installs and hand edits both produce them) would give Alpine two
+        // identical :key values. Its keyed diff then works from a stale node
+        // reference and throws inside init, killing the whole component — the
+        // page comes up as Cockpit's "Ooops!". See issue #1.
         try {
             const txt = await FS.readText('/etc/shells');
-            const shells = (txt || '').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#'));
+            const shells = [...new Set((txt || '').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#')))];
             if (shells.length) this.shells = shells;
         } catch (e) {}
         // tmux is managed by the dedicated tmux session manager (toolbar button),
