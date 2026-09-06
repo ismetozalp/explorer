@@ -484,24 +484,13 @@ Alpine.data('explorer', () => ({
 
     // ─── Init for these features (called from main init) ─────────────────────
     async _initExtensions() {
-        // Load /etc/shells. De-duplicated: the list is rendered by an x-for
-        // keyed on the shell path, and a repeated line in /etc/shells (package
-        // installs and hand edits both produce them) would give Alpine two
-        // identical :key values. Its keyed diff then works from a stale node
-        // reference and throws inside init, killing the whole component — the
-        // page comes up as Cockpit's "Ooops!". See issue #1.
-        try {
-            const txt = await FS.readText('/etc/shells');
-            const shells = [...new Set((txt || '').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#')))];
-            if (shells.length) this.shells = shells;
-        } catch (e) {}
-        // tmux is managed by the dedicated tmux session manager (toolbar button),
-        // never as a "default shell" — drop it from the settings list even when
-        // it's listed in /etc/shells.
-        this.shells = this.shells.filter(s => s.replace(/.*\//, '') !== 'tmux');
-        if (!this.settings.defaultShell || !this.shells.includes(this.settings.defaultShell)) {
-            this.settings.defaultShell = this.shells.find(s => s.endsWith('/bash')) || this.shells[0];
-        }
+        // Load /etc/shells. Read here, parsed by _parseShells (js/core/settings.js)
+        // — dedup, tmux exclusion, and the fallback all live there, pure and
+        // unit-tested; that comment explains why uniqueness is load-bearing.
+        let shellsTxt = '';
+        try { shellsTxt = await FS.readText('/etc/shells'); } catch (e) {}
+        this.shells = this._parseShells(shellsTxt, this.shells);
+        this.settings.defaultShell = this._pickDefaultShell(this.shells, this.settings.defaultShell);
         if (!this.settings.diffView) this.settings.diffView = 'side';
 
         // Detect tmux (for the toolbar session-manager button) and restore any
