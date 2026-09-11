@@ -1,6 +1,19 @@
 // File operations (copy/cut/paste, rename, delete, new file/folder), download,
 // and permissions. Core, extracted from app.js (2.0 modularization). Methods only.
 window.ExplorerFileOps = {
+    // A name-only field (rename, new file/folder, paste-as) must be a SINGLE path
+    // component — never a path. Rejecting "/", "." and ".." stops values like
+    // "../sibling/important" from moving/creating items outside the shown folder
+    // (which would also skip the replace-existing prompt). Toasts and returns.
+    _isPlainName(name) {
+        if (typeof name !== 'string' || name === '' || name === '.' || name === '..' ||
+            name.includes('/') || name.includes('\0')) {
+            this.toast('Name can’t contain “/” or be “.” or “..”.', 'danger');
+            return false;
+        }
+        return true;
+    },
+
     async openFile(tab, file) {
         if (file.type === 'd') {
             await this.navigate(tab, file.path);
@@ -36,6 +49,7 @@ window.ExplorerFileOps = {
         const file = sel[0];
         const newName = await this.askPrompt('Rename', 'New name', file.name);
         if (!newName || newName === file.name) return;
+        if (!this._isPlainName(newName)) return;
         const newPath = Util.joinPath(Util.dirname(file.path), newName);
         const op = this._beginOp('Rename ' + file.name + ' → ' + newName);
         try {
@@ -379,6 +393,7 @@ window.ExplorerFileOps = {
                 mode === 'move' ? 'Move as…' : 'Paste as…',
                 'Name in ' + dest, def);
             if (!name) return; // cancelled
+            if (!this._isPlainName(name)) return;
 
             let finalName = name;
             if (mode === 'copy' && sameDir && name === origName) {
@@ -454,6 +469,7 @@ window.ExplorerFileOps = {
         const tab = this.currentPane();
         const name = await this.askPrompt('New folder', 'Folder name', 'New folder');
         if (!name) return;
+        if (!this._isPlainName(name)) return;
         const target = Util.joinPath(tab.path, name);
         try {
             await FS.mkdir(target);
@@ -468,6 +484,7 @@ window.ExplorerFileOps = {
         const tab = this.currentPane();
         const name = await this.askPrompt('New file', 'File name', 'untitled.txt');
         if (!name) return;
+        if (!this._isPlainName(name)) return;
         const target = Util.joinPath(tab.path, name);
         try {
             await FS.touch(target);

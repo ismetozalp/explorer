@@ -818,10 +818,15 @@ window.ExplorerMounts = {
     async loadFstab() {
         this.mounts.loading = true;
         this.mounts.error = '';
+        this.mounts.loadError = null;
         this.mounts.mountResults = [];
         try {
-            let text = '';
-            try { text = await FS.readText('/etc/fstab', { adminTry: true }); } catch (e) { text = ''; }
+            // A failed read must NOT become an empty editor: saving that would
+            // overwrite /etc/fstab with a blank file and could stop filesystems
+            // mounting at next boot. Record the error and block saving.
+            let text;
+            try { text = await FS.readText('/etc/fstab', { adminTry: true }); }
+            catch (e) { this.mounts.loadError = e.message || 'Could not read /etc/fstab'; throw e; }
             this.mounts.raw = text;
             const parsed = this._parseFstab(text);
             this.mounts.rows = parsed.rows;
@@ -855,6 +860,13 @@ window.ExplorerMounts = {
     },
 
     async saveFstab() {
+        if (this.mounts.loading || this.mounts.loadError) {
+            this.mounts.error = this.mounts.loading
+                ? 'Still reading /etc/fstab — wait for the reload to finish before saving.'
+                : 'Refusing to save — /etc/fstab could not be read (' + this.mounts.loadError + '). Fix access and reopen Mounts; saving now would overwrite it.';
+            this.toast('Cannot save yet: /etc/fstab was not read successfully.', 'danger');
+            return;
+        }
         // Resolve the rows to validate/serialize from the active view.
         let rows;
         if (this.mounts.rawMode) {
@@ -887,6 +899,9 @@ window.ExplorerMounts = {
             op.statusText = 'Backing up to /etc/fstab.bak';
             await cockpit.spawn(['sh', '-c', 'cp -a /etc/fstab /etc/fstab.bak 2>/dev/null || true'], FS.spawnOpts({ admin: true }));
 
+            // Re-check after the backup await: a reload could have started and
+            // failed in that window, making `text` stale/empty.
+            if (this.mounts.loading || this.mounts.loadError) throw new Error('/etc/fstab was not read reliably — aborting to avoid overwriting it.');
             op.statusText = 'Writing /etc/fstab';
             await FS.writeText('/etc/fstab', text, { admin: true });
 

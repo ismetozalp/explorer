@@ -2,6 +2,48 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.3.0
+
+- **New: Users & sudo management (`⛊ Users`).** Create local OS accounts,
+  grant/revoke sudo, enable full passwordless sudo, and delete accounts from a
+  single panel. Sudo is granted via the distro admin group (`wheel`/`sudo`,
+  auto-detected from the sudoers policy); passwordless sudo writes a
+  `visudo`-validated, app-managed `/etc/sudoers.d/90-explorer-<user>` drop-in
+  (`NOPASSWD:ALL`) — `/etc/sudoers` and your own drop-ins are never edited, and
+  an invalid file is never installed. Strict username validation; passwords go to
+  `chpasswd` on stdin (never argv/logs); you can't revoke your own sudo or delete
+  your own account; removing the last admin is warned; only local (`files`)
+  accounts are listed. Delete is a distinct action with an opt-in
+  “remove home directory” choice.
+
+This release also included a full security/correctness review of the **wider
+codebase** (not just the new feature), which fixed several pre-existing issues:
+
+- **fstab and GRUB editors no longer risk wiping the file after a failed read.**
+  If `/etc/fstab` or `/etc/default/grub` can't be read, the editor now shows the
+  error and blocks Save (previously it silently opened empty and could overwrite
+  the real file), including a re-check right before writing to close a
+  reload-while-saving race.
+- **GitHub auth hardening.** The access token is no longer passed on the `git`
+  command line (moved into the process environment, so it can't be read from
+  `/proc/<pid>/cmdline` by other local users), and an authenticated push/fetch
+  only redirects to `github.com` when the checkout's origin is actually GitHub —
+  never pushing a GitLab/Bitbucket/self-hosted repo to a same-named GitHub one.
+- **Name fields reject path traversal.** Rename, new file/folder, and paste-as
+  now refuse `/`, `.` and `..`, so an item can't be moved or created outside the
+  folder shown.
+- **`find` never parses a path as an expression.** A directory literally named
+  `-delete`, `!`, or `(` can no longer be interpreted as a `find` operator.
+- **Pasted clipboard media is kept private.** It's written into a `0700`
+  directory the user owns (files `0600`), failing closed rather than into a
+  directory another local user could have pre-created on a shared `/tmp`.
+- **Compressing a cross-directory selection is rejected** instead of silently
+  archiving the wrong files.
+- **Persisted preview/editor windows reopen again** next session (the saved state
+  was passed to the restorer in the wrong shape, so nothing reopened).
+- **Dialog prompts resolve on dismissal** (Esc/backdrop) instead of hanging, and
+  clear secret values afterward; password prompts are now masked.
+
 ## 3.2.2
 
 - **The `/etc/shells` parsing from 3.2.1 is now a pure, unit-tested pair of

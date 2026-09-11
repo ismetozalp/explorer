@@ -1291,6 +1291,37 @@ Editing only `/etc/default/grub` (not `/etc/grub.d/`).
 
 ---
 
+### Users & sudo (`⛊ Users`)
+
+New in **3.3.0**. Manage local OS accounts and their sudo access from a single
+panel — create users, grant or revoke sudo, enable passwordless sudo, and delete
+accounts. Runs the standard tools (`useradd`, `usermod`, `gpasswd`, `userdel`,
+`chpasswd`, `visudo`, `install`) through Cockpit's superuser bridge, so it needs
+administrator access.
+
+![Users and sudo](screenshots/users-sudo.svg)
+
+- **Create user** — `useradd -m`, set the password (sent to `chpasswd` on stdin,
+  never on the command line), and optionally grant sudo / passwordless sudo in
+  one step.
+- **Grant / revoke sudo** — adds to or removes from the distro admin group
+  (`wheel` on RHEL/Fedora, `sudo` on Debian/Ubuntu — auto-detected from the
+  sudoers policy). Revoke also removes the managed passwordless drop-in.
+- **Passwordless sudo** — writes a `visudo`-validated, **app-managed**
+  `/etc/sudoers.d/90-explorer-<user>` drop-in (`NOPASSWD:ALL`). `/etc/sudoers`
+  and your own `/etc/sudoers.d` files are never touched, and a syntactically
+  invalid file is never installed, so sudo can't be broken.
+- **Delete account** — a distinct, clearly-marked action separate from “revoke
+  sudo”, with an opt-in “also remove home directory” (`userdel -r`) choice.
+
+**Safety:** usernames are strictly validated before any command runs; you can't
+revoke your own sudo or delete your own account; removing the last administrator
+is warned; and passwords are never written to argv or logs. Only local accounts
+(the `files` NSS database) are listed — remote LDAP/SSSD identities that these
+tools can't manage are excluded.
+
+---
+
 ## Keyboard shortcuts
 
 | Key                | Action                                  |

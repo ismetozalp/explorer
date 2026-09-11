@@ -728,30 +728,37 @@ window.ExplorerGithub = {
     // clone's own HTTPS remote can't read credentials non-interactively).
     // GIT_TERMINAL_PROMPT=0 ⇒ git errors out instead of hanging if it ever
     // needs to prompt for credentials.
+    // Remote URL + process environment for a token-authenticated git op. The
+    // auth header goes in the ENVIRONMENT (GIT_CONFIG_*), never on argv, so the
+    // PAT can't be read from /proc/<pid>/cmdline by other local users. And we
+    // only redirect to https://github.com/<ownerRepo> when origin is actually
+    // GitHub — otherwise a GitLab/Bitbucket/self-hosted origin would be pushed to
+    // (or fetched from) an unrelated same-named GitHub repository.
+    async _gitAuthedRemote(cache, ownerRepo, token) {
+        const environ = ['GIT_TERMINAL_PROMPT=0'];
+        if (!token || !ownerRepo) return { url: 'origin', environ };
+        let originUrl = '';
+        try { originUrl = (await cockpit.spawn(['git', '-C', cache, 'remote', 'get-url', 'origin'], { err: 'message' })).trim(); } catch (e) {}
+        if (!/(^|@|\/\/)github\.com([:/])/i.test(originUrl)) return { url: 'origin', environ };
+        environ.push('GIT_CONFIG_COUNT=1', 'GIT_CONFIG_KEY_0=http.extraheader',
+            'GIT_CONFIG_VALUE_0=Authorization: Basic ' + btoa('x-access-token:' + token));
+        return { url: 'https://github.com/' + ownerRepo + '.git', environ };
+    },
+
     async _gitFetchAuthed(cache, ownerRepo, refspec) {
         const token = await GIT.ghToken();
-        const args = ['env', 'GIT_TERMINAL_PROMPT=0', 'git', '-C', cache];
-        let url = 'origin';
-        if (token && ownerRepo) {
-            url = 'https://github.com/' + ownerRepo + '.git';
-            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token));
-        }
-        args.push('fetch', '--prune', url);
+        const { url, environ } = await this._gitAuthedRemote(cache, ownerRepo, token);
+        const args = ['git', '-C', cache, 'fetch', '--prune', url];
         if (refspec) args.push(refspec);
-        await cockpit.spawn(args, { err: 'message' });
+        await cockpit.spawn(args, { err: 'message', environ });
     },
 
     // Token-authed push to the canonical GitHub repo.
     async _gitPushAuthed(cache, ownerRepo, branch) {
         const token = await GIT.ghToken();
-        const args = ['env', 'GIT_TERMINAL_PROMPT=0', 'git', '-C', cache];
-        let url = 'origin';
-        if (token && ownerRepo) {
-            url = 'https://github.com/' + ownerRepo + '.git';
-            args.push('-c', 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token));
-        }
-        args.push('push', url, (branch || 'HEAD'));
-        await cockpit.spawn(args, { err: 'message' });
+        const { url, environ } = await this._gitAuthedRemote(cache, ownerRepo, token);
+        const args = ['git', '-C', cache, 'push', url, (branch || 'HEAD')];
+        await cockpit.spawn(args, { err: 'message', environ });
         // Pushing to an explicit URL doesn't move the local origin/<branch>
         // tracking ref, so sync it (push succeeded ⇒ origin matches local).
         if (branch) {
@@ -936,9 +943,13 @@ window.ExplorerGithub = {
             const ownerRepo = this.commitBrowser.repo;
             if (token && ownerRepo) {
                 const url = 'https://github.com/' + ownerRepo + '.git';
-                const hdr = 'http.extraheader=Authorization: Basic ' + btoa('x-access-token:' + token);
+                // Auth header via env (GIT_CONFIG_*), not argv, to keep the PAT
+                // out of /proc/<pid>/cmdline. (Commit browser is GitHub-specific,
+                // so no origin-host gating is needed here.)
+                const environ = ['GIT_CONFIG_COUNT=1', 'GIT_CONFIG_KEY_0=http.extraheader',
+                    'GIT_CONFIG_VALUE_0=Authorization: Basic ' + btoa('x-access-token:' + token)];
                 for (const ref of [branch, sha]) {
-                    try { await cockpit.spawn(['git', '-C', cache, '-c', hdr, 'fetch', '--no-tags', url, ref], { err: 'message' }); } catch (e) {}
+                    try { await cockpit.spawn(['git', '-C', cache, 'fetch', '--no-tags', url, ref], { err: 'message', environ }); } catch (e) {}
                     if (await has()) return true;
                 }
             }

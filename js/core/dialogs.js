@@ -31,16 +31,20 @@ window.ExplorerDialogs = {
     askPrompt(title, label, defaultValue, opts) {
         opts = opts || {};
         return new Promise(resolve => {
-            this.promptDlg = { title, label, value: defaultValue || '', multiline: !!opts.multiline, resolve };
+            this.promptDlg = { title, label, value: defaultValue || '', multiline: !!opts.multiline, password: !!opts.password, result: undefined, resolve };
             bootstrap.Modal.getOrCreateInstance(this.promptModalEl).show();
         });
     },
 
+    // Record the value and start hiding; the promise is resolved by the modal's
+    // 'hidden.bs.modal' handler (html/modals/dialogs.html), same as the confirm
+    // dialog. So a dismissal (Esc/backdrop) also resolves — with null — instead
+    // of hanging forever, a secret prompt's value is cleared on close, and rapid
+    // back-to-back prompts can't cross-resolve.
     resolvePrompt(value) {
-        const r = this.promptDlg.resolve;
-        this.promptDlg.resolve = null;
+        if (!this.promptDlg.resolve) return;
+        this.promptDlg.result = value;
         bootstrap.Modal.getOrCreateInstance(this.promptModalEl).hide();
-        if (r) r(value);
     },
 
     // When a modal opens, put the cursor in its first field IF that field is a
