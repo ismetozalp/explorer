@@ -19,6 +19,7 @@
         'html/modals/toolbar.html',   // settings, global actions, self-update, run command
         'html/modals/github.html',    // gh panel, commit browser, publish, …
         'html/modals/plugins.html',   // Plugin Manager (update/install Cockpit plugins)
+        'html/modals/sudoers.html',   // Users & sudo management (3.3.0)
     ];
 
     function loadScript(src) {

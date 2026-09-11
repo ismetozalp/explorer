@@ -31,7 +31,13 @@ window.FS = (function () {
         const FSEP = '\\037';
         const RSEP = '\\036';
         const fmt = `%y${FSEP}%M${FSEP}%u${FSEP}%g${FSEP}%s${FSEP}%T@${FSEP}%l${FSEP}%P${RSEP}`;
-        const cmd = ['find', path, '-mindepth', '1', '-maxdepth', '1', '-printf', fmt];
+        // Never let the path be parsed as a find EXPRESSION. GNU find reads a
+        // leading '-', '!', or '(' as an operator, so a relative directory named
+        // "-delete", "!", or "(" would run as an expression against the cwd.
+        // Explorer paths are absolute ('/'); force ANY relative path to start
+        // with './' so find always treats it as a path.
+        const findPath = (typeof path === 'string' && path && path[0] !== '/') ? './' + path : path;
+        const cmd = ['find', findPath, '-mindepth', '1', '-maxdepth', '1', '-printf', fmt];
         try {
             const data = await cockpit.spawn(cmd, spawnOpts(opts));
             const out = [];
@@ -183,6 +189,12 @@ window.FS = (function () {
         opts = opts || {};
         if (!paths.length) throw new Error('No paths to compress');
         const parent = Util.dirname(paths[0]);
+        // We cd to `parent` and reference basenames, so every path MUST share it.
+        // A cross-directory selection (easy to make from recursive search results)
+        // would otherwise archive the wrong files — enforce rather than mis-archive.
+        if (!paths.every(p => Util.dirname(p) === parent)) {
+            throw new Error('All items must be in the same folder to compress them together.');
+        }
         const names = paths.map(p => Util.basename(p));
         let cmd;
         if (format === 'zip') {

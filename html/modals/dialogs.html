@@ -24,13 +24,13 @@
 </div>
 
 <!-- Prompt modal -->
-<div class="modal fade" id="promptModal" tabindex="-1" x-data x-init="promptModalEl = $el">
+<div class="modal fade" id="promptModal" tabindex="-1" x-data x-init="promptModalEl = $el; $el.addEventListener('hidden.bs.modal', () => { if (promptDlg.resolve) { const r = promptDlg.resolve; promptDlg.resolve = null; const v = (promptDlg.result !== undefined) ? promptDlg.result : null; if (promptDlg.password) promptDlg.value = ''; promptDlg.result = undefined; r(v); } })">
     <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title" x-text="promptDlg.title"></h5></div>
             <div class="modal-body">
                 <label class="form-label" x-text="promptDlg.label"></label>
-                <input x-show="!promptDlg.multiline" type="text" class="form-control" x-model="promptDlg.value" @keydown.enter="resolvePrompt(promptDlg.value)">
+                <input x-show="!promptDlg.multiline" :type="promptDlg.password ? 'password' : 'text'" class="form-control" x-model="promptDlg.value" @keydown.enter="resolvePrompt(promptDlg.value)" :autocomplete="promptDlg.password ? 'new-password' : 'off'">
                 <textarea x-show="promptDlg.multiline" class="form-control font-monospace" rows="6" x-model="promptDlg.value" @keydown.ctrl.enter="resolvePrompt(promptDlg.value)" @keydown.meta.enter="resolvePrompt(promptDlg.value)"></textarea>
                 <small x-show="promptDlg.multiline" class="text-muted">Multiple lines allowed · press Ctrl/⌘ + Enter to submit.</small>
             </div>

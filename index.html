@@ -86,6 +86,9 @@
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openPluginUpdater()" x-show="!ui.phone" title="Plugin Manager — update or install your Cockpit plugins">
         <span>⬆ Plugins</span>
     </button>
+    <button class="btn btn-sm btn-link tab-bar-btn" @click="openUsers()" x-show="!ui.phone" title="Users &amp; sudo — manage local accounts and sudo access">
+        <span>⛊ Users</span>
+    </button>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openSettings()" x-show="!ui.phone" title="Settings">
         <span>⚙</span>
     </button>
@@ -99,6 +102,7 @@
             <button class="toolbar-more-item" x-show="grub.available" @click="ui.moreOpen=false; openGrub()">⏻ GRUB</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openActionsManager()">⚙ Actions</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openPluginUpdater()">⬆ Plugins</button>
+            <button class="toolbar-more-item" @click="ui.moreOpen=false; openUsers()">⛊ Users &amp; sudo</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openSettings()">⚙ Settings</button>
             <button class="toolbar-more-item" x-show="pluginVersion"
                     @click="ui.moreOpen=false; updateState.available ? startSelfUpdate() : checkForUpdate(true)"
@@ -707,6 +711,7 @@
 <script src="js/features/videoplayer.js"></script>
 <script src="js/features/deeplink.js"></script>
 <script src="js/features/plugins.js"></script>
+<script src="js/features/sudoers.js"></script>
 <script src="js/core/tabs.js"></script>
 <script src="js/core/filelist.js"></script>
 <script src="js/core/fileops.js"></script>

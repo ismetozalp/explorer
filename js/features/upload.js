@@ -129,7 +129,16 @@ window.ExplorerUpload = {
 
         const op = this._beginOp('Paste media');
         try {
-            await FS.mkdir(dir);
+            // Establish a PRIVATE directory we own (0700), or abort. Never write
+            // pasted screenshots/videos into a directory another local user could
+            // have pre-created on a shared /tmp, where they could read them.
+            // mkdir -m 700 makes it owner-only; if it already exists, require that
+            // WE own it and it is 0700 — otherwise fail closed.
+            await cockpit.spawn(['sh', '-c',
+                'd="$1"; if mkdir -m 700 "$d" 2>/dev/null; then exit 0; fi; ' +
+                'own=$(stat -c "%U:%a" "$d" 2>/dev/null) || { echo "clipboard dir $d could not be created"; exit 1; }; ' +
+                'me=$(id -un); [ "$own" = "$me:700" ] || { echo "clipboard dir $d is not a private 0700 directory you own (found $own) — refusing to paste there"; exit 1; }',
+                'sh', dir], { err: 'message' });
             const hours = Number(this.settings.clipboardKeepHours);
             if (Number.isFinite(hours) && hours > 0) {
                 const mins = Math.round(hours * 60);
@@ -140,6 +149,7 @@ window.ExplorerUpload = {
                 } catch (e) { /* prune is best-effort */ }
             }
             await this._doUpload(op, dest, blob, {});
+            try { await cockpit.spawn(['chmod', '600', dest], { err: 'ignore' }); } catch (e) {}
             this._endOp(op, 'done');
         } catch (e) {
             console.error('Clipboard image upload failed:', e, 'dest:', dest);

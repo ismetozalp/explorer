@@ -78,10 +78,13 @@ window.ExplorerGrub = {
     },
 
     async loadGrub() {
-        this.grub.loading = true; this.grub.error = '';
+        this.grub.loading = true; this.grub.error = ''; this.grub.loadError = null;
         try {
-            let text = '';
-            try { text = await FS.readText('/etc/default/grub', { adminTry: true }); } catch (e) { text = ''; }
+            // A failed read must not become an empty config: saving it would wipe
+            // /etc/default/grub and regenerate the boot config with no kernel args.
+            let text;
+            try { text = await FS.readText('/etc/default/grub', { adminTry: true }); }
+            catch (e) { this.grub.loadError = e.message || 'Could not read /etc/default/grub'; throw e; }
             this.grub.raw = text;
             const parsed = this._parseGrub(text);
             this.grub.rows = parsed.rows;
@@ -110,6 +113,13 @@ window.ExplorerGrub = {
 
     async saveGrub() {
         const g = this.grub;
+        if (g.loading || g.loadError) {
+            g.error = g.loading
+                ? 'Still reading /etc/default/grub — wait for the reload to finish before saving.'
+                : 'Refusing to save — /etc/default/grub could not be read (' + g.loadError + '). Fix access and reopen; saving now would overwrite it.';
+            this.toast('Cannot save yet: /etc/default/grub was not read successfully.', 'danger');
+            return;
+        }
         const rows = g.rawMode ? this._parseGrub(g.rawEdited).rows : g.rows;
         const bad = rows.find(r => !/^[A-Za-z0-9_]+$/.test((r.key || '').trim()));
         if (bad) { g.error = `Invalid key "${(bad.key || '').trim()}" — keys look like GRUB_TIMEOUT.`; this.toast(g.error, 'warning'); return; }
@@ -127,6 +137,9 @@ window.ExplorerGrub = {
         try {
             op.statusText = 'Backing up /etc/default/grub';
             await cockpit.spawn(['sh', '-c', 'cp -a /etc/default/grub /etc/default/grub.bak 2>/dev/null || true'], FS.spawnOpts({ admin: true }));
+            // Re-check after the confirm dialog: a reload could have started and
+            // failed while we waited, which would make `text` stale/empty.
+            if (g.loading || g.loadError) throw new Error('/etc/default/grub was not read reliably — aborting to avoid overwriting it.');
             op.statusText = 'Writing /etc/default/grub';
             await FS.writeText('/etc/default/grub', text, { admin: true });
 

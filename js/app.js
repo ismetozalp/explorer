@@ -15,6 +15,7 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerVideo,   // js/features/videoplayer.js
     ...window.ExplorerDeepLink,  // js/features/deeplink.js
     ...window.ExplorerPlugins,   // js/features/plugins.js
+    ...window.ExplorerSudoers,   // js/features/sudoers.js
     ...window.ExplorerTabs,      // js/core/tabs.js
     ...window.ExplorerFileList,  // js/core/filelist.js
     ...window.ExplorerFileOps,   // js/core/fileops.js
@@ -36,6 +37,9 @@ Alpine.data('explorer', () => ({
     // Plugin Manager (update/install other Cockpit plugins) state
     pluginUpd: { open: false, checking: false, updating: false, force: false, rows: [], log: '', finished: false },
     pluginsModalEl: null,
+    // Users & sudo management (3.3.0). See js/features/sudoers.js.
+    su: { users: [], loading: false, error: '', adminGroup: '', canAdmin: false, me: '', adminCount: 0, busy: false, form: { username: '', password: '', sudo: false, nopasswd: false } },
+    sudoersModalEl: null,
 
     customActions: { user: [], system: [], builtin: [] },
 
@@ -95,7 +99,7 @@ Alpine.data('explorer', () => ({
     confirmDlg: { title: '', message: '', confirmLabel: 'OK', cancelLabel: 'Cancel', buttons: null, result: undefined, resolve: null },
     confirmModalEl: null,
 
-    promptDlg: { title: '', label: '', value: '', resolve: null },
+    promptDlg: { title: '', label: '', value: '', multiline: false, password: false, result: undefined, resolve: null },
     promptModalEl: null,
     // Directory picker (mini browser used by clone/checkout/register prompts)
     dirPicker: { open: false, title: '', path: '', entries: [], loading: false, resolve: null, pathInput: '' },
@@ -274,7 +278,10 @@ Alpine.data('explorer', () => ({
                     }
                 } catch (e) {}
             }
-            if (data && data.windows) savedWindows = data.windows;
+            // Pass the whole persisted object: _restoreWindows reads .windows,
+            // .activeWinPath and .hostVisible off it. (Passing data.windows — just
+            // the array — left saved.windows undefined, so nothing ever reopened.)
+            if (data && data.windows) savedWindows = data;
             if (data && Array.isArray(data.tmuxTabs)) this._savedTmuxTabs = data.tmuxTabs.slice();
             if (data && Array.isArray(data.tabs) && data.tabs.length) {
                 const seen = new Set();
