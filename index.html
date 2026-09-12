@@ -86,6 +86,16 @@
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openPluginUpdater()" x-show="!ui.phone" title="Plugin Manager — update or install your Cockpit plugins">
         <span>⬆ Plugins</span>
     </button>
+    <div class="ai-menu-wrap" x-show="(ai.have.claude || ai.have.codex) && !ui.phone" x-cloak @click.outside="ui.aiMenuOpen = false" style="position:relative">
+        <button class="btn btn-sm btn-link tab-bar-btn" @click="ui.aiMenuOpen = !ui.aiMenuOpen" :class="{ 'tmux-btn-active': ui.aiMenuOpen }" title="Open an AI CLI (Claude / Codex) in the current folder">
+            <span>✦ AI ▾</span>
+        </button>
+        <div class="agent-add-menu agent-add-menu--toolbar" x-show="ui.aiMenuOpen" x-cloak>
+            <button x-show="ai.have.claude" @click="ui.aiMenuOpen=false; openAgentTab('claude', currentPane().path)">✦ New Claude</button>
+            <button x-show="ai.have.codex" @click="ui.aiMenuOpen=false; openAgentTab('codex', currentPane().path)">◆ New Codex</button>
+            <button @click="ui.aiMenuOpen=false; openAgentSessions()">⟲ Resume session…</button>
+        </div>
+    </div>
     <button class="btn btn-sm btn-link tab-bar-btn" @click="openUsers()" x-show="!ui.phone" title="Users &amp; sudo — manage local accounts and sudo access">
         <span>⛊ Users</span>
     </button>
@@ -102,6 +112,9 @@
             <button class="toolbar-more-item" x-show="grub.available" @click="ui.moreOpen=false; openGrub()">⏻ GRUB</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openActionsManager()">⚙ Actions</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openPluginUpdater()">⬆ Plugins</button>
+            <button class="toolbar-more-item" x-show="ai.have.claude" @click="ui.moreOpen=false; openAgentTab('claude', currentPane().path)">✦ New Claude</button>
+            <button class="toolbar-more-item" x-show="ai.have.codex" @click="ui.moreOpen=false; openAgentTab('codex', currentPane().path)">◆ New Codex</button>
+            <button class="toolbar-more-item" x-show="ai.have.claude || ai.have.codex" @click="ui.moreOpen=false; openAgentSessions()">⟲ Resume AI session</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openUsers()">⛊ Users &amp; sudo</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openSettings()">⚙ Settings</button>
             <button class="toolbar-more-item" x-show="pluginVersion"
@@ -536,6 +549,64 @@
             </div>
         </div>
       </template>
+      <!-- ===== AI TAB (claude / codex — terminal + live git diff) ===== -->
+      <template x-if="tab.kind === 'agent'">
+        <div class="agent-tab-body">
+            <div class="term-tabbar agent-tabbar">
+                <div class="term-subtab-list">
+                    <template x-for="t in (tab.terminals || [])" :key="t.id">
+                        <div class="term-subtab" :class="{ active: tab.activeTermId === t.id }"
+                             @click="aiSelectSession(tab, t.id)"
+                             @auxclick="$event.button === 1 && aiCloseSession(tab, t.id)"
+                             @dblclick.stop="aiRenameSession(tab, t.id)">
+                            <span class="term-subtab-label"><span x-text="t.tool === 'codex' ? '◆' : '✦'"></span> <span x-text="t.label"></span></span>
+                            <button class="term-subtab-close" @click.stop="aiCloseSession(tab, t.id)" title="Close session">×</button>
+                        </div>
+                    </template>
+                </div>
+                <div class="agent-add-wrap" @click.outside="ui.agentAddOpen = false">
+                    <button class="term-subtab-add" @click="ui.agentAddOpen = !ui.agentAddOpen" title="New session">＋▾</button>
+                    <div class="agent-add-menu" x-show="ui.agentAddOpen" x-cloak>
+                        <button x-show="ai.have.claude" @click="ui.agentAddOpen=false; aiAddSession(tab,'claude',{dir:tab.path})">✦ New Claude</button>
+                        <button x-show="ai.have.codex" @click="ui.agentAddOpen=false; aiAddSession(tab,'codex',{dir:tab.path})">◆ New Codex</button>
+                        <button @click="ui.agentAddOpen=false; openAgentSessions()">⟲ Resume…</button>
+                    </div>
+                </div>
+            </div>
+            <div class="agent-split">
+                <div class="agent-term term-containers">
+                    <template x-for="t in (tab.terminals || [])" :key="t.id">
+                        <div class="term-container" :id="'term-container-' + t.id" x-show="tab.activeTermId === t.id"></div>
+                    </template>
+                </div>
+                <div class="agent-diff">
+                    <div class="agent-diff-head">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='all'}" @click="aiSetDiffMode(aiActiveSession(tab),'all')">All</button>
+                            <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='unstaged'}" @click="aiSetDiffMode(aiActiveSession(tab),'unstaged')">Unstaged</button>
+                            <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='staged'}" @click="aiSetDiffMode(aiActiveSession(tab),'staged')">Staged</button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiRefreshDiff(aiActiveSession(tab))" title="Refresh">⟳</button>
+                        <span class="agent-diff-note text-muted small ms-2" x-show="aiActiveSession(tab) && aiActiveSession(tab).diff.note" x-text="aiActiveSession(tab) ? aiActiveSession(tab).diff.note : ''"></span>
+                    </div>
+                    <template x-if="aiActiveSession(tab) && !aiActiveSession(tab).diff.repo">
+                        <div class="agent-diff-empty text-muted p-3">Not a git repository — the terminal still works.</div>
+                    </template>
+                    <template x-if="aiActiveSession(tab) && aiActiveSession(tab).diff.repo">
+                        <div class="agent-diff-wrap">
+                            <div class="agent-diff-files" x-show="aiActiveSession(tab).diff.files.length">
+                                <template x-for="f in aiActiveSession(tab).diff.files" :key="f.file">
+                                    <div class="agent-diff-file"><span class="add" x-text="'+'+f.added"></span> <span class="rem" x-text="'−'+f.removed"></span> <span class="fn" x-text="f.file"></span></div>
+                                </template>
+                            </div>
+                            <pre class="agent-diff-body" x-show="aiActiveSession(tab).diff.text"><code class="language-diff" x-text="aiActiveSession(tab).diff.text" x-effect="aiActiveSession(tab) && aiActiveSession(tab).diff.text && window.Prism && Prism.highlightElement($el)"></code></pre>
+                            <div class="agent-diff-empty text-muted p-3" x-show="!aiActiveSession(tab).diff.text">No changes.</div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+      </template>
     </div>
 </template>
 
@@ -610,6 +681,9 @@
             <li @click="newTerminalTab((ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)"
                 x-text="(ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? 'Open folder in new terminal tab' : 'Open in new terminal tab'"></li>
             <li @click="openInTerminal((ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)">Open in Cockpit terminal</li>
+            <li class="ctx-sep" x-show="ai.have.claude || ai.have.codex"></li>
+            <li x-show="ai.have.claude" @click="openAgentTab('claude', (ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)">✦ Open Claude here</li>
+            <li x-show="ai.have.codex" @click="openAgentTab('codex', (ctxMenu.kind === 'file' && ctxMenu.target && ctxMenu.target.type === 'd') ? ctxMenu.target.path : currentPane()?.path)">◆ Open Codex here</li>
             <li x-show="ctxMenu.kind === 'file' && selectedFiles().length === 1" @click="propertiesSelected()">Permissions…</li>
             <li class="ctx-sep"></li>
             <li @click="reloadActions()" title="Re-read custom actions from disk (after editing actions.json)">↻ Reload actions</li>
@@ -712,6 +786,8 @@
 <script src="js/features/deeplink.js"></script>
 <script src="js/features/plugins.js"></script>
 <script src="js/features/sudoers.js"></script>
+<script src="js/features/agent-sessions.js"></script>
+<script src="js/features/agent.js"></script>
 <script src="js/core/tabs.js"></script>
 <script src="js/core/filelist.js"></script>
 <script src="js/core/fileops.js"></script>

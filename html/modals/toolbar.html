@@ -20,6 +20,17 @@
                 <div class="mb-2"><label class="form-label">Keep pasted media for (hours)</label><input type="number" class="form-control" x-model.number="settings.clipboardKeepHours" @change="saveSettings()" min="0" max="8760"><small class="form-text text-muted">Older clip-* files in that folder are pruned on each paste. 0 = never prune.</small></div>
                 <div class="mb-2"><label class="form-label">Output pane line limit</label><input type="number" class="form-control" x-model.number="settings.outputMaxLines" min="0" max="1000000"><small class="form-text text-muted">Streaming panes keep at most this many lines; oldest are dropped. 0 = unlimited.</small></div>
                 <hr>
+                <h6 class="text-muted small">AI CLIs (Claude / Codex)</h6>
+                <div class="mb-2"><label class="form-label">Run AI CLIs in</label>
+                    <select class="form-select" x-model="settings.aiLaunch" @change="saveSettings()">
+                        <option value="shell">Shell (your login shell)</option>
+                        <option value="tmux">tmux (persistent — asks for a session name)</option>
+                    </select>
+                    <small class="form-text text-muted">tmux sessions survive closing the tab; closing a sub-tab just detaches.</small>
+                </div>
+                <div class="mb-2"><label class="form-label">Claude sessions directory</label><input type="text" class="form-control" x-model="settings.aiClaudeSessionsDir" @change="saveSettings()" spellcheck="false" placeholder="~/.claude/projects"><small class="form-text text-muted">Where the Resume browser looks for Claude sessions.</small></div>
+                <div class="mb-2"><label class="form-label">Codex sessions directory</label><input type="text" class="form-control" x-model="settings.aiCodexSessionsDir" @change="saveSettings()" spellcheck="false" placeholder="~/.codex/sessions"><small class="form-text text-muted">Where the Resume browser looks for Codex sessions.</small></div>
+                <hr>
                 <div class="mb-2">
                     <label class="form-label">Update source (GitHub repo or releases URL)</label>
                     <input class="form-control" x-model="settings.updateRepo" placeholder="ismetozalp/explorer">

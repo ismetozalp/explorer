@@ -1,0 +1,43 @@
+<!-- Resume AI session browser — partial injected by js/boot.js. Do not add a wrapper element. -->
+<div class="modal fade" id="agentSessionsModal" tabindex="-1" x-data x-init="agentSessionsModalEl = $el">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Resume an AI session</h5>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <input type="search" class="form-control form-control-sm" style="width:14rem" placeholder="Search path or title…" x-model="agentBrowser.q">
+          <select class="form-select form-select-sm" style="width:auto" x-model="agentBrowser.filter">
+            <option value="all">All</option>
+            <option value="claude">Claude</option>
+            <option value="codex">Codex</option>
+          </select>
+          <button class="btn btn-sm btn-outline-secondary" @click="openAgentSessions()" :disabled="agentBrowser.loading">
+            <span x-show="!agentBrowser.loading">Refresh</span><span x-show="agentBrowser.loading">Loading…</span>
+          </button>
+          <button type="button" class="btn-close" @click="bootstrap.Modal.getOrCreateInstance(agentSessionsModalEl).hide()" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-2" x-show="!agentBrowser.loading">
+          Sessions read from <code x-text="settings.aiClaudeSessionsDir || '~/.claude/projects'"></code> and
+          <code x-text="settings.aiCodexSessionsDir || '~/.codex/sessions'"></code> (change these in Settings). Pick one to open a tab that resumes it.
+        </div>
+        <table class="table table-sm align-middle mobile-card-table">
+          <thead><tr><th>Tool</th><th>Project</th><th>Title</th><th>Last active</th><th class="text-end">Action</th></tr></thead>
+          <tbody>
+            <template x-for="row in aiFilteredSessions()" :key="row.tool + ':' + row.id + ':' + row.path">
+              <tr>
+                <td data-label="Tool"><span class="badge" :class="row.tool === 'codex' ? 'bg-info text-dark' : 'bg-primary'" x-text="row.tool"></span></td>
+                <td data-label="Project" class="small"><code x-text="row.cwd || '—'"></code></td>
+                <td data-label="Title" class="small text-muted" x-text="row.title || '—'"></td>
+                <td data-label="Last active" class="small text-muted" x-text="aiRelTime(row.mtime)"></td>
+                <td data-label="Action" class="text-end"><button class="btn btn-sm btn-primary" @click="aiResume(row)">Resume</button></td>
+              </tr>
+            </template>
+            <tr x-show="!agentBrowser.loading && aiFilteredSessions().length === 0"><td colspan="5" class="text-center text-muted py-3">No sessions found.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
