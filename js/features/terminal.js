@@ -300,7 +300,7 @@ window.ExplorerTerminal = {
     // just spin for ~1s and give up. Non-active sub-tabs mount lazily via
     // selectTerminal when they become visible.
     _ensureTerminalsMounted(tab) {
-        if (!tab || tab.kind !== 'terminal' || !tab.terminals || !tab.terminals.length) return;
+        if (!tab || (tab.kind !== 'terminal' && tab.kind !== 'agent') || !tab.terminals || !tab.terminals.length) return;
         // The active sub-tab is the only visible one (x-show gates on activeTermId).
         // If activeTermId is stale/unset, default it to the first sub-tab so its
         // container is the one that renders — otherwise the mount would target a

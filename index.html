@@ -586,7 +586,7 @@
                             <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='unstaged'}" @click="aiSetDiffMode(aiActiveSession(tab),'unstaged')">Unstaged</button>
                             <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='staged'}" @click="aiSetDiffMode(aiActiveSession(tab),'staged')">Staged</button>
                         </div>
-                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiRefreshDiff(aiActiveSession(tab))" title="Refresh">⟳</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiStartDiffPoll(tab, aiActiveSession(tab))" title="Refresh">⟳</button>
                         <span class="agent-diff-note text-muted small ms-2" x-show="aiActiveSession(tab) && aiActiveSession(tab).diff.note" x-text="aiActiveSession(tab) ? aiActiveSession(tab).diff.note : ''"></span>
                     </div>
                     <template x-if="aiActiveSession(tab) && !aiActiveSession(tab).diff.repo">
