@@ -86,6 +86,18 @@ window.ExplorerSudoers = {
         return new RegExp('^\\s*' + esc + '\\s+.*NOPASSWD', 'm').test(fileText);
     },
 
+    // Does `sudo -l -U <user>` output show EFFECTIVE passwordless sudo? This is
+    // authoritative — it reflects grants from ANY source (/etc/sudoers, any
+    // /etc/sudoers.d file, group rules), not just our managed drop-in. We only
+    // look inside the "may run the following commands" section so a NOPASSWD
+    // mention in the Defaults block can't produce a false positive.
+    _suSudoListHasNopasswd(text) {
+        if (!text) return false;
+        const m = text.search(/may run the following commands/i);
+        if (m < 0) return false;   // no rules section → the user has no sudo
+        return /NOPASSWD/i.test(text.slice(m));
+    },
+
     // Parse the blob produced by _suReadSudoersDir's shell reader:
     //   <<FILE:name>>\n<content…> repeated. → { name: content }
     _suParseSudoersDir(text) {
@@ -228,13 +240,35 @@ window.ExplorerSudoers = {
                 su.canAdmin = true;
             } catch (e) { su.canAdmin = false; }
 
+            // Effective PASSWORDLESS state is authoritative via `sudo -l -U <user>`
+            // — it reflects NOPASSWD granted by ANY file, not just our managed
+            // drop-in. Needs root; probe each real user in parallel, with LC_ALL=C
+            // so the parsed heading isn't localized. Without admin we fall back to
+            // managed-drop-in detection. The `sudo` column deliberately stays
+            // GROUP membership — that is exactly what Grant/Revoke act on, so a
+            // narrow external rule can't misreport someone as a full administrator
+            // or break the group-based revoke/last-admin logic.
+            const effNopasswd = {};
+            if (su.canAdmin) {
+                const probes = await Promise.all(real.map(u =>
+                    this._suRoot(['env', 'LC_ALL=C', 'sudo', '-l', '-U', u.name])
+                        .then(out => [u.name, this._suSudoListHasNopasswd(out)])
+                        .catch(() => [u.name, false])));
+                for (const [name, np] of probes) effNopasswd[name] = np;
+            }
+
             su.users = real
                 .map(u => ({
                     name: u.name, uid: u.uid, home: u.home, shell: u.shell,
-                    sudo: adminSet.has(u.name), nopasswd: nopass.has(u.name),
+                    sudo: adminSet.has(u.name),
+                    // Authoritative when we could probe; else our managed drop-in.
+                    nopasswd: su.canAdmin ? !!effNopasswd[u.name] : nopass.has(u.name),
+                    // Whether OUR /etc/sudoers.d/90-explorer-<user> drop-in grants
+                    // it — i.e. whether the toggle can turn it off. Passwordless
+                    // from another file is "external" (NOPASSWD*): shown, not ours.
+                    nopasswdManaged: nopass.has(u.name),
                     // sudo via PRIMARY group can't be revoked with `gpasswd -d`
-                    // (see suRevokeSudo) — flag it so revoke can explain instead
-                    // of failing.
+                    // (see suRevokeSudo) — flag it so revoke can explain instead.
                     viaPrimary: adminGid != null && u.gid === adminGid,
                     self: u.name === su.me, busy: false,
                 }))
@@ -334,8 +368,12 @@ window.ExplorerSudoers = {
                 await this._suWriteNopasswd(name);
                 this.toast(`Passwordless sudo enabled for "${name}".`, 'success');
             } else {
+                // We can only remove OUR managed drop-in. If the user is ALSO
+                // passwordless via another file, they still will be after this —
+                // the reloaded badge (NOPASSWD*) reflects that — so don't claim
+                // "disabled", just report what we removed.
                 await this._suRemoveNopasswd(name);
-                this.toast(`Passwordless sudo disabled for "${name}".`, 'success');
+                this.toast(`Removed Explorer's passwordless-sudo rule for "${name}".`, 'success');
             }
             await this.suLoad();
         } catch (e) { this.toast(`Could not change passwordless sudo for "${name}": ` + (e.message || e), 'danger'); }

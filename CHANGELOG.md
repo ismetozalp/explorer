@@ -2,6 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 3.3.1
+
+- **Fixed: the Users & sudo panel now reflects a user's *effective* passwordless
+  state.** A user made passwordless by a pre-existing `/etc/sudoers.d/<user>`
+  file (not Explorer's own drop-in) previously showed “—” with the
+  **Passwordless** button still active. Detection is now authoritative
+  (`sudo -l -U`, run under `LC_ALL=C` so it isn't thrown off by a non-English
+  locale): the badge reads `NOPASSWD` for an Explorer-managed grant and
+  `NOPASSWD*` for one configured outside Explorer, and the toggle is disabled for
+  external grants — which Explorer can't safely remove — instead of offering to
+  “enable” what is already on. The `sudo` column stays group-based (what Grant /
+  Revoke actually change), and turning off a managed rule now reports exactly
+  what it removed.
+
 ## 3.3.0
 
 - **New: Users & sudo management (`⛊ Users`).** Create local OS accounts,
