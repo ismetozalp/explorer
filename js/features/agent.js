@@ -71,7 +71,11 @@
         async _aiTmuxExists(name) { try { await cockpit.spawn(['tmux', 'has-session', '-t', name]); return true; } catch (e) { return false; } },
 
         async aiDetect() {
-            const has = async (bin) => { try { const o = await cockpit.spawn(['sh', '-c', 'command -v "$1" 2>/dev/null', 'sh', bin]); return !!(o && o.trim()); } catch (e) { return false; } };
+            // Use an INTERACTIVE bash so ~/.bashrc runs and ~/.local/bin (where
+            // these CLIs usually live) is on PATH — matching what the AI terminal
+            // itself will resolve. Cockpit's default spawn PATH is minimal and
+            // would miss them.
+            const has = async (bin) => { try { const o = await cockpit.spawn(['bash', '-ic', 'command -v "$1" 2>/dev/null', 'bash', bin], { err: 'message' }); return !!(o && o.trim()); } catch (e) { return false; } };
             this.ai.have = { claude: await has('claude'), codex: await has('codex') };
         },
 
