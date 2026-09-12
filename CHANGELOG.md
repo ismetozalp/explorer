@@ -2,6 +2,36 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.0.0
+
+- **New: AI CLI tabs — Claude & Codex (`✦ AI`).** Run the `claude` and `codex`
+  CLIs inside Explorer in an integrated terminal with a **live git working-tree
+  diff** beside it that updates as the agent edits files.
+  - **Sub-tab sessions:** each AI tab holds multiple sessions (like the terminal
+    tab holds terminals) — add *New Claude* / *New Codex* / *Resume…*, each with
+    its own terminal and diff; close/rename them. Detection runs in your login
+    shell, so a CLI in `~/.local/bin` is found; the buttons only show for
+    installed tools.
+  - **Live diff pane:** `git diff` of the session's folder — **All / Unstaged /
+    Staged**, including untracked files, unborn-HEAD-aware, bounded so a giant
+    diff can't freeze the browser, with a changed-files strip. Polls ~1/s while
+    visible and self-heals when a folder becomes a repo.
+  - **Launch in a shell or tmux** (Settings → *Run AI CLIs in*): a shell (you
+    return to it when the CLI exits) or a persistent, named **tmux** session
+    (attach-or-create; closing the sub-tab detaches).
+  - **Resume browser:** lists prior Claude/Codex sessions read from each tool's
+    own store — `~/.claude/projects` and `~/.codex/sessions` (paths configurable
+    in Settings) — with project folder, title and age; pick one to resume it in a
+    new tab. The store is read two-phase and capped so a huge history can't stall
+    the UI, and resume uses the correct id per tool.
+  - Opened from the `✦ AI ▾` toolbar button and the right-click **Open
+    Claude/Codex here**. The CLIs run as you (no root).
+
+  Reviewed by 2 codex delta rounds + 1 whole-codebase pass; all findings fixed
+  (command-injection-safe launch via the terminal's `directory:` option, correct
+  Codex rollout parsing, bounded registry reads, shell-matched detection, tmux
+  and unavailable-CLI guards, poll-lifecycle correctness).
+
 ## 3.3.1
 
 - **Fixed: the Users & sudo panel now reflects a user's *effective* passwordless

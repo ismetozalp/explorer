@@ -197,6 +197,18 @@ try {
             if (!srcdoc || !/<h1>/.test(srcdoc)) throw new Error('html preview: srcdoc missing rendered <h1>');
         });
 
+        // AI CLI tabs (4.0.0): the toolbar button appears once claude/codex are
+        // detected, and opening an agent tab renders its split without JS errors.
+        try {
+            const seen = await app.waitForFunction(() => { const h = window.Alpine.$data(document.body).ai && window.Alpine.$data(document.body).ai.have; return h && (h.claude || h.codex); }, null, { timeout: 8000 }).then(() => true).catch(() => false);
+            if (seen) {
+                await app.evaluate(() => { window.Alpine.$data(document.body)._aiCliCommand = () => 'echo SMOKE'; });
+                await app.evaluate(() => { const a = window.Alpine.$data(document.body); a.openAgentTab('claude', a.homePath || '/'); });
+                await app.locator('.agent-tab-body').waitFor({ timeout: 8000 });
+                await app.evaluate(() => { const a = window.Alpine.$data(document.body); const t = a.tabs.find(x => x.kind === 'agent'); if (t) a.closeTab(t.id); });
+            }
+        } catch (e) { errors.push({ kind: 'interaction', text: 'ai smoke: ' + e.message }); }
+
         samplesOK = true;
     } catch (e) {
         errors.push({ kind: 'interaction', text: 'samples preview smoke failed: ' + e.message });
