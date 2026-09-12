@@ -19,12 +19,12 @@ window.ExplorerAgentSessions = {
         return p;
     },
 
-    // Only COMPLETE lines — drop a trailing partial (the file was longer than the
-    // head we read), so a huge first record can't be truncated into invalid JSON
-    // and silently swallow the cwd/title.
-    _aiCompleteLines(headText, truncated) {
-        const lines = String(headText || '').split('\n');
-        if (truncated && lines.length) lines.pop();   // last is partial
+    // Only COMPLETE lines: if the head doesn't end in a newline its last element
+    // is a byte-truncated partial — drop it so we never parse invalid JSON.
+    _aiCompleteLines(headText) {
+        const text = String(headText || '');
+        const lines = text.split('\n');
+        if (text && text[text.length - 1] !== '\n') lines.pop();
         return lines.filter(l => l.trim());
     },
 
@@ -63,9 +63,9 @@ window.ExplorerAgentSessions = {
     },
 
     // head → {id, cwd, title}. `id` falls back to fallbackId (filename uuid).
-    _aiParseHead(headText, fallbackId, truncated) {
+    _aiParseHead(headText, fallbackId) {
         let id = '', cwd = '', title = '';
-        for (const line of this._aiCompleteLines(headText, truncated)) {
+        for (const line of this._aiCompleteLines(headText)) {
             let o; try { o = JSON.parse(line); } catch (e) { continue; }
             if (!id) id = this._aiIdFromEntry(o);
             if (!cwd) cwd = this._aiCwdFromEntry(o);
@@ -99,23 +99,21 @@ window.ExplorerAgentSessions = {
     // ── I/O ──
 
     _aiListMtimes(dir, maxDepth, tool) {
+        // Cap the listing IN THE SHELL (newest first, top 400) so a registry with
+        // thousands of sessions doesn't transfer/sort an unbounded result in the
+        // browser before the 200-session scan cap is even applied.
         const script = 'd="$1"; [ -d "$d" ] || exit 0; ' +
-            'find "$d" -maxdepth ' + maxDepth + ' -type f -name "*.jsonl" -printf "%T@\\t%p\\n" 2>/dev/null';
+            'find "$d" -maxdepth ' + maxDepth + ' -type f -name "*.jsonl" -printf "%T@\\t%p\\n" 2>/dev/null | sort -rn | head -n 400';
         return cockpit.spawn(['sh', '-c', script, 'sh', dir], { err: 'message' })
             .then(t => this._aiParseMtimeListing(t, tool)).catch(() => []);
     },
 
-    // Read the first 64 KiB of one file; returns {head, truncated}.
+    // Read one file's head as the first 200 COMPLETE lines (line-bounded via
+    // `head -n`, so an oversized first record — e.g. Claude's initial prompt —
+    // isn't discarded), with a 1 MB ceiling for a pathological single huge line.
     _aiReadHead(path) {
-        // wc -c to know if we truncated; head -c 65536 for the bytes. One spawn.
-        const script = 'p="$1"; sz=$(wc -c < "$p" 2>/dev/null || echo 0); ' +
-            'printf "%s\\n" "$sz"; head -c 65536 "$p" 2>/dev/null';
-        return cockpit.spawn(['sh', '-c', script, 'sh', path], { err: 'message' })
-            .then(out => {
-                const nl = out.indexOf('\n');
-                const sz = parseInt(out.slice(0, nl), 10) || 0;
-                return { head: out.slice(nl + 1), truncated: sz > 65536 };
-            }).catch(() => ({ head: '', truncated: false }));
+        return cockpit.spawn(['sh', '-c', 'head -n 200 "$1" 2>/dev/null | head -c 1048576', 'sh', path], { err: 'message' })
+            .then(head => ({ head })).catch(() => ({ head: '' }));
     },
 
     // Public: enumerate up to SCAN_CAP most-recent sessions with metadata.
@@ -137,7 +135,7 @@ window.ExplorerAgentSessions = {
                 const fallbackId = f.tool === 'codex'
                     ? ((this._aiParseCodexName(f.path.split('/').pop() || '') || {}).id || base)
                     : base;
-                const p = this._aiParseHead(heads[j].head, fallbackId, heads[j].truncated);
+                const p = this._aiParseHead(heads[j].head, fallbackId);
                 rows.push({
                     tool: f.tool, id: p.id, cwd: p.cwd, title: p.title, mtime: f.mtime, path: f.path,
                     label: p.title || p.cwd || base,

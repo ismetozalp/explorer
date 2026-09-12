@@ -371,12 +371,24 @@ Alpine.data('explorer', () => ({
         };
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') { onFocus(); if (this.aiResumePollForActive) this.aiResumePollForActive(); }
+            if (document.visibilityState === 'visible') {
+                onFocus();
+                if (this.aiResumePollForActive) this.aiResumePollForActive();
+                // Self-heal a transient initial detection miss (transport not
+                // ready during load) without re-probing on every focus.
+                if (this.aiDetect && !(this.ai.have.claude || this.ai.have.codex)) this.aiDetect().catch(() => {});
+            }
         });
 
         // AI CLIs (claude/codex): detect availability for the toolbar/menus and
-        // resolve $HOME once for the session-resume browser.
-        if (this.aiDetect) this.aiDetect().catch(() => {});
+        // resolve $HOME once for the session-resume browser. Retry once shortly
+        // after, since the very first interactive-shell spawn can land before the
+        // Cockpit transport is fully up.
+        if (this.aiDetect) {
+            const detect = () => this.aiDetect().catch(() => {});
+            detect();
+            setTimeout(() => { if (!(this.ai.have.claude || this.ai.have.codex)) detect(); }, 2500);
+        }
         cockpit.spawn(['sh', '-c', 'echo $HOME']).then(h => { this._aiHome = (h || '').trim(); }).catch(() => {});
 
         // Proactively configure git to authenticate github.com via gh, so
