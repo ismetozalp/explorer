@@ -35,10 +35,22 @@
             return n > 1 ? (tool + ' ' + n) : tool;
         },
 
-        _aiDiffArgv(dir, mode) {
-            if (mode === 'staged') return ['git', '-C', dir, 'diff', '--staged'];
-            if (mode === 'unstaged') return ['git', '-C', dir, 'diff'];
-            return ['git', '-C', dir, 'diff', 'HEAD'];   // 'all'
+        // Shell body (run as `sh -c <body> sh <dir>`) that prints the working-tree
+        // diff for `mode`, capped so a giant/generated diff can't freeze the UI.
+        //  - staged   : git diff --staged
+        //  - unstaged : git diff            + untracked (new) files
+        //  - all      : git diff HEAD (or the empty-tree diff when HEAD is unborn,
+        //               so initial staged files show) + untracked files
+        // `cd "$1"` uses the dir as a POSITIONAL arg (no interpolation); `true`
+        // swallows git's non-zero exits (e.g. `diff --no-index` on a new file).
+        _aiDiffScript(mode) {
+            const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+            const tracked = mode === 'staged' ? 'git diff --staged 2>/dev/null'
+                : mode === 'unstaged' ? 'git diff 2>/dev/null'
+                : '{ git diff HEAD 2>/dev/null || git diff ' + EMPTY_TREE + ' 2>/dev/null; }';
+            const untracked = mode === 'staged' ? ''
+                : '; git ls-files --others --exclude-standard | while IFS= read -r f; do git diff --no-index -- /dev/null "$f" 2>/dev/null || true; done';
+            return 'cd "$1" 2>/dev/null || exit 0; { ' + tracked + untracked + '; } | head -c 300000; true';
         },
 
         // Parse a unified diff into a changed-files strip.
@@ -71,11 +83,19 @@
         async _aiTmuxExists(name) { try { await cockpit.spawn(['tmux', 'has-session', '-t', name]); return true; } catch (e) { return false; } },
 
         async aiDetect() {
-            // Use an INTERACTIVE bash so ~/.bashrc runs and ~/.local/bin (where
-            // these CLIs usually live) is on PATH — matching what the AI terminal
-            // itself will resolve. Cockpit's default spawn PATH is minimal and
-            // would miss them.
-            const has = async (bin) => { try { const o = await cockpit.spawn(['bash', '-ic', 'command -v "$1" 2>/dev/null', 'bash', bin], { err: 'message' }); return !!(o && o.trim()); } catch (e) { return false; } };
+            // Detect in the SAME interactive shell the terminal will launch, so a
+            // CLI on a shell-specific PATH (e.g. ~/.local/bin added in ~/.zshrc or
+            // ~/.bashrc) is resolved the way the terminal actually resolves it —
+            // falling back to bash. Cockpit's default spawn PATH is minimal and
+            // would miss these CLIs entirely.
+            const shell = (this.settings && this.settings.defaultShell) || '/bin/bash';
+            const has = async (bin) => {
+                for (const sh of [shell, '/bin/bash']) {
+                    try { const o = await cockpit.spawn([sh, '-ic', 'command -v "$1" 2>/dev/null', sh, bin], { err: 'message' }); if (o && o.trim()) return true; }
+                    catch (e) { /* try the fallback shell */ }
+                }
+                return false;
+            };
             this.ai.have = { claude: await has('claude'), codex: await has('codex') };
         },
 
@@ -89,7 +109,12 @@
             const tab = { id: Util.uid(), kind: 'agent', title: '✦ ' + tool, path: dir, terminals: [], activeTermId: null };
             this.tabs.push(tab);
             this.activeTabId = tab.id;
-            this.$nextTick(() => this.aiAddSession(tab, tool, { dir, resumeId: opts.resumeId || null }));
+            this.$nextTick(async () => {
+                const t = await this.aiAddSession(tab, tool, { dir, resumeId: opts.resumeId || null });
+                // If setup was cancelled/invalid (e.g. the tmux-name prompt was
+                // dismissed), don't leave a permanently empty agent tab behind.
+                if (!t) { const rt = this.tabs.find(x => x.id === tab.id); if (rt && (!rt.terminals || rt.terminals.length === 0)) this.closeTab(tab.id); }
+            });
             return tab;
         },
 
@@ -162,29 +187,11 @@
             try {
                 await cockpit.spawn(['git', '-C', session.dir, 'rev-parse', '--is-inside-work-tree'], { err: 'message' });
                 session.diff.repo = true;
-                let note = '';
-                // Tracked diff. On an unborn HEAD (`diff HEAD` fails) this is empty
-                // and we note it — the untracked pass below still shows new files.
-                let out = await cockpit.spawn(this._aiDiffArgv(session.dir, session.diff.mode), { err: 'message' })
-                    .catch(() => { if (session.diff.mode === 'all') note = 'no commits yet'; return ''; });
-                // `git diff` omits UNTRACKED files, so a brand-new file would show
-                // "No changes". Append them (as new-file diffs) for All/Unstaged.
-                if (session.diff.mode !== 'staged') {
-                    // POSIX loop (no bash-only `read -d`, so it works under dash,
-                    // which is Cockpit's /bin/sh). Filenames are newline-separated
-                    // — fine for the common case; a filename containing a newline
-                    // is the only miss and is vanishingly rare.
-                    // `git diff --no-index` exits 1 whenever files differ (always,
-                    // for a new file), which would make cockpit.spawn reject and
-                    // drop the output — so the loop's status is swallowed and the
-                    // script ends with `true` to exit 0 and keep stdout.
-                    const u = await cockpit.spawn(['sh', '-c',
-                        'cd "$1" 2>/dev/null || exit 0; git ls-files --others --exclude-standard | ' +
-                        'while IFS= read -r f; do git diff --no-index -- /dev/null "$f" 2>/dev/null || true; done; true',
-                        'sh', session.dir], { err: 'message' }).catch(() => '');
-                    out += (u || '');
-                }
-                session.diff.note = note;
+                // One bounded shell pass: tracked diff for the mode (with an
+                // empty-tree fallback for unborn HEAD) + untracked files, capped
+                // at 300 KB so a giant/generated diff can't freeze the browser.
+                const out = await cockpit.spawn(['sh', '-c', this._aiDiffScript(session.diff.mode), 'sh', session.dir], { err: 'message' }).catch(() => '');
+                session.diff.note = out.length >= 300000 ? 'diff truncated — showing the first 300 KB' : '';
                 if (this._aiDiffChanged(session, out)) { session.diff.text = out; session.diff.files = this._aiDiffFiles(out); }
             } catch (e) {
                 session.diff.repo = false; session.diff.text = ''; session.diff.files = []; session.diff.note = '';
