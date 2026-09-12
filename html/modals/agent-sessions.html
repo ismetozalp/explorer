@@ -31,7 +31,7 @@
                 <td data-label="Project" class="small"><code x-text="row.cwd || '—'"></code></td>
                 <td data-label="Title" class="small text-muted" x-text="row.title || '—'"></td>
                 <td data-label="Last active" class="small text-muted" x-text="aiRelTime(row.mtime)"></td>
-                <td data-label="Action" class="text-end"><button class="btn btn-sm btn-primary" @click="aiResume(row)">Resume</button></td>
+                <td data-label="Action" class="text-end"><button class="btn btn-sm btn-primary" @click="aiResume(row)" :disabled="!ai.have[row.tool]" :title="ai.have[row.tool] ? '' : (row.tool + ' is not installed on this host')" x-text="ai.have[row.tool] ? 'Resume' : 'Not installed'"></button></td>
               </tr>
             </template>
             <tr x-show="!agentBrowser.loading && aiFilteredSessions().length === 0"><td colspan="5" class="text-center text-muted py-3">No sessions found.</td></tr>

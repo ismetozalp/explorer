@@ -88,13 +88,13 @@
             // ~/.bashrc) is resolved the way the terminal actually resolves it —
             // falling back to bash. Cockpit's default spawn PATH is minimal and
             // would miss these CLIs entirely.
+            // Probe in EXACTLY the shell the terminal will launch (interactive,
+            // so its startup files set PATH the same way) — not bash-as-fallback,
+            // which could report a tool the configured shell can't actually run.
             const shell = (this.settings && this.settings.defaultShell) || '/bin/bash';
             const has = async (bin) => {
-                for (const sh of [shell, '/bin/bash']) {
-                    try { const o = await cockpit.spawn([sh, '-ic', 'command -v "$1" 2>/dev/null', sh, bin], { err: 'message' }); if (o && o.trim()) return true; }
-                    catch (e) { /* try the fallback shell */ }
-                }
-                return false;
+                try { const o = await cockpit.spawn([shell, '-ic', 'command -v "$1" 2>/dev/null', shell, bin], { err: 'message' }); return !!(o && o.trim()); }
+                catch (e) { return false; }
             };
             this.ai.have = { claude: await has('claude'), codex: await has('codex') };
         },
@@ -136,7 +136,12 @@
             if (cli == null) { this.toast('Invalid session id — cannot resume.', 'danger'); return; }
 
             let tmuxName = null, sendInit = true;
-            if (this.settings.aiLaunch === 'tmux') {
+            let useTmux = this.settings.aiLaunch === 'tmux';
+            if (useTmux && !(this.tmux && this.tmux.available)) {
+                this.toast('tmux is not installed — launching in a shell instead.', 'warning');
+                useTmux = false;
+            }
+            if (useTmux) {
                 const leaf = dir.split('/').filter(Boolean).pop() || 'session';
                 const def = this._aiLastTmuxName || (tool + '-' + leaf);
                 tmuxName = await this.askPrompt('tmux session', 'tmux session name (attaches if it exists, else creates)', def, {});
@@ -152,7 +157,7 @@
             const label = this._aiNextLabel(tab.terminals, tool);
             const term = this.addTerminalToTab(tab, dir, { tmux: tmuxName || undefined, mount: false });
             if (!term) return;
-            term.isAgent = true; term.tool = tool; term.resumeId = resumeId; term.launch = this.settings.aiLaunch; term.label = label;
+            term.isAgent = true; term.tool = tool; term.resumeId = resumeId; term.launch = useTmux ? 'tmux' : 'shell'; term.label = label;
             term.diff = { text: '', mode: 'all', repo: true, files: [], hash: '', note: '' };
             if (sendInit) term.initCommand = cli;
             tab.activeTermId = term.id;
@@ -253,6 +258,7 @@
         },
 
         aiResume(row) {
+            if (!(this.ai.have && this.ai.have[row.tool])) { this.toast(row.tool + ' is not installed on this host — cannot resume this session.', 'danger'); return; }
             try { bootstrap.Modal.getOrCreateInstance(this.agentSessionsModalEl).hide(); } catch (e) {}
             this.openAgentTab(row.tool, row.cwd, { resumeId: row.id });
         },
