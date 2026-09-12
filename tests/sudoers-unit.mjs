@@ -101,4 +101,19 @@ assert.strictEqual(S._suGroupFromPolicy('Defaults env_reset\n', bothExist), null
 assert.strictEqual(S._suGroupFromPolicy('%wheel ALL=(ALL) ALL\n', { wheel: false, sudo: true }), null, 'granted group must also exist');
 assert.strictEqual(S._suGroupFromPolicy('', bothExist), null);
 
+// ── effective passwordless/sudo from `sudo -l -U <user>` (authoritative) ──
+const sudoListNopasswd =
+    'Matching Defaults entries for ismet on host:\n    !visiblepw, env_reset\n\n' +
+    'User ismet may run the following commands on host:\n    (ALL) ALL\n    (ALL) NOPASSWD: ALL\n';
+const sudoListPlain =
+    'User bob may run the following commands on host:\n    (ALL) ALL\n';
+const sudoListNone = 'User carol is not allowed to run sudo on host.\n';
+assert.ok(S._suSudoListHasNopasswd(sudoListNopasswd), 'NOPASSWD grant detected');
+assert.ok(!S._suSudoListHasNopasswd(sudoListPlain), 'plain (ALL) ALL is not passwordless');
+assert.ok(!S._suSudoListHasNopasswd(sudoListNone), 'no-sudo user is not passwordless');
+assert.ok(!S._suSudoListHasNopasswd(''), 'empty → false');
+// A NOPASSWD mention only in the Defaults block must not count.
+assert.ok(!S._suSudoListHasNopasswd('Matching Defaults entries for x: NOPASSWD_note\n\nUser x is not allowed to run sudo on host.\n'),
+    'NOPASSWD outside the rules section is ignored');
+
 console.log('sudoers-unit: OK');

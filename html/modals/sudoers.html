@@ -62,7 +62,9 @@
                   <span class="badge" :class="u.sudo ? 'bg-success' : 'bg-secondary'" x-text="u.sudo ? 'yes' : 'no'"></span>
                 </td>
                 <td data-label="Passwordless">
-                  <span class="badge" :class="u.nopasswd ? 'bg-warning text-dark' : 'bg-secondary'" x-text="u.nopasswd ? 'NOPASSWD' : '—'"></span>
+                  <span class="badge" :class="u.nopasswd ? 'bg-warning text-dark' : 'bg-secondary'"
+                        :title="u.nopasswd ? (u.nopasswdManaged ? 'Passwordless sudo — managed by Explorer' : 'Passwordless sudo — configured outside Explorer') : ''"
+                        x-text="u.nopasswd ? (u.nopasswdManaged ? 'NOPASSWD' : 'NOPASSWD*') : '—'"></span>
                 </td>
                 <td data-label="Actions" class="text-end">
                   <div class="btn-group btn-group-sm" role="group">
@@ -71,7 +73,9 @@
                     <button class="btn btn-outline-secondary" @click="suRevokeSudo(u.name)"
                             x-show="u.sudo" :disabled="u.busy || u.self" :title="u.self ? &quot;You can't revoke your own sudo&quot; : ''">Revoke sudo</button>
                     <button class="btn btn-outline-warning" @click="suSetNopasswd(u.name, !u.nopasswd)"
-                            :disabled="u.busy" x-text="u.nopasswd ? 'Require password' : 'Passwordless'"></button>
+                            :disabled="u.busy || (u.nopasswd && !u.nopasswdManaged)"
+                            :title="(u.nopasswd && !u.nopasswdManaged) ? ('Passwordless sudo for this user is configured outside Explorer (e.g. /etc/sudoers.d/' + u.name + ') — manage it there.') : ''"
+                            x-text="!u.nopasswd ? 'Passwordless' : (u.nopasswdManaged ? 'Require password' : 'Passwordless (external)')"></button>
                     <button class="btn btn-outline-secondary" @click="suSetPassword(u.name)" :disabled="u.busy">Password…</button>
                     <button class="btn btn-outline-danger" @click="suDeleteUser(u.name)"
                             :disabled="u.busy || u.self" :title="u.self ? &quot;You can't delete your own account&quot; : ''">Delete</button>
@@ -86,7 +90,8 @@
           sudo is granted via the <code x-text="su.adminGroup || 'wheel'"></code> group. Passwordless sudo writes a
           <code>visudo</code>-validated, app-managed <code>/etc/sudoers.d/90-explorer-&lt;user&gt;</code> drop-in
           (<code>NOPASSWD:ALL</code>) — a significant reduction in security. <code>/etc/sudoers</code> and your own
-          <code>/etc/sudoers.d</code> files are never edited.
+          <code>/etc/sudoers.d</code> files are never edited. A <code>NOPASSWD*</code> badge means passwordless sudo
+          is configured <em>outside</em> Explorer (e.g. an existing <code>/etc/sudoers.d</code> file); manage those where they live.
         </p>
 
       </div>
