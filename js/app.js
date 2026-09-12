@@ -16,6 +16,8 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerDeepLink,  // js/features/deeplink.js
     ...window.ExplorerPlugins,   // js/features/plugins.js
     ...window.ExplorerSudoers,   // js/features/sudoers.js
+    ...window.ExplorerAgent,        // js/features/agent.js
+    ...window.ExplorerAgentSessions, // js/features/agent-sessions.js
     ...window.ExplorerTabs,      // js/core/tabs.js
     ...window.ExplorerFileList,  // js/core/filelist.js
     ...window.ExplorerFileOps,   // js/core/fileops.js
@@ -27,7 +29,7 @@ Alpine.data('explorer', () => ({
     tabs: [],
     activeTabId: null,
     homePath: '/root',
-    ui: { phone: false, moreOpen: false },
+    ui: { phone: false, moreOpen: false, aiMenuOpen: false, agentAddOpen: false },
 
     settings: structuredClone(ExRT.const.DEFAULT_SETTINGS),
 
@@ -40,6 +42,10 @@ Alpine.data('explorer', () => ({
     // Users & sudo management (3.3.0). See js/features/sudoers.js.
     su: { users: [], loading: false, error: '', adminGroup: '', canAdmin: false, me: '', adminCount: 0, busy: false, form: { username: '', password: '', sudo: false, nopasswd: false } },
     sudoersModalEl: null,
+    // AI CLI tabs (claude/codex). See js/features/agent.js + agent-sessions.js.
+    ai: { have: { claude: false, codex: false } },
+    agentBrowser: { open: false, loading: false, rows: [], filter: 'all', q: '' },
+    agentSessionsModalEl: null,
 
     customActions: { user: [], system: [], builtin: [] },
 
@@ -365,8 +371,13 @@ Alpine.data('explorer', () => ({
         };
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') onFocus();
+            if (document.visibilityState === 'visible') { onFocus(); if (this.aiResumePollForActive) this.aiResumePollForActive(); }
         });
+
+        // AI CLIs (claude/codex): detect availability for the toolbar/menus and
+        // resolve $HOME once for the session-resume browser.
+        if (this.aiDetect) this.aiDetect().catch(() => {});
+        cockpit.spawn(['sh', '-c', 'echo $HOME']).then(h => { this._aiHome = (h || '').trim(); }).catch(() => {});
 
         // Proactively configure git to authenticate github.com via gh, so
         // repo-strip Fetch/Pull/Push (and any other git op) work even before

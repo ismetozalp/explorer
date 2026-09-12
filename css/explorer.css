@@ -1850,3 +1850,33 @@ html, body { max-width: 100%; }
     padding: 10px 12px; font-size: 14px; border-radius: 4px; white-space: nowrap;
 }
 .toolbar-more-item:hover, .toolbar-more-item:active { background: var(--ex-bg-tab); }
+
+/* ── AI CLI tabs (claude/codex): terminal + live diff split ── */
+.agent-tab-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.agent-split { display: flex; flex: 1 1 auto; min-height: 0; }
+.agent-term { flex: 1 1 55%; min-width: 0; display: flex; position: relative; }
+.agent-term .term-container { flex: 1 1 auto; min-width: 0; }
+.agent-diff { flex: 1 1 45%; min-width: 0; display: flex; flex-direction: column;
+  border-left: 1px solid var(--border, #333); background: var(--bg, #1b1d21); overflow: hidden; }
+.agent-diff-head { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--border, #333); flex: 0 0 auto; }
+.agent-diff-head .btn.active { background: var(--accent, #0d6efd); color: #fff; }
+.agent-diff-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.agent-diff-files { flex: 0 0 auto; max-height: 30%; overflow: auto; padding: .25rem .5rem;
+  border-bottom: 1px solid var(--border, #333); font-size: 12px; }
+.agent-diff-file { white-space: nowrap; }
+.agent-diff-file .add { color: #3fb950; } .agent-diff-file .rem { color: #f85149; }
+.agent-diff-file .fn { color: var(--fg, #cfd3d8); margin-left: .35rem; }
+.agent-diff-body { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: .5rem .75rem;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+.agent-diff-empty { font-size: 13px; }
+/* add-session + toolbar AI dropdown menu */
+.agent-add-wrap { position: relative; display: inline-flex; }
+.agent-add-menu { position: absolute; top: 100%; left: 0; z-index: 1080; min-width: 12rem;
+  background: var(--panel, #23262b); border: 1px solid var(--border, #444); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.4); padding: .25rem; display: flex; flex-direction: column; }
+.agent-add-menu--toolbar { left: auto; right: 0; }
+.agent-add-menu button { all: unset; cursor: pointer; padding: .4rem .6rem; border-radius: 4px;
+  color: var(--fg, #cfd3d8); font-size: 13px; }
+.agent-add-menu button:hover { background: var(--hover, #2b2f34); }
+@media (max-width: 700px) { .agent-split { flex-direction: column; } .agent-diff { border-left: 0; border-top: 1px solid var(--border, #333); } }

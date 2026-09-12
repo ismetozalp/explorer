@@ -472,8 +472,9 @@ window.ExplorerTerminal = {
             tab.activeTermId = null;
             if (tab.kind === 'dir') {
                 tab.splitOpen = false;
-            } else if (tab.kind === 'terminal') {
-                // Closing last terminal in a terminal-kind tab closes the tab.
+            } else if (tab.kind === 'terminal' || tab.kind === 'agent') {
+                // Closing the last terminal/session in a terminal- or agent-kind
+                // tab closes the tab.
                 this.closeTab(tab.id);
                 return;
             }
@@ -704,6 +705,15 @@ window.ExplorerTerminal = {
                 _gotData = true;
                 // Channel is live again — clear any reconnect backoff for this term.
                 if (ExRT.term.reconn.has(termId)) ExRT.term.reconn.delete(termId);
+                // AI tabs: once the shell/tmux has produced its first output (a
+                // prompt), type the CLI command into the PTY. Going through the
+                // PTY (not the spawn argv) means the cwd is the engine's
+                // `directory:` option — no shell `cd`, no injection — and a real
+                // shell remains after the CLI exits. Sent once (nulled here).
+                if (termObj && termObj.initCommand) {
+                    const c = termObj.initCommand; termObj.initCommand = null;
+                    setTimeout(() => { try { channel.send(c + '\r'); } catch (e) {} }, 200);
+                }
             }
             try { xterm.write(data); } catch (e) { console.warn('[explorer] xterm.write failed:', e); }
         });

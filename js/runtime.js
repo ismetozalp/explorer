@@ -10,6 +10,11 @@ window.ExRT = {
             showHidden: true,
             followSymlinks: true,
             persistTabs: true,
+            // AI CLI tabs (claude/codex): how to launch, and where each tool's
+            // session registry lives (for the Resume browser).
+            aiLaunch: 'shell',
+            aiClaudeSessionsDir: '~/.claude/projects',
+            aiCodexSessionsDir: '~/.codex/sessions',
             columns: { size: true, modified: true, perms: true, owner: true, type: false },
             previewLimitMB: 10,
             outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)

@@ -196,10 +196,13 @@ window.ExplorerTabs = {
         // is useless. Spawn one so the user always sees a working shell.
         if (tab.kind === 'terminal' && (!tab.terminals || tab.terminals.length === 0)) {
             this.$nextTick(() => this.addTerminalToTab(tab, tab.path));
-        } else if (tab.kind === 'terminal') {
+        } else if (tab.kind === 'terminal' || tab.kind === 'agent') {
             // Restored tmux tabs declare their terminals up front but can't
-            // mount while hidden — mount them now the tab is visible.
+            // mount while hidden — mount them now the tab is visible. Agent tabs
+            // use the same terminal records; also (re)start the active session's
+            // live diff poll now that the tab is showing.
             this._ensureTerminalsMounted(tab);
+            if (tab.kind === 'agent' && this.aiResumePollForActive) this.aiResumePollForActive();
         }
         this._refreshTabGit(tab);
     },
@@ -223,6 +226,10 @@ window.ExplorerTabs = {
                 return '⧉ ' + ((act && act.tmux) || 'tmux');
             }
             return '❯ Terminal';
+        }
+        if (tab.kind === 'agent') {
+            const act = (tab.terminals || []).find(t => t.id === tab.activeTermId);
+            return (act && act.tool === 'codex' ? '◆ ' : '✦ ') + (act ? act.tool : 'AI');
         }
         if (tab.path === '/') return '/';
         return Util.basename(tab.path) || tab.path;

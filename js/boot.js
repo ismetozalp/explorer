@@ -20,6 +20,7 @@
         'html/modals/github.html',    // gh panel, commit browser, publish, …
         'html/modals/plugins.html',   // Plugin Manager (update/install Cockpit plugins)
         'html/modals/sudoers.html',   // Users & sudo management (3.3.0)
+        'html/modals/agent-sessions.html', // AI session browser (4.0.0)
     ];
 
     function loadScript(src) {
