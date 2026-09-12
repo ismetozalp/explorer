@@ -810,6 +810,40 @@ clipboard so you land in the right folder with a single paste. On a
 non-secure (http) origin the browser blocks that write, so the command is
 shown in a toast to copy manually instead.
 
+### AI CLIs — Claude & Codex (`✦ AI`)
+
+New in **4.0.0**. Run the [Claude Code](https://claude.com/claude-code) and
+[Codex](https://developers.openai.com/codex/cli/) CLIs inside Explorer, in an
+integrated terminal with a **live git diff** beside it that updates as the agent
+edits files.
+
+![AI tab — terminal + live diff](screenshots/ai-tab.svg)
+
+- **Open** — the **`✦ AI ▾`** toolbar button (or right-click a folder →
+  **Open Claude/Codex here**) opens an AI tab rooted at that folder. The buttons
+  appear only for the CLIs actually installed (detected in your login shell, so
+  a tool in `~/.local/bin` is found).
+- **Sessions as sub-tabs** — each AI tab holds multiple sessions like the
+  terminal tab holds terminals: **`＋▾`** adds *New Claude* / *New Codex* /
+  *Resume…*, each sub-tab has its own terminal **and** its own diff, and you can
+  close (✕) or rename (double-click) them.
+- **Live diff** — the right pane shows `git diff` of the session's folder
+  (**All** / **Unstaged** / **Staged**, including untracked files), refreshing
+  about once a second while the tab is visible, with a changed-files strip on
+  top. Not a git repo? The terminal still works; the pane just says so.
+- **Launch in a shell or tmux** — a Settings option (*Run AI CLIs in*): **Shell**
+  runs the CLI in your login shell (you drop back to a shell when it exits), or
+  **tmux** — you're asked for a session name and it attaches to (or creates) a
+  persistent tmux session, so closing the sub-tab just detaches.
+- **Resume a past session** — **Resume…** lists your prior Claude/Codex sessions
+  read from each tool's own store — Claude `~/.claude/projects`, Codex
+  `~/.codex/sessions` (both paths configurable in Settings) — with the project
+  folder, a title, and how long ago. Pick one and it opens a tab that resumes it
+  (`claude --resume <id>` in that folder, or `codex resume <id>`).
+
+The CLIs run as **you** (no root); Explorer just launches them and mirrors the
+working-tree diff.
+
 ### Cached repositories
 
 ![Cached repositories](screenshots/cached-repos.svg)
