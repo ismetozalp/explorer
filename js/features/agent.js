@@ -162,14 +162,27 @@
             try {
                 await cockpit.spawn(['git', '-C', session.dir, 'rev-parse', '--is-inside-work-tree'], { err: 'message' });
                 session.diff.repo = true;
-                let out = '', note = '';
-                try {
-                    out = await cockpit.spawn(this._aiDiffArgv(session.dir, session.diff.mode), { err: 'message' });
-                } catch (e) {
-                    // Unborn HEAD (a repo with no commits): `diff HEAD` fails but the
-                    // repo IS valid — fall back to the unstaged working diff.
-                    note = 'no commits yet';
-                    out = await cockpit.spawn(['git', '-C', session.dir, 'diff'], { err: 'message' }).catch(() => '');
+                let note = '';
+                // Tracked diff. On an unborn HEAD (`diff HEAD` fails) this is empty
+                // and we note it — the untracked pass below still shows new files.
+                let out = await cockpit.spawn(this._aiDiffArgv(session.dir, session.diff.mode), { err: 'message' })
+                    .catch(() => { if (session.diff.mode === 'all') note = 'no commits yet'; return ''; });
+                // `git diff` omits UNTRACKED files, so a brand-new file would show
+                // "No changes". Append them (as new-file diffs) for All/Unstaged.
+                if (session.diff.mode !== 'staged') {
+                    // POSIX loop (no bash-only `read -d`, so it works under dash,
+                    // which is Cockpit's /bin/sh). Filenames are newline-separated
+                    // — fine for the common case; a filename containing a newline
+                    // is the only miss and is vanishingly rare.
+                    // `git diff --no-index` exits 1 whenever files differ (always,
+                    // for a new file), which would make cockpit.spawn reject and
+                    // drop the output — so the loop's status is swallowed and the
+                    // script ends with `true` to exit 0 and keep stdout.
+                    const u = await cockpit.spawn(['sh', '-c',
+                        'cd "$1" 2>/dev/null || exit 0; git ls-files --others --exclude-standard | ' +
+                        'while IFS= read -r f; do git diff --no-index -- /dev/null "$f" 2>/dev/null || true; done; true',
+                        'sh', session.dir], { err: 'message' }).catch(() => '');
+                    out += (u || '');
                 }
                 session.diff.note = note;
                 if (this._aiDiffChanged(session, out)) { session.diff.text = out; session.diff.files = this._aiDiffFiles(out); }
@@ -188,8 +201,10 @@
                 const hidden = (typeof document !== 'undefined' && document.visibilityState === 'hidden');
                 if (!at || at.id !== tab.id || tab.activeTermId !== session.id || hidden) { _aiTimers.delete(session.id); return; }
                 await this.aiRefreshDiff(session);
-                if (!session.diff.repo) { _aiTimers.delete(session.id); return; }   // stop the loop for a non-repo dir
-                _aiTimers.set(session.id, setTimeout(tick, 1500));
+                // Repo: fast live updates. Non-repo: keep polling SLOWLY (not a
+                // tight loop) so `git init` in that folder is picked up on its own
+                // instead of the pane being frozen forever.
+                _aiTimers.set(session.id, setTimeout(tick, session.diff.repo ? 1500 : 6000));
             };
             _aiTimers.set(session.id, setTimeout(tick, 250));
         },
@@ -201,7 +216,7 @@
             const tab = this.activeTab && this.activeTab();
             if (!tab || tab.kind !== 'agent') return;
             const s = this.aiActiveSession(tab);
-            if (s && s.diff && s.diff.repo !== false) this.aiStartDiffPoll(tab, s);
+            if (s) this.aiStartDiffPoll(tab, s);   // restart regardless of prior repo state (the tick re-checks)
         },
 
         // ───────── session browser (resume) ─────────
