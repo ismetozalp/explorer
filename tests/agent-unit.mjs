@@ -30,10 +30,17 @@ assert.strictEqual(G._aiNextLabel([], 'claude'), 'claude');
 assert.strictEqual(G._aiNextLabel([{ tool: 'claude' }, { tool: 'codex' }], 'claude'), 'claude 2');
 assert.strictEqual(G._aiNextLabel([{ tool: 'claude' }], 'codex'), 'codex');
 
-// diff argv per mode
-assert.deepStrictEqual([...G._aiDiffArgv('/x', 'all')], ['git', '-C', '/x', 'diff', 'HEAD']);
-assert.deepStrictEqual([...G._aiDiffArgv('/x', 'unstaged')], ['git', '-C', '/x', 'diff']);
-assert.deepStrictEqual([...G._aiDiffArgv('/x', 'staged')], ['git', '-C', '/x', 'diff', '--staged']);
+// diff script per mode (bounded shell body: tracked + untracked, capped)
+const sAll = G._aiDiffScript('all');
+assert.ok(sAll.includes('git diff HEAD') && sAll.includes('4b825dc642cb6eb9a060e54bf8d69288fbee4904') &&
+    sAll.includes('ls-files --others') && sAll.includes('head -c 300000'),
+    'all: git diff HEAD + empty-tree fallback + untracked + 300 KB cap');
+const sUn = G._aiDiffScript('unstaged');
+assert.ok(sUn.includes('git diff 2>/dev/null') && sUn.includes('ls-files --others') && !sUn.includes('HEAD'),
+    'unstaged: git diff + untracked, no HEAD');
+const sSt = G._aiDiffScript('staged');
+assert.ok(sSt.includes('git diff --staged') && !sSt.includes('ls-files --others'),
+    'staged: git diff --staged, no untracked');
 
 // unified-diff → changed-files strip
 const diff = [
