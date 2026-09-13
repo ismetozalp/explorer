@@ -30,6 +30,25 @@
             return t;
         },
 
+        // Group resume rows by project folder (cwd). Each group: the sessions
+        // (newest first), the latest one, and a count. Groups are ordered by
+        // their latest session, so the most-recently-used project is on top.
+        _aiGroupByProject(rows) {
+            const map = new Map();
+            for (const r of (rows || [])) {
+                const key = r.cwd || '(unknown folder)';
+                if (!map.has(key)) map.set(key, []);
+                map.get(key).push(r);
+            }
+            const groups = [];
+            for (const [cwd, sessions] of map) {
+                sessions.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+                groups.push({ cwd, sessions, latest: sessions[0], count: sessions.length });
+            }
+            groups.sort((a, b) => (b.latest.mtime || 0) - (a.latest.mtime || 0));
+            return groups;
+        },
+
         _aiNextLabel(sessions, tool) {
             const n = (sessions || []).filter(s => s.tool === tool).length + 1;
             return n > 1 ? (tool + ' ' + n) : tool;
@@ -273,6 +292,9 @@
             return (b.rows || []).filter(r => (b.filter === 'all' || r.tool === b.filter) &&
                 (!q || ((r.cwd || '') + ' ' + (r.title || '')).toLowerCase().includes(q)));
         },
+
+        // Filtered rows, grouped by project folder for the disclosure list.
+        aiGroupedSessions() { return this._aiGroupByProject(this.aiFilteredSessions()); },
 
         aiRelTime(epoch) {
             const s = Math.max(0, Math.floor(Date.now() / 1000 - (epoch || 0)));

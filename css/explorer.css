@@ -1882,3 +1882,20 @@ html, body { max-width: 100%; }
   color: var(--fg, #cfd3d8); font-size: 13px; }
 .agent-add-menu button:hover { background: var(--hover, #2b2f34); }
 @media (max-width: 700px) { .agent-split { flex-direction: column; } .agent-diff { border-left: 0; border-top: 1px solid var(--border, #333); } }
+
+/* ── Resume-session browser: project disclosure groups ── */
+.agent-proj-list { display: flex; flex-direction: column; gap: 6px; }
+.agent-proj { border: 1px solid var(--ex-border, #333); border-radius: 6px; overflow: hidden; }
+.agent-proj-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; flex-wrap: wrap; }
+.agent-proj-toggle { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.agent-proj-toggle:hover .agent-proj-cwd { text-decoration: underline; }
+.agent-proj-chev { width: 1em; color: var(--ex-muted, #888); font-size: 12px; }
+.agent-proj-cwd { color: var(--ex-fg, #cfd3d8); overflow: hidden; text-overflow: ellipsis; }
+.agent-proj-latest { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; }
+.agent-proj-title, .agent-sess-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-proj-title { max-width: 22rem; }
+.agent-proj-body { border-top: 1px solid var(--ex-border, #333); background: rgba(0,0,0,.15); }
+.agent-sess-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 28px; border-top: 1px solid rgba(255,255,255,.04); }
+.agent-sess-row:first-child { border-top: 0; }
+.agent-sess-title { flex: 1 1 auto; }
+@media (max-width: 640px) { .agent-proj-latest { margin-left: 0; width: 100%; } .agent-proj-title { max-width: 12rem; } }
