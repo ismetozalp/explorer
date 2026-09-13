@@ -103,6 +103,31 @@
 
         aiActiveSession(tab) { return tab && tab.terminals ? tab.terminals.find(t => t.id === tab.activeTermId) : null; },
 
+        // The toolbar AI dropdown is position:fixed (so .tab-bar's overflow:hidden
+        // can't clip it); anchor it under the button from the click's rect, like
+        // the tmux panel does.
+        toggleAiMenu(ev) {
+            this.ui.aiMenuOpen = !this.ui.aiMenuOpen;
+            if (this.ui.aiMenuOpen) {
+                try {
+                    const r = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+                    if (r) { this.ui.aiMenuTop = Math.round(r.bottom + 4); this.ui.aiMenuRight = Math.max(4, Math.round(window.innerWidth - r.right)); }
+                } catch (e) {}
+            }
+        },
+
+        // In-tab "＋▾" add-session menu — also fixed (the agent tabbar clips a
+        // dropdown), anchored under the button and left-aligned to it.
+        toggleAgentAddMenu(ev) {
+            this.ui.agentAddOpen = !this.ui.agentAddOpen;
+            if (this.ui.agentAddOpen) {
+                try {
+                    const r = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+                    if (r) { this.ui.agentAddTop = Math.round(r.bottom + 4); this.ui.agentAddLeft = Math.round(r.left); }
+                } catch (e) {}
+            }
+        },
+
         openAgentTab(tool, dir, opts) {
             opts = opts || {};
             dir = this._aiValidDir(dir) ? dir : ((this.currentPane() && this.currentPane().path) || this.homePath || '/');

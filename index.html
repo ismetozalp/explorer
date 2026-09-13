@@ -87,10 +87,10 @@
         <span>⬆ Plugins</span>
     </button>
     <div class="ai-menu-wrap" x-show="(ai.have.claude || ai.have.codex) && !ui.phone" x-cloak @click.outside="ui.aiMenuOpen = false" style="position:relative">
-        <button class="btn btn-sm btn-link tab-bar-btn" @click="ui.aiMenuOpen = !ui.aiMenuOpen" :class="{ 'tmux-btn-active': ui.aiMenuOpen }" title="Open an AI CLI (Claude / Codex) in the current folder">
+        <button class="btn btn-sm btn-link tab-bar-btn" @click="toggleAiMenu($event)" :class="{ 'tmux-btn-active': ui.aiMenuOpen }" title="Open an AI CLI (Claude / Codex) in the current folder">
             <span>✦ AI ▾</span>
         </button>
-        <div class="agent-add-menu agent-add-menu--toolbar" x-show="ui.aiMenuOpen" x-cloak>
+        <div class="agent-add-menu agent-add-menu--toolbar" x-show="ui.aiMenuOpen" x-cloak :style="`top:${ui.aiMenuTop}px;right:${ui.aiMenuRight}px`">
             <button x-show="ai.have.claude" @click="ui.aiMenuOpen=false; openAgentTab('claude', currentPane().path)">✦ New Claude</button>
             <button x-show="ai.have.codex" @click="ui.aiMenuOpen=false; openAgentTab('codex', currentPane().path)">◆ New Codex</button>
             <button @click="ui.aiMenuOpen=false; openAgentSessions()">⟲ Resume session…</button>
@@ -565,8 +565,8 @@
                     </template>
                 </div>
                 <div class="agent-add-wrap" @click.outside="ui.agentAddOpen = false">
-                    <button class="term-subtab-add" @click="ui.agentAddOpen = !ui.agentAddOpen" title="New session">＋▾</button>
-                    <div class="agent-add-menu" x-show="ui.agentAddOpen" x-cloak>
+                    <button class="term-subtab-add" @click="toggleAgentAddMenu($event)" title="New session">＋▾</button>
+                    <div class="agent-add-menu" x-show="ui.agentAddOpen" x-cloak :style="`top:${ui.agentAddTop}px;left:${ui.agentAddLeft}px`">
                         <button x-show="ai.have.claude" @click="ui.agentAddOpen=false; aiAddSession(tab,'claude',{dir:tab.path})">✦ New Claude</button>
                         <button x-show="ai.have.codex" @click="ui.agentAddOpen=false; aiAddSession(tab,'codex',{dir:tab.path})">◆ New Codex</button>
                         <button @click="ui.agentAddOpen=false; openAgentSessions()">⟲ Resume…</button>
