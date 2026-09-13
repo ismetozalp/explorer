@@ -1872,10 +1872,12 @@ html, body { max-width: 100%; }
 .agent-diff-empty { font-size: 13px; }
 /* add-session + toolbar AI dropdown menu */
 .agent-add-wrap { position: relative; display: inline-flex; }
-.agent-add-menu { position: absolute; top: 100%; left: 0; z-index: 1080; min-width: 12rem;
+/* Both AI dropdowns are position:fixed + high z-index so they escape the
+   overflow:hidden clip of their container (.tab-bar for the toolbar menu,
+   .agent-tabbar for the in-tab one). Anchored via :style from the button rect. */
+.agent-add-menu { position: fixed; z-index: 3000; min-width: 12rem;
   background: var(--panel, #23262b); border: 1px solid var(--border, #444); border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0,0,0,.4); padding: .25rem; display: flex; flex-direction: column; }
-.agent-add-menu--toolbar { left: auto; right: 0; }
 .agent-add-menu button { all: unset; cursor: pointer; padding: .4rem .6rem; border-radius: 4px;
   color: var(--fg, #cfd3d8); font-size: 13px; }
 .agent-add-menu button:hover { background: var(--hover, #2b2f34); }
