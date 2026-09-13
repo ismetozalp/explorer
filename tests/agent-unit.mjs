@@ -69,4 +69,19 @@ assert.ok(G._aiDiffChanged(s, 'abc'), 'first content is a change');
 assert.ok(!G._aiDiffChanged(s, 'abc'), 'same content is not a change');
 assert.ok(G._aiDiffChanged(s, 'abcd'), 'new content is a change');
 
+// group-by-project (resume browser)
+const rows = [
+  { cwd:'/a', tool:'claude', id:'1', mtime:100, title:'a1', path:'p1' },
+  { cwd:'/b', tool:'codex',  id:'2', mtime:300, title:'b1', path:'p2' },
+  { cwd:'/a', tool:'claude', id:'3', mtime:200, title:'a2', path:'p3' },
+];
+const groups = G._aiGroupByProject(rows);
+assert.strictEqual(groups.length, 2, 'two distinct project folders');
+assert.strictEqual(groups[0].cwd, '/b', 'group with newest session (/b @300) sorts first');
+assert.strictEqual(groups[1].cwd, '/a');
+assert.strictEqual(groups[1].count, 2);
+assert.strictEqual(groups[1].latest.id, '3', 'latest in /a is the newest (mtime 200)');
+assert.deepStrictEqual([...groups[1].sessions.map(x=>x.id)], ['3','1'], 'sessions newest-first within a group');
+assert.strictEqual(G._aiGroupByProject([{ cwd:'', tool:'claude', id:'x', mtime:1, path:'p' }])[0].cwd, '(unknown folder)');
+
 console.log('agent-unit: OK');

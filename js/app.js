@@ -44,7 +44,7 @@ Alpine.data('explorer', () => ({
     sudoersModalEl: null,
     // AI CLI tabs (claude/codex). See js/features/agent.js + agent-sessions.js.
     ai: { have: { claude: false, codex: false } },
-    agentBrowser: { open: false, loading: false, rows: [], filter: 'all', q: '' },
+    agentBrowser: { open: false, loading: false, rows: [], filter: 'all', q: '', expanded: {} },
     agentSessionsModalEl: null,
 
     customActions: { user: [], system: [], builtin: [] },

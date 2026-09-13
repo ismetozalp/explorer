@@ -22,21 +22,39 @@
           Sessions read from <code x-text="settings.aiClaudeSessionsDir || '~/.claude/projects'"></code> and
           <code x-text="settings.aiCodexSessionsDir || '~/.codex/sessions'"></code> (change these in Settings). Pick one to open a tab that resumes it.
         </div>
-        <table class="table table-sm align-middle mobile-card-table">
-          <thead><tr><th>Tool</th><th>Project</th><th>Title</th><th>Last active</th><th class="text-end">Action</th></tr></thead>
-          <tbody>
-            <template x-for="row in aiFilteredSessions()" :key="row.tool + ':' + row.id + ':' + row.path">
-              <tr>
-                <td data-label="Tool"><span class="badge" :class="row.tool === 'codex' ? 'bg-info text-dark' : 'bg-primary'" x-text="row.tool"></span></td>
-                <td data-label="Project" class="small"><code x-text="row.cwd || '—'"></code></td>
-                <td data-label="Title" class="small text-muted" x-text="row.title || '—'"></td>
-                <td data-label="Last active" class="small text-muted" x-text="aiRelTime(row.mtime)"></td>
-                <td data-label="Action" class="text-end"><button class="btn btn-sm btn-primary" @click="aiResume(row)" :disabled="!ai.have[row.tool]" :title="ai.have[row.tool] ? '' : (row.tool + ' is not installed on this host')" x-text="ai.have[row.tool] ? 'Resume' : 'Not installed'"></button></td>
-              </tr>
-            </template>
-            <tr x-show="!agentBrowser.loading && aiFilteredSessions().length === 0"><td colspan="5" class="text-center text-muted py-3">No sessions found.</td></tr>
-          </tbody>
-        </table>
+        <!-- Grouped by project folder. Each project is a disclosure panel: the
+             header resumes the LATEST session in that folder; expanding it lists
+             every session so you can resume a specific one. -->
+        <div class="agent-proj-list">
+          <template x-for="g in aiGroupedSessions()" :key="g.cwd">
+            <div class="agent-proj">
+              <div class="agent-proj-head">
+                <button class="agent-proj-toggle" @click="agentBrowser.expanded[g.cwd] = !agentBrowser.expanded[g.cwd]" :title="(agentBrowser.expanded[g.cwd] || agentBrowser.q) ? 'Collapse' : 'Show all ' + g.count + ' sessions'">
+                  <span class="agent-proj-chev" x-text="(agentBrowser.expanded[g.cwd] || agentBrowser.q) ? '▾' : '▸'"></span>
+                  <code class="agent-proj-cwd" x-text="g.cwd"></code>
+                  <span class="badge bg-secondary" x-text="g.count"></span>
+                </button>
+                <div class="agent-proj-latest">
+                  <span class="badge" :class="g.latest.tool === 'codex' ? 'bg-info text-dark' : 'bg-primary'" x-text="g.latest.tool"></span>
+                  <span class="agent-proj-title text-muted small" x-text="g.latest.title || '—'"></span>
+                  <span class="text-muted small text-nowrap" x-text="aiRelTime(g.latest.mtime)"></span>
+                  <button class="btn btn-sm btn-primary text-nowrap" @click="aiResume(g.latest)" :disabled="!ai.have[g.latest.tool]" :title="ai.have[g.latest.tool] ? 'Resume the most recent session in this folder' : (g.latest.tool + ' is not installed')">Resume latest</button>
+                </div>
+              </div>
+              <div class="agent-proj-body" x-show="agentBrowser.expanded[g.cwd] || agentBrowser.q" x-cloak>
+                <template x-for="s in g.sessions" :key="s.tool + ':' + s.id + ':' + s.path">
+                  <div class="agent-sess-row">
+                    <span class="badge" :class="s.tool === 'codex' ? 'bg-info text-dark' : 'bg-primary'" x-text="s.tool"></span>
+                    <span class="agent-sess-title text-muted small" x-text="s.title || '—'"></span>
+                    <span class="text-muted small text-nowrap" x-text="aiRelTime(s.mtime)"></span>
+                    <button class="btn btn-sm btn-outline-primary text-nowrap" @click="aiResume(s)" :disabled="!ai.have[s.tool]" x-text="ai.have[s.tool] ? 'Resume' : 'Not installed'"></button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div class="text-center text-muted py-3" x-show="!agentBrowser.loading && aiGroupedSessions().length === 0">No sessions found.</div>
+        </div>
       </div>
     </div>
   </div>
