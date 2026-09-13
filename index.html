@@ -22,12 +22,12 @@
              :class="{ active: tab.id === activeTabId }"
              @click="activateTab(tab.id)"
              @contextmenu.prevent="openTabMenu($event, tab.id)"
-             @auxclick="$event.button === 1 && closeTab(tab.id)"
+             @auxclick="$event.button === 1 && closeTabAsk(tab)"
              x-sort:item="tab.id">
             <span class="tab-label" x-text="tabLabel(tab)"></span>
             <span class="tab-admin-badge" x-show="tab.kind === 'dir' && tab.listAdminPath === tab.path" title="Listing as administrator">root</span>
             <span class="tab-git-badge" x-show="tab.gitInfo && tab.gitInfo.branch" :title="'git: ' + tab.gitInfo?.branch + (tab.gitInfo?.dirty ? ' (dirty)' : '')">⎇</span>
-            <button class="tab-close" @click.stop="closeTab(tab.id)" title="Close">×</button>
+            <button class="tab-close" @click.stop="closeTabAsk(tab)" title="Close">×</button>
         </div>
     </template>
     </div>
@@ -87,12 +87,12 @@
         <span>⬆ Plugins</span>
     </button>
     <div class="ai-menu-wrap" x-show="(ai.have.claude || ai.have.codex) && !ui.phone" x-cloak @click.outside="ui.aiMenuOpen = false" style="position:relative">
-        <button class="btn btn-sm btn-link tab-bar-btn" @click="toggleAiMenu($event)" :class="{ 'tmux-btn-active': ui.aiMenuOpen }" title="Open an AI CLI (Claude / Codex) in the current folder">
+        <button class="btn btn-sm btn-link tab-bar-btn" @click="toggleAiMenu($event)" :class="{ 'tmux-btn-active': ui.aiMenuOpen }" title="Open an AI CLI (Claude / Codex) — pick the folder to start in">
             <span>✦ AI ▾</span>
         </button>
         <div class="agent-add-menu agent-add-menu--toolbar" x-show="ui.aiMenuOpen" x-cloak :style="`top:${ui.aiMenuTop}px;right:${ui.aiMenuRight}px`">
-            <button x-show="ai.have.claude" @click="ui.aiMenuOpen=false; openAgentTab('claude', currentPane().path)">✦ New Claude</button>
-            <button x-show="ai.have.codex" @click="ui.aiMenuOpen=false; openAgentTab('codex', currentPane().path)">◆ New Codex</button>
+            <button x-show="ai.have.claude" @click="ui.aiMenuOpen=false; aiPickAndOpen('claude', currentPane().path)">✦ New Claude…</button>
+            <button x-show="ai.have.codex" @click="ui.aiMenuOpen=false; aiPickAndOpen('codex', currentPane().path)">◆ New Codex…</button>
             <button @click="ui.aiMenuOpen=false; openAgentSessions()">⟲ Resume session…</button>
         </div>
     </div>
@@ -112,8 +112,8 @@
             <button class="toolbar-more-item" x-show="grub.available" @click="ui.moreOpen=false; openGrub()">⏻ GRUB</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openActionsManager()">⚙ Actions</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openPluginUpdater()">⬆ Plugins</button>
-            <button class="toolbar-more-item" x-show="ai.have.claude" @click="ui.moreOpen=false; openAgentTab('claude', currentPane().path)">✦ New Claude</button>
-            <button class="toolbar-more-item" x-show="ai.have.codex" @click="ui.moreOpen=false; openAgentTab('codex', currentPane().path)">◆ New Codex</button>
+            <button class="toolbar-more-item" x-show="ai.have.claude" @click="ui.moreOpen=false; aiPickAndOpen('claude', currentPane().path)">✦ New Claude…</button>
+            <button class="toolbar-more-item" x-show="ai.have.codex" @click="ui.moreOpen=false; aiPickAndOpen('codex', currentPane().path)">◆ New Codex…</button>
             <button class="toolbar-more-item" x-show="ai.have.claude || ai.have.codex" @click="ui.moreOpen=false; openAgentSessions()">⟲ Resume AI session</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openUsers()">⛊ Users &amp; sudo</button>
             <button class="toolbar-more-item" @click="ui.moreOpen=false; openSettings()">⚙ Settings</button>
@@ -536,6 +536,9 @@
                     <button class="term-subtab-add" @click="addPaneToTab(tab)"
                             :title="termKindOf(tab) === 'tmux' ? 'New tmux session' : 'New terminal here'">+</button>
                     <span class="term-tabbar-spacer"></span>
+                    <button class="term-paste-img" @click="moveTerminalToAiView(tab, tab.activeTermId)"
+                            x-show="tab.terminals && tab.terminals.length"
+                            title="Move this session to AI view — keeps it running and adds a live git-diff pane beside it">✦</button>
                     <button class="term-paste-img" @click="pasteClipboardImageToTerminal(tab)"
                             title="Paste clipboard image or video → upload to temp folder and send its path">📋</button>
                 </div>
@@ -567,8 +570,8 @@
                 <div class="agent-add-wrap" @click.outside="ui.agentAddOpen = false">
                     <button class="term-subtab-add" @click="toggleAgentAddMenu($event)" title="New session">＋▾</button>
                     <div class="agent-add-menu" x-show="ui.agentAddOpen" x-cloak :style="`top:${ui.agentAddTop}px;left:${ui.agentAddLeft}px`">
-                        <button x-show="ai.have.claude" @click="ui.agentAddOpen=false; aiAddSession(tab,'claude',{dir:tab.path})">✦ New Claude</button>
-                        <button x-show="ai.have.codex" @click="ui.agentAddOpen=false; aiAddSession(tab,'codex',{dir:tab.path})">◆ New Codex</button>
+                        <button x-show="ai.have.claude" @click="ui.agentAddOpen=false; aiPickAndAdd(tab,'claude',tab.path)">✦ New Claude…</button>
+                        <button x-show="ai.have.codex" @click="ui.agentAddOpen=false; aiPickAndAdd(tab,'codex',tab.path)">◆ New Codex…</button>
                         <button @click="ui.agentAddOpen=false; openAgentSessions()">⟲ Resume…</button>
                     </div>
                 </div>
@@ -579,7 +582,9 @@
                         <div class="term-container" :id="'term-container-' + t.id" x-show="tab.activeTermId === t.id"></div>
                     </template>
                 </div>
-                <div class="agent-diff">
+                <!-- Collapsed: a thin strip on the right to bring the diff back. -->
+                <button class="agent-diff-reveal" x-show="tab.aiDiffCollapsed" @click="aiToggleDiff(tab)" title="Show diff pane">◀ diff</button>
+                <div class="agent-diff" x-show="!tab.aiDiffCollapsed">
                     <div class="agent-diff-head">
                         <div class="btn-group btn-group-sm">
                             <button class="btn btn-outline-secondary" :class="{active: aiActiveSession(tab) && aiActiveSession(tab).diff.mode==='all'}" @click="aiSetDiffMode(aiActiveSession(tab),'all')">All</button>
@@ -588,18 +593,31 @@
                         </div>
                         <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiStartDiffPoll(tab, aiActiveSession(tab))" title="Refresh">⟳</button>
                         <span class="agent-diff-note text-muted small ms-2" x-show="aiActiveSession(tab) && aiActiveSession(tab).diff.note" x-text="aiActiveSession(tab) ? aiActiveSession(tab).diff.note : ''"></span>
+                        <button class="btn btn-sm btn-outline-secondary ms-auto agent-diff-collapse" @click="aiToggleDiff(tab)" title="Hide diff pane (widen the terminal)">▶</button>
                     </div>
                     <template x-if="aiActiveSession(tab) && !aiActiveSession(tab).diff.repo">
                         <div class="agent-diff-empty text-muted p-3">Not a git repository — the terminal still works.</div>
                     </template>
                     <template x-if="aiActiveSession(tab) && aiActiveSession(tab).diff.repo">
                         <div class="agent-diff-wrap">
+                            <!-- Changed-files strip: click a file to show only its diff
+                                 (click more to add them, back-to-back); ✎ opens it in the editor. -->
                             <div class="agent-diff-files" x-show="aiActiveSession(tab).diff.files.length">
+                                <div class="agent-diff-filter small" x-show="aiActiveSession(tab).diff.selected && aiActiveSession(tab).diff.selected.length">
+                                    <span x-text="'Showing ' + aiActiveSession(tab).diff.selected.length + ' of ' + aiActiveSession(tab).diff.files.length + ' files'"></span>
+                                    <a href="#" @click.prevent="aiDiffClearSelection(aiActiveSession(tab))">Show all</a>
+                                </div>
                                 <template x-for="f in aiActiveSession(tab).diff.files" :key="f.file">
-                                    <div class="agent-diff-file"><span class="add" x-text="'+'+f.added"></span> <span class="rem" x-text="'−'+f.removed"></span> <span class="fn" x-text="f.file"></span></div>
+                                    <div class="agent-diff-file" :class="{ sel: aiDiffFileSelected(aiActiveSession(tab), f.file) }"
+                                         @click="aiDiffToggleFile(aiActiveSession(tab), f.file)"
+                                         :title="'Click to show only this file’s diff'">
+                                        <span class="add" x-text="'+'+f.added"></span> <span class="rem" x-text="'−'+f.removed"></span>
+                                        <span class="fn" x-text="f.file"></span>
+                                        <button class="agent-diff-edit" @click.stop="aiOpenDiffFile(aiActiveSession(tab), f.file)" title="Open in editor">✎</button>
+                                    </div>
                                 </template>
                             </div>
-                            <pre class="agent-diff-body" x-show="aiActiveSession(tab).diff.text"><code class="language-diff" x-text="aiActiveSession(tab).diff.text" x-effect="aiActiveSession(tab) && aiActiveSession(tab).diff.text && window.Prism && Prism.highlightElement($el)"></code></pre>
+                            <div class="agent-diff-body" x-show="aiActiveSession(tab).diff.text" x-html="aiDiffHtml(aiActiveSession(tab))"></div>
                             <div class="agent-diff-empty text-muted p-3" x-show="!aiActiveSession(tab).diff.text">No changes.</div>
                         </div>
                     </template>

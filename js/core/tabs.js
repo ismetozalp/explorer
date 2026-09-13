@@ -182,6 +182,10 @@ window.ExplorerTabs = {
         this.tabs.splice(idx, 1);
         if (this.activeTabId === id) {
             this.activeTabId = this.tabs[Math.max(0, idx - 1)]?.id || null;
+            // Closing the foreground tab can reveal a backgrounded AI tab whose
+            // diff poll was retired — closeTab sets activeTabId directly (no
+            // activateTab), so restart the newly-active session's poll here.
+            if (this.aiResumePollForActive) this.$nextTick(() => this.aiResumePollForActive());
         }
         if (this.tabs.length === 0) this.newTab(this.homePath);
     },

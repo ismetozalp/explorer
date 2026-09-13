@@ -14,26 +14,47 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
     installed tools.
   - **Live diff pane:** `git diff` of the session's folder — **All / Unstaged /
     Staged**, including untracked files, unborn-HEAD-aware, bounded so a giant
-    diff can't freeze the browser, with a changed-files strip. Polls ~1/s while
-    visible and self-heals when a folder becomes a repo.
+    diff can't freeze the browser. **Syntax-colored with old/new line-number
+    gutters**; a changed-files strip where you **click a file to isolate its
+    diff** (several show back-to-back; *Show all* clears); each file's **✎** opens
+    it in the **Monaco editor**; and **▶ / ◀ diff** hides/reveals the pane so the
+    terminal can fill the tab. Runs from the repo toplevel with hardened,
+    plain-format git output; polls ~1/s while visible (one request at a time,
+    superseded results discarded) and self-heals when a folder becomes a repo or
+    the session `cd`s to another one.
+  - **Folder picker on start:** starting a new session opens a directory browser —
+    breadcrumb navigation, an editable path, **search within a folder**, and
+    **create-new-folder** — so the CLI starts exactly where you want.
+  - **Move a running session in:** the terminal tab bar's **✦** button relocates a
+    live `claude`/`codex` (shell or tmux) into the AI split view — same PTY, now
+    with the diff pane (a tmux session's real working directory is resolved from
+    its active pane).
   - **Launch in a shell or tmux** (Settings → *Run AI CLIs in*): a shell (you
     return to it when the CLI exits) or a persistent, named **tmux** session
-    (attach-or-create; closing the sub-tab detaches).
+    (attach-or-create). Resuming into tmux uses a session name unique to that
+    resume so it always runs `--resume` instead of silently attaching elsewhere;
+    generated names are sanitized to what tmux accepts. Closing a tmux-backed
+    sub-tab or tab **asks whether to terminate the tmux session or keep it
+    running**.
   - **Resume browser:** prior Claude/Codex sessions, **grouped by project folder**
     into disclosure panels — the header resumes the latest session in that folder,
     expanding lists each session to resume a specific one, and you can **delete a
     session or all of a project's sessions** (removes the transcript files). Read
-    from each tool's own store — `~/.claude/projects` and `~/.codex/sessions` (paths configurable
-    in Settings) — with project folder, title and age; pick one to resume it in a
-    new tab. The store is read two-phase and capped so a huge history can't stall
-    the UI, and resume uses the correct id per tool.
+    from each tool's own store — `~/.claude/projects` and `~/.codex/sessions`
+    (paths **and scan depth** configurable in Settings) — with project folder,
+    title and age; a loading spinner shows while scanning. **Every project appears
+    with an accurate count** (Claude read one head per project directory, Codex
+    per session), throwaway `/tmp` sessions are excluded, and resume uses the
+    correct id per tool.
   - Opened from the `✦ AI ▾` toolbar button and the right-click **Open
     Claude/Codex here**. The CLIs run as you (no root).
 
-  Reviewed by 2 codex delta rounds + 1 whole-codebase pass; all findings fixed
-  (command-injection-safe launch via the terminal's `directory:` option, correct
-  Codex rollout parsing, bounded registry reads, shell-matched detection, tmux
-  and unavailable-CLI guards, poll-lifecycle correctness).
+  Reviewed across multiple codex delta + whole-codebase passes; all findings
+  fixed — command-injection-safe launch via the terminal's `directory:` option,
+  correct Codex rollout parsing, bounded per-directory registry reads,
+  shell-matched detection, tmux/unavailable-CLI guards, Alpine reactive-proxy
+  correctness for the live diff, poll-generation lifecycle, git-quoted &
+  space-containing path handling, and color/prefix-hardened diff output.
 
 ## 3.3.1
 

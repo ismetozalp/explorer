@@ -104,7 +104,7 @@ window.ExplorerDialogs = {
     // Returns a Promise<string|null> resolving to the chosen directory path.
     askDirectory(title, startPath) {
         return new Promise(resolve => {
-            this.dirPicker = { open: true, title: title || 'Select a folder', path: '', entries: [], loading: true, resolve, pathInput: '' };
+            this.dirPicker = { open: true, title: title || 'Select a folder', path: '', entries: [], loading: true, resolve, pathInput: '', filter: '' };
             bootstrap.Modal.getOrCreateInstance(this.dirPickerEl).show();
             this._dpLoad(startPath || this.homePath);
         });
@@ -113,6 +113,7 @@ window.ExplorerDialogs = {
         this.dirPicker.loading = true;
         this.dirPicker.path = path;
         this.dirPicker.pathInput = path;
+        this.dirPicker.filter = '';          // a fresh folder starts unfiltered
         try {
             const list = await FS.listDir(path);
             this.dirPicker.entries = list
@@ -125,6 +126,13 @@ window.ExplorerDialogs = {
         } finally {
             this.dirPicker.loading = false;
         }
+    },
+    // Case-insensitive substring filter over the CURRENT folder's subfolders
+    // (not a recursive search — that would hammer network mounts with a deep find).
+    _dpFilteredEntries() {
+        const f = (this.dirPicker.filter || '').trim().toLowerCase();
+        if (!f) return this.dirPicker.entries;
+        return this.dirPicker.entries.filter(e => e.name.toLowerCase().indexOf(f) !== -1);
     },
     _dpUp() {
         const parent = Util.dirname(this.dirPicker.path);

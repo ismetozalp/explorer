@@ -15,6 +15,11 @@ window.ExRT = {
             aiLaunch: 'shell',
             aiClaudeSessionsDir: '~/.claude/projects',
             aiCodexSessionsDir: '~/.codex/sessions',
+            // How deep to descend under each registry when the Resume browser
+            // scans for sessions. Claude keeps one flat folder per project
+            // (files one level down → 2); Codex nests by YYYY/MM/DD (→ 5).
+            aiClaudeMaxDepth: 2,
+            aiCodexMaxDepth: 5,
             columns: { size: true, modified: true, perms: true, owner: true, type: false },
             previewLimitMB: 10,
             outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)
