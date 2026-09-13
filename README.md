@@ -1717,8 +1717,9 @@ explorer/
 ├── index.html            app shell — tab bar, tabs, context menus, toasts
 ├── html/
 │   └── modals/               dialog partials, fetched + injected by js/boot.js
-│       ├── windows.html  files.html   dialogs.html  mounts.html
-│       └── grub.html     actions.html toolbar.html  github.html
+│       ├── windows.html  files.html    dialogs.html  mounts.html   grub.html
+│       ├── actions.html  toolbar.html  github.html   plugins.html  sudoers.html
+│       └── agent-sessions.html         AI resume-session browser
 ├── css/
 │   ├── bootstrap.min.css      Bootstrap 5.3.3
 │   ├── prism.css              Prism syntax-highlight theme (for preview)
@@ -1747,8 +1748,11 @@ explorer/
 │   ├── runtime.js                 window.ExRT — shared non-reactive registries + constants
 │   ├── boot.js                    fetches html/modals/* → injects → loads Alpine (no build step)
 │   ├── features/                  per-feature method mixins (window.Explorer…)
-│   │   ├── github.js  mounts.js  actions.js  terminal.js
-│   │   └── upload.js  editor.js  grub.js
+│   │   ├── github.js   mounts.js   actions.js   terminal.js   upload.js
+│   │   ├── editor.js   grub.js     videoplayer.js  plugins.js  sudoers.js
+│   │   ├── deeplink.js             open a path/pane from a URL fragment
+│   │   ├── agent.js               AI CLI tabs — launch, live diff pane, move-to-AI, tmux
+│   │   └── agent-sessions.js      AI resume: parse the Claude/Codex session stores
 │   ├── core/                      core-shell method mixins (window.Explorer…)
 │   │   ├── tabs.js  filelist.js  fileops.js
 │   │   └── output.js  dialogs.js  settings.js
@@ -1762,7 +1766,7 @@ explorer/
 │                             previewable file kind); see samples-manifest-
 │                             unit.mjs and samples-preview-e2e.mjs
 ├── package.json         dev-only test deps (Playwright); NOT shipped to the plugin
-├── Makefile              install / uninstall / zip
+├── Makefile              install / uninstall / test / coverage / zip / release
 └── README.md
 ```
 
