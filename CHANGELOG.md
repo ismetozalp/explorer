@@ -19,8 +19,11 @@ All notable changes to the Explorer Cockpit plugin are recorded here.
   - **Launch in a shell or tmux** (Settings → *Run AI CLIs in*): a shell (you
     return to it when the CLI exits) or a persistent, named **tmux** session
     (attach-or-create; closing the sub-tab detaches).
-  - **Resume browser:** lists prior Claude/Codex sessions read from each tool's
-    own store — `~/.claude/projects` and `~/.codex/sessions` (paths configurable
+  - **Resume browser:** prior Claude/Codex sessions, **grouped by project folder**
+    into disclosure panels — the header resumes the latest session in that folder,
+    expanding lists each session to resume a specific one, and you can **delete a
+    session or all of a project's sessions** (removes the transcript files). Read
+    from each tool's own store — `~/.claude/projects` and `~/.codex/sessions` (paths configurable
     in Settings) — with project folder, title and age; pick one to resume it in a
     new tab. The store is read two-phase and capped so a huge history can't stall
     the UI, and resume uses the correct id per tool.

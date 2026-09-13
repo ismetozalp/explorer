@@ -39,6 +39,7 @@
                   <span class="agent-proj-title text-muted small" x-text="g.latest.title || '—'"></span>
                   <span class="text-muted small text-nowrap" x-text="aiRelTime(g.latest.mtime)"></span>
                   <button class="btn btn-sm btn-primary text-nowrap" @click="aiResume(g.latest)" :disabled="!ai.have[g.latest.tool]" :title="ai.have[g.latest.tool] ? 'Resume the most recent session in this folder' : (g.latest.tool + ' is not installed')">Resume latest</button>
+                  <button class="btn btn-sm btn-outline-danger" @click="aiDeleteGroup(g)" :title="'Delete all ' + g.count + ' sessions in this folder'">🗑</button>
                 </div>
               </div>
               <div class="agent-proj-body" x-show="agentBrowser.expanded[g.cwd] || agentBrowser.q" x-cloak>
@@ -48,6 +49,7 @@
                     <span class="agent-sess-title text-muted small" x-text="s.title || '—'"></span>
                     <span class="text-muted small text-nowrap" x-text="aiRelTime(s.mtime)"></span>
                     <button class="btn btn-sm btn-outline-primary text-nowrap" @click="aiResume(s)" :disabled="!ai.have[s.tool]" x-text="ai.have[s.tool] ? 'Resume' : 'Not installed'"></button>
+                    <button class="btn btn-sm btn-outline-danger" @click="aiDeleteSession(s)" title="Delete this session">🗑</button>
                   </div>
                 </template>
               </div>
