@@ -1864,12 +1864,38 @@ html, body { max-width: 100%; }
 .agent-diff-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .agent-diff-files { flex: 0 0 auto; max-height: 30%; overflow: auto; padding: .25rem .5rem;
   border-bottom: 1px solid var(--border, #333); font-size: 12px; }
-.agent-diff-file { white-space: nowrap; }
+.agent-diff-filter { display: flex; gap: .5rem; align-items: center; margin-bottom: .25rem; color: var(--muted, #8b949e); }
+.agent-diff-file { white-space: nowrap; display: flex; align-items: center; gap: .1rem; cursor: pointer;
+  padding: .1rem .35rem; border-radius: 4px; }
+.agent-diff-file:hover { background: var(--hover, #2b2f34); }
+.agent-diff-file.sel { background: var(--accent, #0d6efd); }
+.agent-diff-file.sel .fn, .agent-diff-file.sel .add, .agent-diff-file.sel .rem { color: #fff; }
 .agent-diff-file .add { color: #3fb950; } .agent-diff-file .rem { color: #f85149; }
-.agent-diff-file .fn { color: var(--fg, #cfd3d8); margin-left: .35rem; }
-.agent-diff-body { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: .5rem .75rem;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+.agent-diff-file .fn { color: var(--fg, #cfd3d8); margin-left: .35rem; overflow: hidden; text-overflow: ellipsis; }
+.agent-diff-edit { all: unset; cursor: pointer; margin-left: .4rem; opacity: .55; font-size: 12px; }
+.agent-diff-file:hover .agent-diff-edit { opacity: 1; }
+.agent-diff-body { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: .5rem 0;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+/* Colored unified-diff lines with old/new line-number gutters (aiDiffHtml). */
+.agent-diff-body .adl { display: flex; align-items: flex-start; }
+.agent-diff-body .adl .ln { flex: 0 0 auto; width: 3em; text-align: right; padding: 0 .5em;
+  color: var(--muted, #8b949e); opacity: .55; user-select: none; -webkit-user-select: none; }
+.agent-diff-body .adl .lc { flex: 1 1 auto; white-space: pre; padding-right: .75rem; }
+.agent-diff-body .adl.add { background: rgba(63,185,80,.15); }
+.agent-diff-body .adl.add .lc { color: #56d364; }
+.agent-diff-body .adl.del { background: rgba(248,81,73,.15); }
+.agent-diff-body .adl.del .lc { color: #f85149; }
+.agent-diff-body .adl.hunk { background: rgba(88,166,255,.08); }
+.agent-diff-body .adl.hunk .lc { color: #58a6ff; }
+.agent-diff-body .adl.meta .lc { color: var(--muted, #8b949e); }
+.agent-diff-body .adl.ctx .lc { color: var(--fg, #cfd3d8); }
 .agent-diff-empty { font-size: 13px; }
+.agent-diff-collapse { line-height: 1; padding: .1rem .4rem; }
+/* Thin vertical strip shown on the right when the diff pane is hidden. */
+.agent-diff-reveal { flex: 0 0 auto; align-self: stretch; border: 0; border-left: 1px solid var(--border, #333);
+  background: var(--panel, #23262b); color: var(--muted, #8b949e); cursor: pointer; font-size: 11px;
+  writing-mode: vertical-rl; text-orientation: mixed; padding: .5rem .15rem; letter-spacing: .05em; }
+.agent-diff-reveal:hover { color: var(--fg, #cfd3d8); background: var(--hover, #2b2f34); }
 /* add-session + toolbar AI dropdown menu */
 .agent-add-wrap { position: relative; display: inline-flex; }
 /* Both AI dropdowns are position:fixed + high z-index so they escape the

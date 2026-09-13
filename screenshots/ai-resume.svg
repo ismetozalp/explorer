@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="430" fill="#1b1d21"/>
+  <!-- modal header -->
+  <rect x="0" y="0" width="900" height="46" fill="#141517"/>
+  <text x="20" y="29" fill="#e8e8e8" font-size="15" font-weight="600">Resume an AI session</text>
+  <rect x="560" y="13" width="180" height="22" rx="4" fill="#23262b"/><text x="570" y="28" fill="#8b949e" font-size="11">Search path or title…</text>
+  <rect x="748" y="13" width="70" height="22" rx="4" fill="#23262b"/><text x="758" y="28" fill="#cfd3d8" font-size="11">All ▾</text>
+  <rect x="826" y="13" width="60" height="22" rx="4" fill="#2b2f34"/><text x="836" y="28" fill="#cfd3d8" font-size="11">Refresh</text>
+  <text x="20" y="66" fill="#8b949e" font-size="11">Sessions read from ~/.claude/projects and ~/.codex/sessions (configurable in Settings). Pick one to open a tab that resumes it.</text>
+
+  <!-- project group 1 (expanded) -->
+  <rect x="16" y="80" width="868" height="118" rx="6" fill="#202226" stroke="#2e3037"/>
+  <text x="30" y="104" fill="#8ab4f8" font-size="12">▾</text>
+  <text x="50" y="104" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,monospace">/home/ismet/cockpit_projects/explorer</text>
+  <rect x="360" y="93" width="26" height="16" rx="8" fill="#3a3f46"/><text x="367" y="105" fill="#cfd3d8" font-size="10">55</text>
+  <rect x="640" y="90" width="48" height="18" rx="3" fill="#1f6feb"/><text x="648" y="103" fill="#fff" font-size="10">claude</text>
+  <text x="694" y="103" fill="#9aa0a8" font-size="11">refactor the diff pane…</text>
+  <text x="812" y="103" fill="#8b949e" font-size="11">16m ago</text>
+  <rect x="700" y="118" width="96" height="20" rx="3" fill="#0d6efd"/><text x="712" y="132" fill="#fff" font-size="11">Resume latest</text>
+  <rect x="804" y="118" width="26" height="20" rx="3" fill="#3a2426" stroke="#a13a3a"/><text x="812" y="132" fill="#f0a0a0" font-size="11">🗑</text>
+  <!-- expanded sessions -->
+  <line x1="30" y1="148" x2="870" y2="148" stroke="#2e3037"/>
+  <rect x="40" y="156" width="48" height="16" rx="3" fill="#1f6feb"/><text x="48" y="168" fill="#fff" font-size="10">claude</text>
+  <text x="96" y="168" fill="#9aa0a8" font-size="11">add colored diff + line numbers</text>
+  <text x="700" y="168" fill="#8b949e" font-size="11">16m ago</text>
+  <rect x="760" y="156" width="66" height="18" rx="3" fill="#2b2f34"/><text x="768" y="169" fill="#cfd3d8" font-size="10">Resume</text>
+  <text x="838" y="169" fill="#8b949e" font-size="11">🗑</text>
+  <rect x="40" y="178" width="48" height="16" rx="3" fill="#1f6feb"/><text x="48" y="190" fill="#fff" font-size="10">claude</text>
+  <text x="96" y="190" fill="#9aa0a8" font-size="11">folder picker + resume browser</text>
+  <text x="700" y="190" fill="#8b949e" font-size="11">1h ago</text>
+  <rect x="760" y="178" width="66" height="18" rx="3" fill="#2b2f34"/><text x="768" y="191" fill="#cfd3d8" font-size="10">Resume</text>
+  <text x="838" y="191" fill="#8b949e" font-size="11">🗑</text>
+
+  <!-- collapsed groups -->
+  <rect x="16" y="208" width="868" height="34" rx="6" fill="#202226" stroke="#2e3037"/>
+  <text x="30" y="230" fill="#8ab4f8" font-size="12">▸</text>
+  <text x="50" y="230" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,monospace">/home/ismet/cockpit_projects/skywatch</text>
+  <rect x="360" y="219" width="30" height="16" rx="8" fill="#3a3f46"/><text x="367" y="231" fill="#cfd3d8" font-size="10">261</text>
+  <rect x="640" y="216" width="42" height="18" rx="3" fill="#0d7a92"/><text x="648" y="229" fill="#fff" font-size="10">codex</text>
+  <rect x="700" y="216" width="96" height="20" rx="3" fill="#0d6efd"/><text x="712" y="230" fill="#fff" font-size="11">Resume latest</text>
+  <text x="838" y="230" fill="#f0a0a0" font-size="11">🗑</text>
+
+  <rect x="16" y="252" width="868" height="34" rx="6" fill="#202226" stroke="#2e3037"/>
+  <text x="30" y="274" fill="#8ab4f8" font-size="12">▸</text>
+  <text x="50" y="274" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,monospace">/home/ismet/cockpit_projects/manifest</text>
+  <rect x="360" y="263" width="26" height="16" rx="8" fill="#3a3f46"/><text x="367" y="275" fill="#cfd3d8" font-size="10">10</text>
+  <rect x="700" y="260" width="96" height="20" rx="3" fill="#0d6efd"/><text x="712" y="274" fill="#fff" font-size="11">Resume latest</text>
+  <text x="838" y="274" fill="#f0a0a0" font-size="11">🗑</text>
+
+  <rect x="16" y="296" width="868" height="34" rx="6" fill="#202226" stroke="#2e3037"/>
+  <text x="30" y="318" fill="#8ab4f8" font-size="12">▸</text>
+  <text x="50" y="318" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,monospace">/home/ismet/cockpit_projects/hangar</text>
+  <rect x="360" y="307" width="22" height="16" rx="8" fill="#3a3f46"/><text x="366" y="319" fill="#cfd3d8" font-size="10">7</text>
+  <rect x="700" y="304" width="96" height="20" rx="3" fill="#0d6efd"/><text x="712" y="318" fill="#fff" font-size="11">Resume latest</text>
+  <text x="838" y="318" fill="#f0a0a0" font-size="11">🗑</text>
+
+  <text x="20" y="360" fill="#5c5f6b" font-size="11">Grouped by project folder · every project appears · expand to resume a specific session · delete one or all · Claude &amp; Codex.</text>
+</svg>

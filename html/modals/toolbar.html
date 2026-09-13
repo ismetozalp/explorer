@@ -30,6 +30,10 @@
                 </div>
                 <div class="mb-2"><label class="form-label">Claude sessions directory</label><input type="text" class="form-control" x-model="settings.aiClaudeSessionsDir" @change="saveSettings()" spellcheck="false" placeholder="~/.claude/projects"><small class="form-text text-muted">Where the Resume browser looks for Claude sessions.</small></div>
                 <div class="mb-2"><label class="form-label">Codex sessions directory</label><input type="text" class="form-control" x-model="settings.aiCodexSessionsDir" @change="saveSettings()" spellcheck="false" placeholder="~/.codex/sessions"><small class="form-text text-muted">Where the Resume browser looks for Codex sessions.</small></div>
+                <div class="row g-2">
+                    <div class="col mb-2"><label class="form-label">Claude scan depth</label><input type="number" class="form-control" x-model.number="settings.aiClaudeMaxDepth" @change="saveSettings()" min="1" max="12"><small class="form-text text-muted">How deep the Resume browser descends under the Claude directory (default 2).</small></div>
+                    <div class="col mb-2"><label class="form-label">Codex scan depth</label><input type="number" class="form-control" x-model.number="settings.aiCodexMaxDepth" @change="saveSettings()" min="1" max="12"><small class="form-text text-muted">How deep it descends under the Codex directory — nested by date (default 5).</small></div>
+                </div>
                 <hr>
                 <div class="mb-2">
                     <label class="form-label">Update source (GitHub repo or releases URL)</label>

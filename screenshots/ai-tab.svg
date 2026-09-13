@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
-  <rect width="900" height="430" fill="#1b1d21"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="440" fill="#1b1d21"/>
   <!-- tab bar -->
   <rect x="0" y="0" width="900" height="30" fill="#141517"/>
   <rect x="8" y="5" width="120" height="20" rx="4" fill="#23262b"/><text x="18" y="19" fill="#cfd3d8" font-size="11">✦ claude</text>
@@ -9,33 +9,46 @@
   <rect x="8" y="34" width="90" height="18" rx="3" fill="#2b3138"/><text x="16" y="47" fill="#e8e8e8" font-size="11">✦ claude</text>
   <rect x="104" y="34" width="86" height="18" rx="3" fill="#23262b"/><text x="112" y="47" fill="#9aa0a8" font-size="11">◆ codex 2</text>
   <text x="200" y="47" fill="#8ab4f8" font-size="12">＋▾</text>
+  <text x="856" y="47" fill="#8ab4f8" font-size="12">✦</text>
   <!-- split: terminal left -->
-  <rect x="0" y="56" width="470" height="374" fill="#0d1013"/>
+  <rect x="0" y="56" width="430" height="384" fill="#0d1013"/>
   <text x="14" y="80" fill="#6ee7b7" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">ismet@host ~/project $ claude</text>
-  <text x="14" y="100" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">╭─ Claude Code ─────────────────────╮</text>
-  <text x="14" y="118" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">│  &gt; help me refactor the parser    │</text>
-  <text x="14" y="136" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">╰───────────────────────────────────╯</text>
+  <text x="14" y="100" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">╭─ Claude Code ─────────────────╮</text>
+  <text x="14" y="118" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">│  &gt; help me refactor parser   │</text>
+  <text x="14" y="136" fill="#cfd3d8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">╰───────────────────────────────╯</text>
   <text x="14" y="160" fill="#9aa0a8" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">● Editing js/parser.js …</text>
   <!-- split: diff right -->
-  <rect x="470" y="56" width="430" height="374" fill="#16171b"/>
-  <line x1="470" y1="56" x2="470" y2="430" stroke="#2e3037"/>
-  <rect x="470" y="56" width="430" height="30" fill="#1e2027"/>
-  <rect x="480" y="61" width="40" height="20" rx="3" fill="#0d6efd"/><text x="488" y="75" fill="#fff" font-size="11">All</text>
-  <rect x="524" y="61" width="66" height="20" rx="3" fill="#2b2f34"/><text x="532" y="75" fill="#cfd3d8" font-size="11">Unstaged</text>
-  <rect x="594" y="61" width="52" height="20" rx="3" fill="#2b2f34"/><text x="602" y="75" fill="#cfd3d8" font-size="11">Staged</text>
-  <text x="876" y="75" fill="#9aa0a8" font-size="13">⟳</text>
-  <!-- file strip -->
-  <text x="482" y="104" fill="#3fb950" font-size="11" font-family="ui-monospace,Menlo,monospace">+18</text><text x="512" y="104" fill="#f85149" font-size="11" font-family="ui-monospace,Menlo,monospace">−4</text><text x="542" y="104" fill="#cfd3d8" font-size="11" font-family="ui-monospace,Menlo,monospace">js/parser.js</text>
-  <text x="482" y="120" fill="#3fb950" font-size="11" font-family="ui-monospace,Menlo,monospace">+6</text><text x="512" y="120" fill="#f85149" font-size="11" font-family="ui-monospace,Menlo,monospace">−0</text><text x="542" y="120" fill="#cfd3d8" font-size="11" font-family="ui-monospace,Menlo,monospace">tests/parser.test.js</text>
-  <line x1="470" y1="130" x2="900" y2="130" stroke="#2e3037"/>
-  <!-- diff body -->
+  <rect x="430" y="56" width="470" height="384" fill="#16171b"/>
+  <line x1="430" y1="56" x2="430" y2="440" stroke="#2e3037"/>
+  <rect x="430" y="56" width="470" height="30" fill="#1e2027"/>
+  <rect x="440" y="61" width="40" height="20" rx="3" fill="#0d6efd"/><text x="448" y="75" fill="#fff" font-size="11">All</text>
+  <rect x="484" y="61" width="66" height="20" rx="3" fill="#2b2f34"/><text x="492" y="75" fill="#cfd3d8" font-size="11">Unstaged</text>
+  <rect x="554" y="61" width="52" height="20" rx="3" fill="#2b2f34"/><text x="562" y="75" fill="#cfd3d8" font-size="11">Staged</text>
+  <text x="616" y="75" fill="#9aa0a8" font-size="13">⟳</text>
+  <rect x="866" y="62" width="24" height="18" rx="3" fill="#2b2f34"/><text x="873" y="75" fill="#cfd3d8" font-size="11">▶</text>
+  <!-- file strip: one file selected (highlighted), each has a ✎ edit action -->
+  <rect x="434" y="92" width="462" height="18" rx="3" fill="#0d6efd" opacity="0.85"/>
+  <text x="440" y="105" fill="#d7ffe0" font-size="11" font-family="ui-monospace,Menlo,monospace">+18</text><text x="470" y="105" fill="#ffd7d5" font-size="11" font-family="ui-monospace,Menlo,monospace">−4</text><text x="500" y="105" fill="#fff" font-size="11" font-family="ui-monospace,Menlo,monospace">js/parser.js</text><text x="880" y="105" fill="#fff" font-size="11">✎</text>
+  <text x="440" y="124" fill="#3fb950" font-size="11" font-family="ui-monospace,Menlo,monospace">+6</text><text x="470" y="124" fill="#f85149" font-size="11" font-family="ui-monospace,Menlo,monospace">−0</text><text x="500" y="124" fill="#cfd3d8" font-size="11" font-family="ui-monospace,Menlo,monospace">tests/parser.test.js</text><text x="880" y="124" fill="#8b949e" font-size="11">✎</text>
+  <text x="440" y="140" fill="#8b949e" font-size="10">Showing 1 of 2 files · Show all</text>
+  <line x1="430" y1="148" x2="900" y2="148" stroke="#2e3037"/>
+  <!-- diff body with old/new line-number gutters + colored rows -->
   <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11">
-    <text x="482" y="150" fill="#8ab4f8">diff --git a/js/parser.js b/js/parser.js</text>
-    <text x="482" y="166" fill="#9aa0a8">@@ -12,7 +12,9 @@ function parse(src) {</text>
-    <text x="482" y="182" fill="#cfd3d8"> const tokens = lex(src);</text>
-    <text x="482" y="198" fill="#f85149">-  return tokens.map(naive);</text>
-    <text x="482" y="214" fill="#3fb950">+  const ast = build(tokens);</text>
-    <text x="482" y="230" fill="#3fb950">+  return validate(ast);</text>
+    <!-- meta -->
+    <text x="486" y="166" fill="#8b949e">diff --git a/js/parser.js b/js/parser.js</text>
+    <!-- hunk -->
+    <rect x="430" y="171" width="470" height="15" fill="#58a6ff" opacity="0.10"/>
+    <text x="486" y="182" fill="#58a6ff">@@ -12,7 +12,9 @@ function parse(src) {</text>
+    <!-- context -->
+    <text x="440" y="198" fill="#6b7280">12</text><text x="462" y="198" fill="#6b7280">12</text><text x="486" y="198" fill="#cfd3d8"> const tokens = lex(src);</text>
+    <!-- del -->
+    <rect x="430" y="203" width="470" height="15" fill="#f85149" opacity="0.15"/>
+    <text x="440" y="214" fill="#6b7280">13</text><text x="486" y="214" fill="#f85149">-  return tokens.map(naive);</text>
+    <!-- add -->
+    <rect x="430" y="219" width="470" height="15" fill="#3fb950" opacity="0.15"/>
+    <text x="462" y="230" fill="#6b7280">13</text><text x="486" y="230" fill="#56d364">+  const ast = build(tokens);</text>
+    <rect x="430" y="235" width="470" height="15" fill="#3fb950" opacity="0.15"/>
+    <text x="462" y="246" fill="#6b7280">14</text><text x="486" y="246" fill="#56d364">+  return validate(ast);</text>
   </g>
-  <text x="482" y="410" fill="#5c5f6b" font-size="11">live git diff — updates as the agent edits · New Claude / Codex · Resume a past session</text>
+  <text x="440" y="420" fill="#5c5f6b" font-size="11">live git diff — colored, line-numbered · click a file to isolate it · ✎ opens it in the editor · ▶ hides the pane</text>
 </svg>

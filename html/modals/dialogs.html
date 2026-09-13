@@ -59,15 +59,19 @@
                     <button class="btn btn-outline-secondary" @click="_dpGoTo()">Go</button>
                     <button class="btn btn-outline-secondary" @click="_dpNewFolder()" title="Create a new folder here">+ Folder</button>
                 </div>
+                <input type="search" class="form-control form-control-sm mb-2" placeholder="Search this folder…"
+                       x-model="dirPicker.filter" x-show="dirPicker.entries.length">
                 <div class="dir-picker-list">
                     <div x-show="dirPicker.loading" class="text-muted p-2">Loading…</div>
-                    <template x-for="d in dirPicker.entries" :key="d.path">
+                    <template x-for="d in _dpFilteredEntries()" :key="d.path">
                         <div class="dir-picker-item" @click="_dpEnter(d)" @dblclick="_dpEnter(d)">
                             <span class="dir-picker-ico">📁</span>
                             <span x-text="d.name"></span>
                         </div>
                     </template>
                     <div x-show="!dirPicker.loading && !dirPicker.entries.length" class="text-muted p-2">No subfolders here.</div>
+                    <div x-show="!dirPicker.loading && dirPicker.entries.length && !_dpFilteredEntries().length"
+                         class="text-muted p-2" x-text="'No folders match “' + dirPicker.filter + '”'"></div>
                 </div>
             </div>
             <div class="modal-footer">

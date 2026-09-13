@@ -59,4 +59,43 @@ assert.strictEqual(listing[0].mtime, 1756400000);
 
 assert.deepStrictEqual([...A._aiSortSessions([{ mtime: 1 }, { mtime: 9 }, { mtime: 5 }]).map(s => s.mtime)], [9, 5, 1]);
 
+// ── filename base + parent dir (scan primitives) ──
+assert.strictEqual(A._aiBase('/a/b/11d5c0a4-b9cb-42db-b51b-a4a7893b0208.jsonl'), '11d5c0a4-b9cb-42db-b51b-a4a7893b0208');
+assert.strictEqual(A._aiDirOf('/a/b/c.jsonl'), '/a/b');
+
+// ── group-by-dir (Claude: one head per project directory) ──
+const grouped = A._aiGroupByDir([
+    { path: '/proj-a/s1.jsonl', mtime: 1 },
+    { path: '/proj-b/s2.jsonl', mtime: 2 },
+    { path: '/proj-a/s3.jsonl', mtime: 3 },
+]);
+assert.strictEqual(grouped.size, 2, 'two distinct project dirs');
+assert.deepStrictEqual([...grouped.get('/proj-a').map(f => f.path)], ['/proj-a/s1.jsonl', '/proj-a/s3.jsonl']);
+assert.deepStrictEqual([...grouped.get('/proj-b').map(f => f.path)], ['/proj-b/s2.jsonl']);
+
+// ── uuid session filter (exclude nested subagent transcripts) ──
+assert.ok(A._aiIsUuid('11d5c0a4-b9cb-42db-b51b-a4a7893b0208') && A._aiIsUuid('01A04CF4-A0E1-7DD0-93E1-8997BE5D476A'));
+assert.ok(!A._aiIsUuid('agent-a4fdd912d1fe691be') && !A._aiIsUuid('') && !A._aiIsUuid('subagents'));
+
+// ── temp-folder exclusion (by real cwd) ──
+assert.ok(A._aiIsTempPath('/tmp/claude-1000/x/scratchpad'), '/tmp subpath is temp');
+assert.ok(A._aiIsTempPath('/tmp'), 'the temp root itself');
+assert.ok(A._aiIsTempPath('/var/tmp/foo') && A._aiIsTempPath('/dev/shm/bar'), 'other temp roots');
+assert.ok(!A._aiIsTempPath('/home/ismet/tmpwork'), 'tmp as a name fragment is not temp');
+assert.ok(!A._aiIsTempPath('/home/ismet/cockpit_projects/explorer') && !A._aiIsTempPath('') && !A._aiIsTempPath(null));
+// ── temp-folder exclusion (by encoded Claude folder name, cwd-less head) ──
+assert.ok(A._aiEncodedDirIsTemp('-tmp-claude-1000--home-ismet-x-scratchpad'), 'encoded /tmp/... folder');
+assert.ok(A._aiEncodedDirIsTemp('-var-tmp-x') && A._aiEncodedDirIsTemp('-dev-shm-y'));
+assert.ok(!A._aiEncodedDirIsTemp('-home-ismet-cockpit-projects-explorer'), 'a real project folder');
+assert.ok(!A._aiEncodedDirIsTemp('-home-ismet-tmpwork'), 'tmp as a name fragment');
+
+// ── max-depth clamp (user-configurable scan depth) ──
+assert.strictEqual(A._aiMaxDepth(3, 2), 3, 'valid depth passes through');
+assert.strictEqual(A._aiMaxDepth('4', 2), 4, 'numeric string coerced');
+assert.strictEqual(A._aiMaxDepth(undefined, 2), 2, 'missing → default');
+assert.strictEqual(A._aiMaxDepth(0, 5), 5, 'below 1 → default');
+assert.strictEqual(A._aiMaxDepth(-1, 5), 5, 'negative → default');
+assert.strictEqual(A._aiMaxDepth('abc', 5), 5, 'non-numeric → default');
+assert.strictEqual(A._aiMaxDepth(999, 2), 12, 'clamped to 12 ceiling');
+
 console.log('agent-sessions-unit: OK');

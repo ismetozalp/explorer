@@ -139,11 +139,13 @@ try {
     if (!srcdoc || !/<h1/i.test(srcdoc)) fail('markdown srcdoc missing rendered <h1>: ' + String(srcdoc).slice(0, 200));
     console.log('OK markdown: [sandbox] iframe srcdoc contains rendered <h1>');
 
-    const toggleBtn = app.locator('.win-controls button', { hasText: /^(Source|Rendered)$/ });
+    // Target the markdown toggle specifically — the (hidden) HTML-preview toggle
+    // also carries "Source"/"Rendered" text, so an untyped locator is ambiguous.
+    const toggleBtn = app.locator('.win-controls button.preview-md-toggle');
     await toggleBtn.waitFor({ timeout: 5000 });
     if ((await toggleBtn.innerText()).trim() !== 'Source') fail('expected the toggle to read "Source" while rendered');
     await toggleBtn.click();
-    await app.locator('.win-controls button', { hasText: 'Rendered' }).waitFor({ timeout: 5000 });
+    await app.locator('.win-controls button.preview-md-toggle', { hasText: 'Rendered' }).waitFor({ timeout: 5000 });
     const rawText = await app.locator('.preview-code-wrap .preview-code').innerText();
     if (!rawText.includes('# Heading')) fail('Source toggle did not reveal raw markdown text: ' + rawText.slice(0, 200));
     console.log('OK markdown: Source toggle switches to raw text ("# Heading" visible)');

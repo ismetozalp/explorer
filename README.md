@@ -820,26 +820,42 @@ edits files.
 ![AI tab — terminal + live diff](screenshots/ai-tab.svg)
 
 - **Open** — the **`✦ AI ▾`** toolbar button (or right-click a folder →
-  **Open Claude/Codex here**) opens an AI tab rooted at that folder. The buttons
-  appear only for the CLIs actually installed (detected in your login shell, so
-  a tool in `~/.local/bin` is found).
+  **Open Claude/Codex here**) opens an AI tab. Starting a *new* session first
+  brings up a **folder picker** — browse the filesystem, **search within a
+  folder**, and **create a new directory** — so you choose exactly where the CLI
+  starts. The buttons appear only for the CLIs actually installed (detected in
+  your login shell, so a tool in `~/.local/bin` is found).
 - **Sessions as sub-tabs** — each AI tab holds multiple sessions like the
-  terminal tab holds terminals: **`＋▾`** adds *New Claude* / *New Codex* /
+  terminal tab holds terminals: **`＋▾`** adds *New Claude…* / *New Codex…* /
   *Resume…*, each sub-tab has its own terminal **and** its own diff, and you can
   close (✕) or rename (double-click) them.
 - **Live diff** — the right pane shows `git diff` of the session's folder
   (**All** / **Unstaged** / **Staged**, including untracked files), refreshing
   about once a second while the tab is visible, with a changed-files strip on
-  top. Not a git repo? The terminal still works; the pane just says so.
+  top. It's **syntax-colored with old/new line-number gutters**; **click a file**
+  in the strip to isolate its diff (click more to show several back-to-back, or
+  *Show all* to clear); each file's **✎** opens it in the **Monaco editor**; and
+  **▶** hides the pane so the terminal fills the tab (a *◀ diff* strip brings it
+  back). Not a git repo? The terminal still works; the pane just says so.
+- **Move a running session in** — already running `claude`/`codex` in a plain
+  terminal or tmux? The terminal tab bar's **✦** button drops that live session
+  into the AI split view — same process, now with the diff pane beside it.
 - **Launch in a shell or tmux** — a Settings option (*Run AI CLIs in*): **Shell**
   runs the CLI in your login shell (you drop back to a shell when it exits), or
   **tmux** — you're asked for a session name and it attaches to (or creates) a
-  persistent tmux session, so closing the sub-tab just detaches.
-- **Resume a past session** — **Resume…** lists your prior Claude/Codex sessions
-  read from each tool's own store — Claude `~/.claude/projects`, Codex
-  `~/.codex/sessions` (both paths configurable in Settings) — with the project
-  folder, a title, and how long ago. Pick one and it opens a tab that resumes it
-  (`claude --resume <id>` in that folder, or `codex resume <id>`).
+  persistent tmux session. Closing a tmux-backed sub-tab or tab **asks whether to
+  terminate the tmux session or keep it running** so you can re-attach later.
+- **Resume a past session** — **Resume…** opens a browser of your prior
+  Claude/Codex sessions, read from each tool's own store — Claude
+  `~/.claude/projects`, Codex `~/.codex/sessions` (paths **and scan depth**
+  configurable in Settings). Sessions are **grouped by project folder** so every
+  project shows up with a session count: **Resume latest** opens the newest in
+  that folder, or expand a group to resume a **specific** session; **🗑** deletes
+  one session or a whole project's sessions. Throwaway sessions under `/tmp` are
+  hidden. Picking one opens a tab that resumes it (`claude --resume <id>` in that
+  folder, or `codex resume <id>`).
+
+![Resume browser — sessions grouped by project](screenshots/ai-resume.svg)
 
 The CLIs run as **you** (no root); Explorer just launches them and mirrors the
 working-tree diff.
