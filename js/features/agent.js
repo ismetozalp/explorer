@@ -309,5 +309,35 @@
             try { bootstrap.Modal.getOrCreateInstance(this.agentSessionsModalEl).hide(); } catch (e) {}
             this.openAgentTab(row.tool, row.cwd, { resumeId: row.id });
         },
+
+        // Delete session transcript files. Only OUR files: absolute `.jsonl` paths
+        // (they always come from a `find` under a configured session dir), passed
+        // as argv to `rm -f --` — never shell-interpolated. Returns true on success.
+        async _aiDeletePaths(paths) {
+            const valid = (paths || []).filter(p => typeof p === 'string' && p.startsWith('/') && p.endsWith('.jsonl'));
+            if (!valid.length) return false;
+            try { await cockpit.spawn(['rm', '-f', '--', ...valid], { err: 'message' }); return true; }
+            catch (e) { this.toast('Could not delete: ' + (e.message || e), 'danger'); return false; }
+        },
+
+        async aiDeleteSession(row) {
+            if (!(await this.askConfirm('Delete session',
+                `Delete this ${row.tool} session? It removes the transcript file permanently and the session can no longer be resumed.` +
+                (row.title ? `\n\n“${row.title}”` : ''), 'Delete'))) return;
+            if (!(await this._aiDeletePaths([row.path]))) return;
+            this.agentBrowser.rows = this.agentBrowser.rows.filter(r => r.path !== row.path);
+            this.toast('Session deleted.', 'success');
+        },
+
+        async aiDeleteGroup(group) {
+            if (!(await this.askConfirm('Delete all sessions',
+                `Delete ALL ${group.count} ${group.count === 1 ? 'session' : 'sessions'} for this project? This permanently removes their transcript files.\n\n${group.cwd}`,
+                'Delete all'))) return;
+            const paths = group.sessions.map(s => s.path);
+            if (!(await this._aiDeletePaths(paths))) return;
+            const gone = new Set(paths);
+            this.agentBrowser.rows = this.agentBrowser.rows.filter(r => !gone.has(r.path));
+            this.toast(`Deleted ${paths.length} session${paths.length === 1 ? '' : 's'}.`, 'success');
+        },
     };
 })();
