@@ -278,8 +278,10 @@
         // ───────── session browser (resume) ─────────
 
         async openAgentSessions() {
-            bootstrap.Modal.getOrCreateInstance(this.agentSessionsModalEl).show();
+            // Set loading BEFORE showing, so the modal's first paint already has
+            // the spinner (no empty flash while the scan runs).
             this.agentBrowser.loading = true; this.agentBrowser.rows = [];
+            bootstrap.Modal.getOrCreateInstance(this.agentSessionsModalEl).show();
             try {
                 if (!this._aiHome) this._aiHome = (await cockpit.spawn(['sh', '-c', 'echo $HOME'])).trim();
                 this.agentBrowser.rows = await this.scanAiSessions(this.settings, this._aiHome);
