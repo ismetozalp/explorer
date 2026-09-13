@@ -18,6 +18,10 @@
         </div>
       </div>
       <div class="modal-body">
+        <div class="agent-loading text-center text-muted py-5" x-show="agentBrowser.loading" x-cloak>
+          <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+          <div>Scanning your Claude &amp; Codex sessions…</div>
+        </div>
         <div class="text-muted small mb-2" x-show="!agentBrowser.loading">
           Sessions read from <code x-text="settings.aiClaudeSessionsDir || '~/.claude/projects'"></code> and
           <code x-text="settings.aiCodexSessionsDir || '~/.codex/sessions'"></code> (change these in Settings). Pick one to open a tab that resumes it.
@@ -25,7 +29,7 @@
         <!-- Grouped by project folder. Each project is a disclosure panel: the
              header resumes the LATEST session in that folder; expanding it lists
              every session so you can resume a specific one. -->
-        <div class="agent-proj-list">
+        <div class="agent-proj-list" x-show="!agentBrowser.loading">
           <template x-for="g in aiGroupedSessions()" :key="g.cwd">
             <div class="agent-proj">
               <div class="agent-proj-head">
