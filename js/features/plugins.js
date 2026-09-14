@@ -56,6 +56,13 @@ window.ExplorerPlugins = {
             (row.status === 'update' || (!!force && (row.status === 'uptodate' || row.status === 'unknown')));
     },
 
+    // GitHub release page for a plugin row — the specific latest tag if known,
+    // else the repo's releases index. Opened in a new tab from the Plugin Manager.
+    pluginReleaseUrl(row) {
+        if (!row || !row.repo) return '#';
+        return 'https://github.com/' + row.repo + (row.tag ? ('/releases/tag/' + encodeURIComponent(row.tag)) : '/releases');
+    },
+
     _versionsFilePath() { return this.homePath + '/.config/cockpit/explorer/plugin-versions.json'; },
 
     async _readVersionsFile() {

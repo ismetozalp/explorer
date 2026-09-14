@@ -60,7 +60,13 @@ try {
     // Stub the CLI so no real interactive TUI launches in the terminal, and force
     // shell launch so the test is deterministic regardless of the user's persisted
     // aiLaunch preference (tmux launch would block on the session-name prompt).
-    await app.evaluate(() => { const d = window.Alpine.$data(document.body); d._aiCliCommand = () => 'echo AGENT_E2E_STUB'; d.settings.aiLaunch = 'shell'; });
+    // Also close any AI tabs restored from a previous session (persistTabs) so this
+    // run starts from a clean slate — closeTab (not closeTabAsk) skips the prompt.
+    await app.evaluate(() => {
+        const d = window.Alpine.$data(document.body);
+        d._aiCliCommand = () => 'echo AGENT_E2E_STUB'; d.settings.aiLaunch = 'shell';
+        d.tabs.filter(t => t.kind === 'agent').forEach(t => d.closeTab(t.id));
+    });
 
     // Open a Claude agent tab THROUGH the folder picker (browse / search / choose)
     // rooted at the repo — the pre-start folder selection.

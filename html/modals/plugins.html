@@ -32,6 +32,8 @@
                 <td data-label="Version" class="small">
                   <span x-text="row.current || '—'"></span>
                   <span x-show="row.latest && row.current !== row.latest"> → <span x-text="row.latest"></span></span>
+                  <a class="ms-2" x-show="row.repo" :href="pluginReleaseUrl(row)" target="_blank" rel="noopener"
+                     title="Open the GitHub release notes in a new tab">release notes ↗</a>
                 </td>
                 <td data-label="Status">
                   <span class="badge" :class="{

@@ -234,7 +234,10 @@ function makeApp() {
     const catCalls = spawns.filter((a) => a[0] === 'cat');
     assert.ok(catCalls.length >= 2,
         'the wait must re-poll the playlist after an under-buffered read, not attach on the first (or a bare existence) check — got ' + catCalls.length + ' cat call(s)');
-    assert.ok(!spawns.some((a) => a[0] === 'test'), 'must not use the old test -s existence check anymore');
+    assert.ok(!spawns.some((a) => a[0] === 'test' && a[1] === '-s'), 'must not use the old test -s existence check anymore');
+    // 4.1.0: a source-readability probe (`test -r`) IS expected — it decides
+    // whether the probe/transcode pipeline needs the superuser bridge (finding 7).
+    assert.ok(spawns.some((a) => a[0] === 'test' && a[1] === '-r'), 'startPreviewVideo must probe source readability with `test -r`');
 
     const w = app._win('w1');
     assert.strictEqual(w.pv.totalDuration, 4242,

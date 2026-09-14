@@ -177,6 +177,11 @@ window.ExplorerFileList = {
             }
         }
 
+        // Share _loadDir's per-tab generation token (see js/core/tabs.js): a
+        // slow search result must not paint over a newer search, a clearSearch
+        // (which calls _loadDir), or a navigation — and vice versa. Whoever
+        // stamps last owns the tab; earlier in-flight work drops its result.
+        const gen = (tab._loadGen = (tab._loadGen || 0) + 1);
         tab.loading = true;
         tab.error = null;
         try {
@@ -200,14 +205,16 @@ window.ExplorerFileList = {
                     results = all.filter(f => f.name.includes(q));
                 }
             }
+            if (tab._loadGen !== gen) return;   // superseded — leave the tab to the newer op
             if (!this.settings.showHidden) results = results.filter(f => !f.name.startsWith('.'));
             tab.files = results;
             tab.selection = [];
             tab.search.active = true;
         } catch (e) {
+            if (tab._loadGen !== gen) return;
             tab.error = e.message || 'Search failed';
         } finally {
-            tab.loading = false;
+            if (tab._loadGen === gen) tab.loading = false;
         }
     },
 

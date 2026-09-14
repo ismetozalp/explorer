@@ -837,6 +837,16 @@ edits files.
   *Show all* to clear); each file's **✎** opens it in the **Monaco editor**; and
   **▶** hides the pane so the terminal fills the tab (a *◀ diff* strip brings it
   back). Not a git repo? The terminal still works; the pane just says so.
+- **Repo tree** — a middle column (`Terminal | Tree | Diff`, revealed by the
+  *tree ▶* strip) navigates the whole repository: folders **expand on demand**,
+  and every entry is **colored by git status** (modified blue, added/new green,
+  untracked red; a folder with changes inside is tinted too), theme-aware. Click
+  a file to **show its diff** in the diff pane, **👁** to preview it, or **✎** to
+  open it in the editor.
+  The colors and the listing refresh live — as the agent edits, and across
+  branch/commit switches.
+
+![AI tab — terminal, repo tree with git-status colors, live diff](screenshots/ai-tree.svg)
 - **Move a running session in** — already running `claude`/`codex` in a plain
   terminal or tmux? The terminal tab bar's **✦** button drops that live session
   into the AI split view — same process, now with the diff pane beside it.
@@ -856,6 +866,11 @@ edits files.
   folder, or `codex resume <id>`).
 
 ![Resume browser — sessions grouped by project](screenshots/ai-resume.svg)
+
+- **Persist across reloads** (4.1.0) — with *Restore tabs* on, AI tabs come back
+  next launch: a **tmux** session **re-attaches** to its live session (the
+  running CLI is right there), a **shell** session **re-launches** the CLI
+  (resuming when it was a resume). Restored tabs mount lazily when you open them.
 
 The CLIs run as **you** (no root); Explorer just launches them and mirrors the
 working-tree diff.
@@ -1218,7 +1233,8 @@ it's clear the listing is elevated.
 
 The **⬆ Plugins** button in the top toolbar opens the **Plugin Manager**, which manages your six
 plugins together — **Explorer, Cockpit Top, IF TV, Manifest, Hangar, Pilot**. It shows each
-plugin's installed version and the latest GitHub release, reading the update repo
+plugin's installed version and the latest GitHub release (with a **release notes ↗**
+link that opens that plugin's GitHub release page in a new tab), reading the update repo
 from each plugin's own settings file where it has one (Cockpit Top and Hangar use a built-in
 default). **Update** a single plugin or **Update all** at once; a **Force
 reinstall** toggle updates even up-to-date plugins (and IF TV, whose installed

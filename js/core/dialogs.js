@@ -143,6 +143,10 @@ window.ExplorerDialogs = {
     async _dpNewFolder() {
         const name = await this.askPrompt('New folder', 'Folder name (created inside ' + this.dirPicker.path + ')', 'new-folder');
         if (!name) return;
+        // A single path component only — reject "/", ".", ".." and embedded
+        // slashes so a typed "../../etc/foo" can't create a folder OUTSIDE the
+        // browsed directory (this picker also backs the AI folder-picker).
+        if (!this._isPlainName(name)) return;
         const np = Util.joinPath(this.dirPicker.path, name);
         try { await FS.mkdir(np); this._dpLoad(np); }
         catch (e) { this.toast('mkdir failed: ' + (e.message || e), 'danger'); }

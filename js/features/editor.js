@@ -591,8 +591,8 @@ window.ExplorerEditor = {
         }
     },
 
-    async _getEditorContent() {
-        const w = this.activeWin();
+    async _getEditorContent(win) {
+        const w = win || this.activeWin();
         if (w && w.kind === 'editor' && w.mode === 'wysiwyg' && ExRT.quill.editor) {
             const html = ExRT.quill.editor.root.innerHTML;
             if (w.isMarkdown) { await this._ensureTurndown(); const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }); return td.turndown(html); }
@@ -606,28 +606,39 @@ window.ExplorerEditor = {
     async saveEditor(admin) {
         const w = this.activeWin();
         if (!w || w.kind !== 'editor' || w.readOnly || !w.path) return;
-        // Once a file is known to be root-owned (opened as admin, or a prior
-        // save hit permission-denied), keep writing through the bridge so the
-        // user isn't bounced back to a failing normal save.
-        const useAdmin = !!admin || !!w.needsAdmin;
-        try {
-            const content = await this._getEditorContent();
-            await FS.writeText(w.path, content, { admin: useAdmin });
-            w.original = content; w.dirty = false; w.error = ''; w.permissionDenied = false;
-            if (useAdmin) w.needsAdmin = true;
-            this.toast('Saved ' + w.path);
-            const tab = this.activeTab();
-            if (tab && tab.kind === 'dir' && Util.dirname(w.path) === tab.path) this.reload(tab);
-        } catch (e) {
-            if (!useAdmin && this._looksPermissionDenied(e)) {
-                // Transparently retry through the superuser bridge, and keep
-                // the file flagged so subsequent saves go straight to admin.
-                w.needsAdmin = true; w.permissionDenied = true;
-                return this.saveEditor(true);
+        // Bind the target window and its bytes NOW, before any await. A slow
+        // write (especially the superuser bridge) can outlast the user switching
+        // to another editor window; re-reading activeWin()/content on the retry
+        // — as the old recursive saveEditor(true) did — would then write THIS
+        // file's bytes over whatever file is active THEN, as root. Capture once.
+        const path = w.path;
+        let content;
+        try { content = await this._getEditorContent(w); }
+        catch (e) { w.error = e.message || String(e); return; }
+        // Once a file is known to be root-owned (opened as admin, or a prior save
+        // hit permission-denied), keep writing through the bridge so the user
+        // isn't bounced back to a failing normal save.
+        const write = async (useAdmin) => {
+            try {
+                await FS.writeText(path, content, { admin: useAdmin });
+                w.original = content; w.dirty = false; w.error = ''; w.permissionDenied = false;
+                if (useAdmin) w.needsAdmin = true;
+                this.toast('Saved ' + path);
+                const tab = this.activeTab();
+                if (tab && tab.kind === 'dir' && Util.dirname(path) === tab.path) this.reload(tab);
+            } catch (e) {
+                if (!useAdmin && this._looksPermissionDenied(e)) {
+                    // Transparently retry through the superuser bridge (same
+                    // window, same captured bytes), and flag the file so
+                    // subsequent saves go straight to admin.
+                    w.needsAdmin = true; w.permissionDenied = true;
+                    return write(true);
+                }
+                w.error = e.message || String(e);
+                if (this._looksPermissionDenied(e)) { w.permissionDenied = true; w.needsAdmin = true; }
             }
-            w.error = e.message || String(e);
-            if (this._looksPermissionDenied(e)) { w.permissionDenied = true; w.needsAdmin = true; }
-        }
+        };
+        await write(!!admin || !!w.needsAdmin);
     },
 
     // ── Close / minimize windows ─────────────────────────────────────────

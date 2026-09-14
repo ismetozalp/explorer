@@ -309,6 +309,8 @@ window.ExplorerTerminal = {
             tab.activeTermId = tab.terminals[0].id;
         }
         const t = tab.terminals.find(x => x.id === tab.activeTermId);
+        // (_mountTerminal itself guards a pending restored-tmux session, so no need
+        // to pre-check here — but a pending one won't mount until it's resolved.)
         if (t && !ExRT.term.get(t.id)) {
             this.$nextTick(() => this._mountTerminal(t.id, t.dir));
         }
@@ -456,11 +458,7 @@ window.ExplorerTerminal = {
         const idx = tab.terminals.findIndex(t => t.id === termId);
         if (idx < 0) return;
 
-        const inst = ExRT.term.get(termId);
-        if (inst && inst.onWinResize) {
-            try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {}
-        }
-        ExRT.term.del(termId);
+        ExRT.term.del(termId);   // also removes the per-terminal resize listener
 
         tab.terminals.splice(idx, 1);
 
@@ -489,11 +487,7 @@ window.ExplorerTerminal = {
         if (!tab || !tab.terminals) return;
         const ids = tab.terminals.map(t => t.id);
         for (const id of ids) {
-            const inst = ExRT.term.get(id);
-            if (inst && inst.onWinResize) {
-                try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {}
-            }
-            ExRT.term.del(id);
+            ExRT.term.del(id);   // also removes the per-terminal resize listener
         }
         tab.terminals = [];
         tab.activeTermId = null;
@@ -513,6 +507,18 @@ window.ExplorerTerminal = {
         // retry with no instance registered yet). Guard only the first call of a
         // chain; recursive retries (attempt > 0) ARE the in-flight chain.
         if (attempt === 0) {
+            // A restored tmux agent session's create-vs-attach decision is pending
+            // until the moment it actually mounts (mounting starts the PTY, which
+            // is what makes tmux attach/create). Guarding here — the single mount
+            // choke point — covers EVERY path (activate, selectTerminal, neighbor
+            // selection on close). Delegate to the agent resolver, which checks
+            // tmux liveness NOW, sets initCommand, and re-triggers this mount; if
+            // the session isn't actually visible yet it stays pending for later.
+            const to = this._findTermById(termId);
+            if (to && to._tmuxRestoreCli != null) {
+                if (this._aiMountRestoredTmux) this._aiMountRestoredTmux(termId, dir);
+                return;
+            }
             if (ExRT.term.get(termId) || ExRT.term.pending.has(termId)) return;
             ExRT.term.pending.add(termId);
         }
@@ -521,14 +527,52 @@ window.ExplorerTerminal = {
             // Terminal was closed while a mount chain was still retrying → abort
             // quietly (no "failed to size" toast for a terminal that's gone).
             if (!this._findTermById(termId)) { ExRT.term.pending.delete(termId); return; }
-            // Container not yet in DOM, or DOM in but parent has no height
-            // yet (terminal-tab-body still flex-calculating). Retry up to ~1s.
+            // Container not in the DOM yet → short poll until it appears (a
+            // ResizeObserver can only watch an element that exists).
+            if (!container) {
+                if (attempt < 40) {
+                    setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
+                } else {
+                    ExRT.term.pending.delete(termId);
+                    console.warn('[explorer] terminal container never appeared; giving up', termId);
+                }
+                return;
+            }
+            // Container present but 0-height: its tab-body is still flex-computing,
+            // OR the tab simply isn't the visible one yet. The old fixed ~1s poll
+            // lost this race and then falsely toasted "failed to size". Instead,
+            // watch the element and resume the mount the instant it gains height
+            // (this also fires when a hidden tab becomes visible), with a long
+            // fallback that gives up QUIETLY — activateTab → _ensureTerminalsMounted
+            // re-mounts it on demand, so there's nothing for the user to fix.
+            if (typeof ResizeObserver === 'function') {
+                let done = false;
+                const finish = (proceed) => {
+                    if (done) return;
+                    done = true;
+                    try { ro.disconnect(); } catch (e) {}
+                    clearTimeout(timer);
+                    if (proceed && container.offsetHeight > 0 && this._findTermById(termId)) {
+                        this._mountTerminal(termId, dir, (attempt || 0) + 1);
+                    } else {
+                        ExRT.term.pending.delete(termId);
+                        if (!proceed) console.warn('[explorer] terminal container never sized; deferring to next activation', termId);
+                    }
+                };
+                const ro = new ResizeObserver(() => {
+                    if (!this._findTermById(termId)) { finish(false); return; }
+                    if (container.offsetHeight > 0) finish(true);
+                });
+                const timer = setTimeout(() => finish(false), 8000);
+                ro.observe(container);
+                return;
+            }
+            // No ResizeObserver (ancient engine) → fall back to the bounded poll.
             if (attempt < 20) {
                 setTimeout(() => this._mountTerminal(termId, dir, attempt + 1), 50);
             } else {
                 ExRT.term.pending.delete(termId);
                 console.warn('[explorer] terminal container never sized; giving up', termId);
-                this.toast('Terminal failed to size — try toggling the tab', 'error');
             }
             return;
         }
@@ -744,7 +788,27 @@ window.ExplorerTerminal = {
         };
         window.addEventListener('resize', onWinResize);
 
-        ExRT.term.set(termId, { term: xterm, channel, fitAddon, container, onWinResize });
+        // A window 'resize' fires only for WINDOW size changes — but the terminal
+        // container also grows/shrinks when the AI diff/tree pane collapses or
+        // reopens, or a split is dragged, with NO window resize. Observe the
+        // container itself so the terminal refits (and resizes its PTY via
+        // xterm.onResize) on ANY size change. rAF-debounced so a drag doesn't call
+        // fit() on every intermediate pixel; skips a container that's hidden
+        // (0-height inactive sub-tab) — it refits when shown (0→N triggers this).
+        let roScheduled = false;
+        const resizeObs = (typeof ResizeObserver === 'function') ? new ResizeObserver(() => {
+            if (roScheduled) return;
+            roScheduled = true;
+            requestAnimationFrame(() => {
+                roScheduled = false;
+                const inst = ExRT.term.get(termId);
+                if (!inst || container.offsetHeight === 0) return;
+                try { inst.fitAddon.fit(); } catch (e) {}
+            });
+        }) : null;
+        if (resizeObs) { try { resizeObs.observe(container); } catch (e) {} }
+
+        ExRT.term.set(termId, { term: xterm, channel, fitAddon, container, onWinResize, resizeObs });
         ExRT.term.pending.delete(termId);  // mount chain complete
 
         // Final fit + force initial PTY resize. Without an initial control
@@ -815,13 +879,9 @@ window.ExplorerTerminal = {
             // Still backgrounded → keep waiting for visibility (no mount).
             if (isHidden()) { this._scheduleTermReconnect(termId, dir); return; }
             // Visible: drop the stale instance so _mountTerminal builds a fresh
-            // xterm in the same container. ExRT.term.del() disposes the xterm and
-            // closes the (dead) channel itself — just unhook the resize listener.
-            const inst = ExRT.term.get(termId);
-            if (inst) {
-                if (inst.onWinResize) { try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {} }
-                ExRT.term.del(termId);
-            }
+            // xterm in the same container. ExRT.term.del() disposes the xterm,
+            // closes the (dead) channel, and unhooks the resize listener itself.
+            ExRT.term.del(termId);
             this._mountTerminal(termId, dir);
         }, delay);
         ExRT.term.reconn.set(termId, rec);
