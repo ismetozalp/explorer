@@ -108,4 +108,10 @@ assert.strictEqual(self._pluginEligible({ installed: true,  tag: 'v1', status: '
 assert.strictEqual(self._pluginEligible({ installed: true,  tag: 'v1', status: 'notinstalled' }, true), false);
 assert.strictEqual(self._pluginEligible({ installed: true,  tag: 'v1', status: 'checking' }, true),  false);
 
+// release-notes URL: specific tag when known, releases index otherwise
+assert.strictEqual(self.pluginReleaseUrl({ repo: 'ismetozalp/explorer', tag: 'v4.1.0' }), 'https://github.com/ismetozalp/explorer/releases/tag/v4.1.0');
+assert.strictEqual(self.pluginReleaseUrl({ repo: 'ismetozalp/explorer', tag: null }), 'https://github.com/ismetozalp/explorer/releases');
+assert.strictEqual(self.pluginReleaseUrl({ repo: '' }), '#');
+assert.strictEqual(self.pluginReleaseUrl(null), '#');
+
 console.log('plugins-unit: OK');

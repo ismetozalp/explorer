@@ -289,6 +289,7 @@ Alpine.data('explorer', () => ({
             // the array — left saved.windows undefined, so nothing ever reopened.)
             if (data && data.windows) savedWindows = data;
             if (data && Array.isArray(data.tmuxTabs)) this._savedTmuxTabs = data.tmuxTabs.slice();
+            if (data && Array.isArray(data.agentTabs) && data.agentTabs.length) this._savedAgentData = data;
             if (data && Array.isArray(data.tabs) && data.tabs.length) {
                 const seen = new Set();
                 for (const t of data.tabs) {
@@ -527,6 +528,11 @@ Alpine.data('explorer', () => ({
         // tmux terminal tabs that were open last session and are still alive.
         this.tmux.available = await this._hasTmux();
         this._restoreTmuxTabs();
+        // Restore AI tabs saved last session (tmux re-attach / shell re-launch).
+        if (this._savedAgentData && this.aiRestoreAgentTabs) {
+            this.aiRestoreAgentTabs(this._savedAgentData);
+            this._savedAgentData = null;
+        }
 
         // Detect GRUB (for the toolbar GRUB editor button); hidden unless
         // /etc/default/grub exists and a config-regeneration tool is present.

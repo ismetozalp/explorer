@@ -2,6 +2,48 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.1.0
+
+- **New: repo tree panel in the AI view (`Terminal | Tree | Diff`).** A
+  collapsible column (a thin *tree ▶* strip reveals it) that navigates the whole
+  repository rooted at the session's git toplevel — folders **expand on demand**,
+  so even large repos stay snappy. Each entry is **colored by git status**
+  (modified = blue, added/new = green, untracked/not-in-repo = red; a folder
+  containing changes is tinted too), **theme-aware**. A file row **shows its diff**
+  in the diff pane (even a clean file focuses to its own "no changes" view rather
+  than leaving an unrelated diff up), **👁** previews it, and **✎** opens it in the
+  Monaco editor. The
+  colors and listings refresh live alongside the diff — including on branch/commit
+  switches — and re-list directories the agent adds to or deletes from.
+- **AI session tabs now persist** across reloads and restarts, like your other
+  tabs (Settings → *Restore tabs*). On next launch a **tmux**-backed session
+  **re-attaches** to its live tmux session — the running `claude`/`codex` comes
+  right back — or is re-created (running the CLI) if it's gone; a **shell**
+  session **re-launches** the CLI (resuming when it was a resume, otherwise a
+  fresh prompt). Restored tabs mount lazily when you switch to them, so they
+  don't steal focus on startup.
+- **Plugin Manager — *release notes ↗* link.** Each plugin row now links to that
+  plugin's GitHub release page (the latest tag when known), opening in a new tab.
+- **Fixes & hardening.**
+  - Integrated terminals now size reliably — the mount waits on a
+    `ResizeObserver` and resumes the instant the container gets a height, instead
+    of a fixed 1-second poll that could time out and toast *"Terminal failed to
+    size."* The per-terminal window-resize listener is now removed on **every**
+    close path (including closing the tab), fixing a small listener leak.
+  - Removed six dev-only source-map comments from vendored libraries (xterm,
+    bootstrap, quill, monaco), silencing the `.map` 404s in the browser console.
+  - **Security:** directory listing/search and the deep-link `#open=` param can no
+    longer let a leading-dash path be read as a `find` expression; the AI folder
+    picker's *New folder* rejects path components like `../`; the transcode cache
+    directory is created **private (0700)**; and root-owned videos now transcode
+    through the superuser bridge and read back through it, so they play without
+    exposing content to other local users.
+  - The editor's *save as administrator* retry now writes the **originally-edited
+    file** even if you switched windows during a slow save. Directory loads and
+    searches carry a per-tab generation token so an out-of-order response can't
+    paint the wrong folder's files. Reading a file into the browser is capped at
+    1 GiB so a stray large download can't hang the tab.
+
 ## 4.0.0
 
 - **New: AI CLI tabs — Claude & Codex (`✦ AI`).** Run the `claude` and `codex`

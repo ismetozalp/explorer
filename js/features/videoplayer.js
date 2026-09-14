@@ -549,9 +549,28 @@ window.ExplorerVideo = {
     // written, which is what made a 5741s file briefly read as "7 seconds".
     // Returns { streams, duration } — duration is a number of seconds, or
     // null if ffprobe failed or the field couldn't be parsed (never NaN).
-    async _vpProbeStreams(path) {
+    // Can the LOGGED-IN user read this source? A root-owned video (perms 600,
+    // /root/…, etc.) is unreadable to the bridge's normal-user context, so the
+    // ffprobe/ffmpeg pipeline below must run through the superuser bridge for
+    // it — mirroring how the editor/preview paths retry as admin. Runs WITHOUT
+    // superuser on purpose: it's the readability question we're answering.
+    async _vpSourceReadable(path) {
+        try { await cockpit.spawn(['test', '-r', path], { err: 'ignore' }); return true; }
+        catch (e) { return false; }
+    },
+    // Spawn opts for the probe/transcode commands: adds superuser:'try' only
+    // when the source needs admin (unreadable as the user). 'try' means "use
+    // root if this user has it, else run as the user" — so a non-admin user
+    // degrades to today's behaviour (an honest permission error) with no
+    // regression for the common user-owned case, which never escalates.
+    _vpSpawnOpts(admin, base) {
+        const o = Object.assign({}, base);
+        if (admin) o.superuser = 'try';
+        return o;
+    },
+    async _vpProbeStreams(path, admin) {
         try {
-            const out = await cockpit.spawn(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type,codec_name', '-of', 'json', path], { err: 'message' });
+            const out = await cockpit.spawn(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type,codec_name', '-of', 'json', path], this._vpSpawnOpts(admin, { err: 'message' }));
             const j = JSON.parse(out);
             const raw = j.format && j.format.duration;
             const duration = raw != null ? parseFloat(raw) : NaN;
@@ -566,9 +585,9 @@ window.ExplorerVideo = {
     // a channel error) returns false: if we cannot establish that copying is
     // safe, we do not copy. Same direction as every other judgement here —
     // an unnecessary transcode still plays.
-    async _vpProbeDecodable(path) {
+    async _vpProbeDecodable(path, admin) {
         try {
-            const out = await cockpit.spawn(this._vpDecodeProbeArgs(path), { err: 'out' });
+            const out = await cockpit.spawn(this._vpDecodeProbeArgs(path), this._vpSpawnOpts(admin, { err: 'out' }));
             const complaint = this._vpDecodeComplaint(out);
             if (complaint) console.info('explorer: source h264 is not safe to stream-copy, transcoding instead — ' + complaint);
             return !complaint;
@@ -630,13 +649,13 @@ window.ExplorerVideo = {
     // (target reached or ENDLIST seen), 'superseded' (stopCheck said stop —
     // caller must not touch pv, just free this attempt's resources), or
     // 'timeout' (deadline passed short of the target).
-    async _vpWaitForPlaylist(path, timeoutMs, stopCheck) {
+    async _vpWaitForPlaylist(path, timeoutMs, stopCheck, admin) {
         const deadline = Date.now() + timeoutMs;
         let lastText = null;
         while (Date.now() < deadline) {
             if (stopCheck && !stopCheck()) return { status: 'superseded', text: lastText };
             let text = null;
-            try { text = await cockpit.spawn(['cat', path], { err: 'ignore' }); } catch (e) {}
+            try { text = await cockpit.spawn(['cat', path], this._vpSpawnOpts(admin, { err: 'ignore' })); } catch (e) {}
             lastText = text;
             if (this._vpPlaylistBuffered(text, this._vpStartBufferTargetSecs)) return { status: 'buffered', text };
             await new Promise((resolve) => setTimeout(resolve, 200));
@@ -765,7 +784,7 @@ window.ExplorerVideo = {
             cur.proc = null;
             try { outgoing && outgoing.close && outgoing.close('cancelled'); }
             catch (e) { console.warn('explorer: could not close ffmpeg process', e); }
-            const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: cur.srcPath, dir: cur.dir, videoCodec: cur.codec, startIndex: index })], { err: 'message' });
+            const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: cur.srcPath, dir: cur.dir, videoCodec: cur.codec, startIndex: index })], this._vpSpawnOpts(cur.srcAdmin, { err: 'message' }));
             // The spawn is not awaited, but the session could still have been
             // torn down in the microtask between the two lines — re-check before
             // publishing the new process, and free it (dir included: with the
@@ -805,7 +824,7 @@ window.ExplorerVideo = {
     // known value to record what the outgoing run had completed (see doneRuns).
     async _vpRunFrontier(s) {
         let text = null;
-        try { text = await cockpit.spawn(['cat', this._vpPlaylist(s.dir)], { err: 'ignore' }); } catch (e) {}
+        try { text = await cockpit.spawn(['cat', this._vpPlaylist(s.dir)], this._vpSpawnOpts(s.srcAdmin, { err: 'ignore' })); } catch (e) {}
         s.frontier = s.runStart + this._vpRunFlushed(text, s.runStart) - 1;
         return s.frontier;
     },
@@ -901,11 +920,26 @@ window.ExplorerVideo = {
         const root = this._vpCacheRoot(home);
         const id = Util.uid();
         const dir = this._vpSessionDir(root, id);
+        // Decide up front whether the source needs the superuser bridge (it's
+        // unreadable as the login user → a root-owned video). This also governs
+        // how strict the cache-dir hardening below must be.
+        const srcAdmin = !(await this._vpSourceReadable(file.path));
+        if (!isNewest()) return;   // superseded during the readability probe (nothing created yet)
         // An unwritable/full ~/.cache must surface as a normal error state, not
         // an unhandled rejection behind a player stuck on "Remuxing".
-        try { await FS.mkdir(dir); }
+        try {
+            await FS.mkdir(dir);
+            // Lock the session dir to its owner BEFORE any segment is written:
+            // an elevated (root-only source) transcode writes content the user's
+            // peers must not read, and `mkdir -p` leaves 0755 under the usual
+            // umask. For an ADMIN source a failed chmod is FATAL (better no
+            // preview than leaking root content through a traversable home); for
+            // an ordinary user-readable source it's best-effort hardening.
+            try { await cockpit.spawn(['chmod', '700', dir]); }
+            catch (e) { if (srcAdmin) throw e; }
+        }
         catch (e) {
-            if (isNewest()) { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'Could not create the transcode cache directory: ' + (e && e.message ? e.message : e); ww.pv.transcodeState = 'error'; } }
+            if (isNewest()) { const ww = this._win(winId); if (ww && ww.pv) { ww.pv.reason = 'Could not create the private transcode cache directory: ' + (e && e.message ? e.message : e); ww.pv.transcodeState = 'error'; } }
             return;
         }
         // Protect the dir the instant it exists: between here and the session
@@ -916,14 +950,17 @@ window.ExplorerVideo = {
         // a start that's still in flight. Registration re-touches once the
         // session is live; this is deliberate, harmless overlap.
         this._vpHbTouchDir(dir);
+        // srcAdmin (computed above) runs the whole probe/transcode pipeline through
+        // the superuser bridge for a root-owned source; the private (0700) cache
+        // dir keeps its segments unreadable to other local users.
         const ff = await this._vpProbeFfmpeg();
-        const probed = ff.ffprobe ? await this._vpProbeStreams(file.path) : { streams: [], duration: null };
+        const probed = ff.ffprobe ? await this._vpProbeStreams(file.path, srcAdmin) : { streams: [], duration: null };
         // Only worth asking when the answer can change the decision — i.e. the
         // container already says h264 and we would otherwise stream-copy it
         // (3.1.1; see _vpDecodeProbeArgs). Everything else is transcoded
         // regardless, so the extra ffprobe would be pure latency.
         const mightCopy = ff.ffprobe && this._vpProbeDecision(probed.streams) === 'copy';
-        const decodable = mightCopy ? await this._vpProbeDecodable(file.path) : undefined;
+        const decodable = mightCopy ? await this._vpProbeDecodable(file.path, srcAdmin) : undefined;
         const codec = this._vpProbeDecision(probed.streams, decodable);
         if (!isNewest()) { await this._vpKillProcAndDir(null, dir); return; }   // superseded while probing — nothing spawned yet
         // Reflect state in the badge, and surface the real total duration
@@ -931,7 +968,7 @@ window.ExplorerVideo = {
         // segments land, so without this the header would show ~7s for a
         // long file until the whole encode had been read.
         if (w.pv) { w.pv.transcodeState = codec === 'copy' ? 'remuxing' : 'transcoding'; w.pv.totalDuration = probed.duration; }
-        const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], { err: 'message' });
+        const proc = cockpit.spawn(['ffmpeg', ...this._vpBuildHlsArgs({ inputPath: file.path, dir, videoCodec: codec })], this._vpSpawnOpts(srcAdmin, { err: 'message' }));
         // Register the session IMMEDIATELY (before any further await) — every
         // exit path below (ensureHls throwing, the playlist wait timing out,
         // being superseded while waiting, hls.js unsupported, or the happy
@@ -948,7 +985,7 @@ window.ExplorerVideo = {
         // different start point, and _vpSegAction needs to know where the
         // current run began. Still non-reactive (ExRT), still keyed by winId,
         // still the single authority for teardown.
-        this._vpSessions().set(winId, { hls: null, proc, dir, token: id, srcPath: file.path, codec, runStart: 0, frontier: -1, doneRuns: [], restarting: null, runExited: false });
+        this._vpSessions().set(winId, { hls: null, proc, dir, token: id, srcPath: file.path, srcAdmin, codec, runStart: 0, frontier: -1, doneRuns: [], restarting: null, runExited: false });
         // Start (or keep alive) the shared heartbeat and protect this brand-new
         // session immediately — before the first interval tick — so a reap
         // that races the very start of playback still sees a fresh .alive.
@@ -959,7 +996,11 @@ window.ExplorerVideo = {
         // path (see _vpWatchProc — a restart's close() of the outgoing process
         // must not be mistaken for "ffmpeg failed" and tear the session down).
         this._vpWatchProc(winId, id, proc, dir);
-        const readFile = async (p) => { const h = cockpit.file(p, { binary: true }); try { return await h.read(); } catch (e) { return null; } finally { h.close(); } };
+        // When the source needed admin, root ffmpeg wrote the segments/playlist —
+        // and under a restrictive umask (e.g. 077) they're 0600 root-owned, so a
+        // non-elevated read can't see them. Read through the SAME elevated context
+        // so playback works regardless of the bridge's umask.
+        const readFile = async (p) => { const h = cockpit.file(p, srcAdmin ? { binary: true, superuser: 'try' } : { binary: true }); try { return await h.read(); } catch (e) { return null; } finally { h.close(); } };
         // Seek support is the transcode path only: it needs the uniform,
         // forced-keyframe segments _vpBuildHlsArgs produces for x264 (a remux's
         // segments are GOP-length and irregular, so index k does not map to a
@@ -984,7 +1025,7 @@ window.ExplorerVideo = {
         catch (e) { await this._vpEndSession(winId, id, proc, dir, 'Could not load the video player (hls.js failed to load).'); return; }
         // Don't hand hls.js a source until ffmpeg has actually produced the
         // manifest + enough of a buffer (see _vpWaitForPlaylist).
-        const wait = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000, isCurrent);
+        const wait = await this._vpWaitForPlaylist(this._vpPlaylist(dir), 60000, isCurrent, srcAdmin);
         if (wait.status === 'superseded') { await this._vpKillProcAndDir(proc, dir); return; }
         if (wait.status === 'timeout') {
             // Fix-round-1: degrade instead of erroring. The 60s backstop is

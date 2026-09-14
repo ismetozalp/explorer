@@ -70,6 +70,12 @@ window.ExRT = {
         del(tabId) {
             const inst = this.map.get(tabId);
             if (!inst) return;
+            // Remove the per-terminal window 'resize' listener here so EVERY close
+            // path is covered — including closeTab()'s bulk teardown, which frees
+            // the channel/xterm but historically left this listener dangling (one
+            // leaked resize handler per terminal, firing on every window resize).
+            if (inst.onWinResize) { try { window.removeEventListener('resize', inst.onWinResize); } catch (e) {} }
+            if (inst.resizeObs) { try { inst.resizeObs.disconnect(); } catch (e) {} }
             try { inst.channel && inst.channel.close('terminated'); } catch (e) {}
             try { inst.term && inst.term.dispose(); } catch (e) {}
             this.map.delete(tabId);

@@ -166,4 +166,82 @@ assert.deepStrictEqual([...sSel.diff.selected], ['b']);
 G.aiDiffClearSelection(sSel);
 assert.deepStrictEqual([...sSel.diff.selected], []);
 
+// ── repo tree panel (4.1.0) ──────────────────────────────────────────────
+// porcelain -z parse → status class per file + dirty ancestor dirs
+{
+    const root = '/repo';
+    // newline porcelain (NO -z): modified src/a.js, added b.js, untracked c/d.txt,
+    // renamed oldn.js -> n.js
+    const out = ' M src/a.js\nA  b.js\n?? c/d.txt\nR  oldn.js -> n.js\n';
+    const { status, dirty } = G._aiParsePorcelain(out, root);
+    assert.strictEqual(status['/repo/src/a.js'], 'mod', 'modified → mod (blue)');
+    assert.strictEqual(status['/repo/b.js'], 'new', 'added → new (green)');
+    assert.strictEqual(status['/repo/c/d.txt'], 'untracked', 'untracked → red');
+    assert.strictEqual(status['/repo/n.js'], 'mod', 'rename DEST (after " -> ") → mod');
+    assert.ok(!('/repo/oldn.js' in status), 'rename SOURCE (before " -> ") is not colored');
+    assert.ok(dirty['/repo/src'], 'ancestor dir of a changed file is marked dirty');
+    assert.ok(dirty['/repo/c'], 'ancestor dir of an untracked file is marked dirty');
+    assert.ok(!('/repo' in dirty), 'the root itself is never listed in dirty (nothing above it to color)');
+    const clean = G._aiParsePorcelain('', root);   // (vm-realm objects — compare by key count, not deepStrictEqual)
+    assert.ok(Object.keys(clean.status).length === 0 && Object.keys(clean.dirty).length === 0, 'clean repo → empty maps');
+    // an ordinary (non-rename) filename containing " -> " must NOT be split
+    const arrowName = G._aiParsePorcelain(' M weird -> name.txt\n', root).status;
+    assert.strictEqual(arrowName['/repo/weird -> name.txt'], 'mod', '" -> " in a modified filename is kept, not treated as a rename');
+    // a C-quoted path (tab in name) is decoded so the key matches the real file
+    const quoted = G._aiParsePorcelain(' M "a\\tb.txt"\n', root).status;
+    assert.strictEqual(quoted['/repo/a\tb.txt'], 'mod', 'C-quoted path decoded via _aiDecodeGitPath');
+    // rename whose QUOTED old name contains " -> ": separator must be found outside the quotes
+    const rn = G._aiParsePorcelain('R  "old -> name" -> new.txt\n', root).status;
+    assert.strictEqual(rn['/repo/new.txt'], 'mod', 'rename separator parsed outside the quoted old name (dest = new.txt)');
+    assert.ok(!Object.keys(rn).some(k => k.includes('old -> name')), 'the quoted old name is not colored');
+}
+assert.ok(G._aiValidTmuxRestore(' foo '), 'restore accepts (and will reuse exactly) a name with leading/trailing spaces');
+// _aiValidTmuxRestore: looser than _aiValidTmux — accepts real/external tmux names
+assert.ok(G._aiValidTmuxRestore('my work'), 'restore accepts spaces');
+assert.ok(G._aiValidTmuxRestore('project+dev') && G._aiValidTmuxRestore('café'), 'restore accepts "+" and Unicode');
+assert.ok(!G._aiValidTmuxRestore('') && !G._aiValidTmuxRestore('a:b') && !G._aiValidTmuxRestore('a.b'), 'restore rejects empty, ":" and "."');
+assert.ok(!G._aiValidTmuxRestore('a\nb') && !G._aiValidTmuxRestore('x'.repeat(201)), 'restore rejects control chars and oversized names');
+assert.ok(G._aiValidTmuxRestore('claude-app.js') === false && G._aiValidTmux('claude-app.js') === false, 'both reject "." (window.pane separator)');
+// _aiTreeRel: absolute → root-relative, passthrough when outside root
+assert.strictEqual(G._aiTreeRel({ tree: { root: '/repo' } }, '/repo/src/a.js'), 'src/a.js');
+assert.strictEqual(G._aiTreeRel({ tree: { root: '/repo' } }, '/other/x'), '/other/x');
+// aiTreeHasDiff: true only for a file with a matching diff entry
+{
+    const s = { tree: { root: '/repo' }, diff: { files: [{ file: 'src/a.js' }] } };
+    assert.ok(G.aiTreeHasDiff(s, { type: 'f', path: '/repo/src/a.js' }));
+    assert.ok(!G.aiTreeHasDiff(s, { type: 'f', path: '/repo/src/b.js' }));
+    assert.ok(!G.aiTreeHasDiff(s, { type: 'd', path: '/repo/src' }), 'a directory never has a diff');
+}
+// aiTreeNodes: flatten only EXPANDED dirs, depth-tagged, with status/dirty class
+{
+    const s = {
+        diff: { repo: true, root: '/repo' },
+        tree: {
+            root: '/repo',
+            expanded: { '/repo/src': true },   // src open, node_modules closed
+            children: {
+                '/repo': [
+                    { name: 'src', path: '/repo/src', type: 'd' },
+                    { name: 'node_modules', path: '/repo/node_modules', type: 'd' },
+                    { name: 'b.js', path: '/repo/b.js', type: 'f' },
+                ],
+                '/repo/src': [{ name: 'a.js', path: '/repo/src/a.js', type: 'f' }],
+            },
+            status: { '/repo/src/a.js': 'mod', '/repo/b.js': 'new' },
+            dirty: { '/repo/src': true },
+        },
+    };
+    const nodes = G.aiTreeNodes(s);
+    // (vm-realm arrays — spread into the test realm before deepStrictEqual)
+    assert.deepStrictEqual([...nodes].map(n => n.name), ['src', 'a.js', 'node_modules', 'b.js'],
+        'expanded src injects its child right after it; closed node_modules stays folded');
+    assert.deepStrictEqual([...nodes].map(n => n.depth), [0, 1, 0, 0], 'child of src is depth 1');
+    assert.strictEqual(nodes[0].cls, 'dir-dirty', 'src folder marked dirty');
+    assert.strictEqual(nodes[1].cls, 'mod', 'a.js modified');
+    assert.strictEqual(nodes[2].cls, '', 'node_modules clean');
+    assert.strictEqual(nodes[3].cls, 'new', 'b.js new');
+    assert.ok(nodes[0].expanded && !nodes[2].expanded, 'expanded flag reflects the expanded map');
+}
+assert.strictEqual(G.aiTreeNodes({ diff: { repo: false }, tree: { root: '' } }).length, 0, 'no repo → no nodes');
+
 console.log('agent-unit: OK');

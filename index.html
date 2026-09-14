@@ -582,6 +582,40 @@
                         <div class="term-container" :id="'term-container-' + t.id" x-show="tab.activeTermId === t.id"></div>
                     </template>
                 </div>
+                <!-- Repo tree column (Terminal | Tree | Diff). Collapsed by default;
+                     a thin strip reveals it. Git status colors each entry; a file
+                     row shows its diff, ✎ opens it in the editor. -->
+                <button class="agent-tree-reveal" x-show="tab.aiTreeCollapsed !== false" @click="aiToggleTree(tab)" title="Show repo tree">tree ▶</button>
+                <div class="agent-tree" x-show="tab.aiTreeCollapsed === false">
+                    <div class="agent-tree-head">
+                        <span class="agent-tree-title">Repo</span>
+                        <button class="btn btn-sm btn-outline-secondary agent-diff-collapse" @click="aiToggleTree(tab)" title="Hide repo tree">◀</button>
+                    </div>
+                    <template x-if="aiActiveSession(tab) && !aiActiveSession(tab).diff.repo">
+                        <div class="agent-diff-empty text-muted p-3">Not a git repository.</div>
+                    </template>
+                    <template x-if="aiActiveSession(tab) && aiActiveSession(tab).diff.repo">
+                        <div class="agent-tree-body">
+                            <template x-for="node in aiTreeNodes(aiActiveSession(tab))" :key="node.path">
+                                <div class="agent-tree-row" :class="node.cls"
+                                     :style="'padding-left:' + (node.depth * 12 + 4) + 'px'"
+                                     @click="node.type==='d' ? aiTreeToggleDir(aiActiveSession(tab), node) : aiTreeShowDiff(tab, aiActiveSession(tab), node)">
+                                    <span class="tw" x-show="node.type==='d'" x-text="node.expanded ? '▾' : '▸'"></span>
+                                    <span class="tw tw-file" x-show="node.type!=='d'"></span>
+                                    <span class="tn" x-text="node.name" :title="node.name"></span>
+                                    <span class="ta">
+                                        <button class="agent-tree-btn" x-show="node.type!=='d' && aiTreeHasDiff(aiActiveSession(tab), node)"
+                                                @click.stop="aiTreeShowDiff(tab, aiActiveSession(tab), node)" title="Show diff">±</button>
+                                        <button class="agent-tree-btn" x-show="node.type!=='d'"
+                                                @click.stop="aiTreePreview(aiActiveSession(tab), node)" title="Preview">👁</button>
+                                        <button class="agent-tree-btn" x-show="node.type!=='d'"
+                                                @click.stop="aiTreeEdit(aiActiveSession(tab), node)" title="Open in editor">✎</button>
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
                 <!-- Collapsed: a thin strip on the right to bring the diff back. -->
                 <button class="agent-diff-reveal" x-show="tab.aiDiffCollapsed" @click="aiToggleDiff(tab)" title="Show diff pane">◀ diff</button>
                 <div class="agent-diff" x-show="!tab.aiDiffCollapsed">

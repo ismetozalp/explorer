@@ -182,10 +182,16 @@ window.ExplorerTabs = {
         this.tabs.splice(idx, 1);
         if (this.activeTabId === id) {
             this.activeTabId = this.tabs[Math.max(0, idx - 1)]?.id || null;
-            // Closing the foreground tab can reveal a backgrounded AI tab whose
-            // diff poll was retired — closeTab sets activeTabId directly (no
-            // activateTab), so restart the newly-active session's poll here.
-            if (this.aiResumePollForActive) this.$nextTick(() => this.aiResumePollForActive());
+            // Closing the foreground tab can reveal a backgrounded terminal/AI tab
+            // that closeTab never runs through activateTab. Mount its (maybe still
+            // unvisited/restored) terminals and restart the AI diff poll here.
+            const nt = this.tabs.find(t => t.id === this.activeTabId);
+            if (nt && (nt.kind === 'terminal' || nt.kind === 'agent')) {
+                this.$nextTick(() => {
+                    this._ensureTerminalsMounted(nt);
+                    if (nt.kind === 'agent' && this.aiResumePollForActive) this.aiResumePollForActive();
+                });
+            }
         }
         if (this.tabs.length === 0) this.newTab(this.homePath);
     },
@@ -206,6 +212,8 @@ window.ExplorerTabs = {
             // use the same terminal records; also (re)start the active session's
             // live diff poll now that the tab is showing.
             this._ensureTerminalsMounted(tab);
+            // (_mountTerminal resolves a restored tmux session's create-vs-attach
+            // decision on mount, so _ensureTerminalsMounted above already handles it.)
             if (tab.kind === 'agent' && this.aiResumePollForActive) this.aiResumePollForActive();
         }
         this._refreshTabGit(tab);
@@ -309,10 +317,30 @@ window.ExplorerTabs = {
                 const tmuxTabs = Array.from(new Set(this.tabs
                     .filter(t => t.kind === 'terminal' && this.termKindOf(t) === 'tmux')
                     .flatMap(t => (t.terminals || []).filter(x => x.tmux).map(x => x.tmux))));
+                // AI tabs (kind:'agent') with their sessions, so they come back
+                // next launch — tmux sessions re-attach, shell/resume sessions
+                // re-launch (see aiRestoreAgentTabs).
+                const agentTabs = this.tabs
+                    .filter(t => t.kind === 'agent')
+                    .map(t => ({
+                        sessions: (t.terminals || []).map(x => ({
+                            tool: x.tool === 'codex' ? 'codex' : 'claude',
+                            dir: x.dir, tmux: x.tmux || null, resumeId: x.resumeId || null,
+                            label: x.label || null,
+                            // A tmux record ALWAYS restores as tmux (reattach), even
+                            // if `launch` was never stamped — e.g. a terminal moved
+                            // into AI view via moveTerminalToAiView. Deriving from
+                            // `tmux` here keeps a moved session reattaching instead
+                            // of relaunching a fresh CLI.
+                            launch: (x.launch === 'tmux' || x.tmux) ? 'tmux' : 'shell',
+                        })),
+                    }))
+                    .filter(t => t.sessions.length);
                 const data = {
                     tabs: dirTabs.map(t => ({ path: t.path, kind: t.kind })),
                     activeIdx: idx,
                     tmuxTabs: tmuxTabs,
+                    agentTabs: agentTabs,
                     windows: this.windows.filter(w => w.path).map(w => ({ kind: w.kind, path: w.path })),
                     activeWinPath: (this.activeWin() && this.activeWin().path) || null,
                     hostVisible: !!this.hostVisible,
@@ -366,11 +394,18 @@ window.ExplorerTabs = {
         // post-save refreshes of the same directory don't drop back to a
         // normal-user listing (and re-show the "Retry as administrator" banner).
         const admin = (opts.admin !== undefined) ? opts.admin : (tab.listAdminPath === tab.path);
+        // Stale-response guard: overlapping loads for the same tab (rapid
+        // back/forward, F5 on a slow network mount, navigate()+reload racing)
+        // can resolve out of order and paint the WRONG folder's files. Stamp a
+        // per-tab generation; if a newer load starts while ours is in flight,
+        // it owns the tab — we drop our result (and don't clear its `loading`).
+        const gen = (tab._loadGen = (tab._loadGen || 0) + 1);
         tab.loading = true;
         tab.error = null;
         tab.errorRetryAsAdmin = false;
         try {
             let files = await FS.listDir(tab.path, { admin });
+            if (tab._loadGen !== gen) return;   // superseded by a newer _loadDir
             if (!this.settings.showHidden) files = files.filter(f => !f.name.startsWith('.'));
             tab.files = files;
             // Prune selection to items still present
@@ -380,11 +415,12 @@ window.ExplorerTabs = {
             if (admin) tab.listAdminPath = tab.path;
             else if (tab.listAdminPath === tab.path) tab.listAdminPath = null;
         } catch (e) {
+            if (tab._loadGen !== gen) return;   // superseded — leave the tab to the newer load
             tab.error = e.message || 'Failed to read directory';
             tab.errorRetryAsAdmin = e.permissionDenied || !admin;
             tab.files = [];
         } finally {
-            tab.loading = false;
+            if (tab._loadGen === gen) tab.loading = false;
         }
     },
 

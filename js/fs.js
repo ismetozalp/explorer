@@ -5,6 +5,17 @@
 window.FS = (function () {
     const SP = Util.shq;
 
+    // Never let a path be parsed as a find EXPRESSION. GNU find reads a leading
+    // '-', '!', or '(' as an operator, so a relative directory named "-delete",
+    // "!", or "(" would run as an expression against the cwd instead of a path.
+    // Explorer paths are absolute ('/'); force ANY relative path to start with
+    // './' so find always treats it as a path. Every `find` invocation below
+    // whose first operand is a caller-supplied path MUST route it through here
+    // (reachable e.g. via the deep-link `#open=` param — see deeplink.js).
+    function findPathArg(path) {
+        return (typeof path === 'string' && path && path[0] !== '/') ? './' + path : path;
+    }
+
     function spawnOpts(opts) {
         const o = { err: 'message' };
         if (opts && opts.admin) o.superuser = 'require';
@@ -31,13 +42,7 @@ window.FS = (function () {
         const FSEP = '\\037';
         const RSEP = '\\036';
         const fmt = `%y${FSEP}%M${FSEP}%u${FSEP}%g${FSEP}%s${FSEP}%T@${FSEP}%l${FSEP}%P${RSEP}`;
-        // Never let the path be parsed as a find EXPRESSION. GNU find reads a
-        // leading '-', '!', or '(' as an operator, so a relative directory named
-        // "-delete", "!", or "(" would run as an expression against the cwd.
-        // Explorer paths are absolute ('/'); force ANY relative path to start
-        // with './' so find always treats it as a path.
-        const findPath = (typeof path === 'string' && path && path[0] !== '/') ? './' + path : path;
-        const cmd = ['find', findPath, '-mindepth', '1', '-maxdepth', '1', '-printf', fmt];
+        const cmd = ['find', findPathArg(path), '-mindepth', '1', '-maxdepth', '1', '-printf', fmt];
         try {
             const data = await cockpit.spawn(cmd, spawnOpts(opts));
             const out = [];
@@ -78,7 +83,7 @@ window.FS = (function () {
             const FSEP = '\\037';
             const fmt = `%y${FSEP}%M${FSEP}%u${FSEP}%g${FSEP}%s${FSEP}%T@${FSEP}%l${FSEP}%f`;
             const out = await cockpit.spawn(
-                ['find', path, '-maxdepth', '0', '-printf', fmt],
+                ['find', findPathArg(path), '-maxdepth', '0', '-printf', fmt],
                 spawnOpts(opts)
             );
             const parts = out.split('\x1f');
@@ -137,8 +142,24 @@ window.FS = (function () {
     // need a real content type or the browser won't know how to render them
     // (Chrome's PDF viewer in particular refuses a typeless blob and offers a
     // download instead). Omitted/falsy => untyped Blob, exactly as before.
+    // Hard ceiling for the base64 round-trip below. The whole file becomes a
+    // base64 string, then an atob() string, then a Uint8Array — ~3x its size,
+    // all transient on the MAIN thread — so a multi-GB file (a stray click on a
+    // disk image, an unbounded download) freezes or OOMs the tab. Preview
+    // callers already gate on settings.previewLimitMB; this is the backstop for
+    // the paths that don't (e.g. download in fileops.js). A clear error beats a
+    // dead tab; genuinely huge files aren't previewable/loadable this way anyway.
+    const READ_BLOB_MAX_BYTES = 1024 * 1024 * 1024; // 1 GiB
+
     async function readBinaryAsBlob(path, opts) {
         try {
+            let size = -1;
+            try { size = parseInt((await cockpit.spawn(['stat', '-c', '%s', path], spawnOpts(opts))).trim(), 10); }
+            catch (e) { size = -1; } // stat failed (special file, race) — let base64 decide
+            if (Number.isFinite(size) && size > READ_BLOB_MAX_BYTES) {
+                throw new Error('File too large to load in the browser (' + Util.humanSize(size) +
+                    '; limit ' + Util.humanSize(READ_BLOB_MAX_BYTES) + ').');
+            }
             const b64 = await cockpit.spawn(['base64', '-w', '0', path], spawnOpts(opts));
             const bin = atob(b64);
             const arr = new Uint8Array(bin.length);
@@ -256,7 +277,7 @@ window.FS = (function () {
     async function listForSearch(root, recursive, opts) {
         const FSEP = '\\037';
         const fmt = `%y${FSEP}%M${FSEP}%u${FSEP}%g${FSEP}%s${FSEP}%T@${FSEP}%l${FSEP}%p${FSEP}%f\\036`;
-        const cmd = ['find', root,
+        const cmd = ['find', findPathArg(root),
                      ...(recursive ? [] : ['-maxdepth', '1']),
                      '-mindepth', '1',
                      '-printf', fmt];
@@ -288,7 +309,7 @@ window.FS = (function () {
         const pattern = '*' + query.replace(/([*?\[\]])/g, '\\$1') + '*';
         const zfs = await isZfs(root, opts).catch(() => false);
         const prune = zfs ? ['-name', '.zfs', '-prune', '-o'] : [];
-        const cmd = ['find', root,
+        const cmd = ['find', findPathArg(root),
                      ...(recursive ? [] : ['-maxdepth', '1']),
                      '-mindepth', '1',
                      ...prune,
@@ -325,7 +346,7 @@ window.FS = (function () {
         // 1. Enumerate candidate files at the requested depth.
         const zfs = await isZfs(root, opts).catch(() => false);
         const prune = zfs ? ['-name', '.zfs', '-prune', '-o'] : [];
-        const findCmd = ['find', root,
+        const findCmd = ['find', findPathArg(root),
                          ...(recursive ? [] : ['-maxdepth', '1']),
                          '-mindepth', '1',
                          ...prune,
@@ -374,7 +395,7 @@ window.FS = (function () {
         chmod, chown,
         compress, extract,
         searchFilename, searchContent, listForSearch,
-        spawnOpts,
+        spawnOpts, findPathArg,
         hasRsync, duSum, dfAvail, sameFilesystem, fsType, isZfs,
     };
 
