@@ -2,6 +2,17 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.3.0
+
+- **JSON export for the code-census tables.** Two new buttons in the census
+  header:
+  - **JSON** — export the table you're currently viewing to
+    `census-<table>.json` in a folder you pick (like the Report button), then
+    open it in the preview pane.
+  - **Zip all** — run the core analyses and export **every** table that has data
+    as one JSON file each, bundled into `census-export.zip` (built with Python,
+    so no `zip` binary is required).
+
 ## 4.2.2
 
 - **Fixed the code-census Report button getting stuck disabled.** The button's

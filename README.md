@@ -907,6 +907,10 @@ analyses, plus a one-click **PDF report**.
   legend). It's produced **server-side with plain Python** — no browser, no extra
   libraries. The default location is the repo root (the file is added to
   `.gitignore`); an existing one is replaced, or you can pick another folder.
+- **JSON export.** **JSON** exports the table you're viewing to
+  `census-<table>.json`; **Zip all** runs the core analyses and exports every
+  table with data as one JSON each, bundled into `census-export.zip` (built with
+  Python, so no `zip` binary is needed). Both let you pick the destination folder.
 - **Background auto-refresh (optional).** The **⏱** button enables a per-repo
   **systemd user timer** that re-runs the analysis every N minutes (Settings →
   *Code-census auto-refresh interval*) even when the page is closed; the pane
