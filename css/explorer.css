@@ -491,6 +491,23 @@ body {
 /* Code preview: a line-number gutter (sticky-left) beside the highlighted code,
    both inside one scroll container. The gutter mirrors the code's font, 12px
    size, 1.5 line-height and 1em top padding so numbers line up 1:1. */
+/* Host wraps the optional "truncated" banner above the scrollable code view. */
+.preview-text-host {
+    align-self: stretch;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.preview-trunc-banner {
+    flex: 0 0 auto;
+    padding: .4rem .75rem;
+    font-size: 12px;
+    background: #3a3320;
+    color: #e6d9a8;
+    border-bottom: 1px solid #4a4020;
+}
+.preview-trunc-banner a { color: #ffd76a; }
 .preview-code-wrap {
     align-self: flex-start;
     width: 100%;
@@ -1909,6 +1926,22 @@ html, body { max-width: 100%; }
 .agent-add-menu button:hover { background: var(--hover, #2b2f34); }
 @media (max-width: 700px) { .agent-split { flex-direction: column; } .agent-diff { border-left: 0; border-top: 1px solid var(--border, #333); } .agent-tree { flex-basis: 180px; border-left: 0; border-top: 1px solid var(--border, #333); } }
 
+/* ── Inline repo panel (Diff | Census) on a git-repo dir tab — scc.js aiRepoSetView ── */
+/* Thin vertical strip on the right of a git-repo dir tab; opens the panel. */
+.repo-reveal { flex: 0 0 auto; align-self: stretch; border: 0; border-left: 1px solid var(--border, #333);
+  background: var(--panel, #23262b); color: var(--muted, #8b949e); cursor: pointer; font-size: 11px;
+  writing-mode: vertical-rl; text-orientation: mixed; padding: .5rem .15rem; letter-spacing: .05em; }
+.repo-reveal:hover { color: var(--fg, #cfd3d8); background: var(--hover, #2b2f34); }
+.repo-panel { flex: 0 0 46%; min-width: 0; max-width: 62%; display: flex; flex-direction: column;
+  border-left: 1px solid var(--border, #333); background: var(--bg, #1b1d21); overflow: hidden; }
+.repo-panel-head { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--border, #333); flex: 0 0 auto; }
+.repo-panel-head .btn.active { background: var(--accent, #0d6efd); color: #fff; }
+.repo-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Only one view shows at a time (x-show on repoView); each fills the body. */
+.repo-panel-body > .agent-diff, .repo-panel-body > .agent-scc { flex: 1 1 auto; min-height: 0; border-left: 0; }
+@media (max-width: 700px) { .repo-panel { flex-basis: 55%; } }
+
 /* ── Repo tree panel (Terminal | Tree | Diff) — js/features/agent.js aiTree* ── */
 /* Git-status colors, theme-aware: the AI panel is dark-surfaced, but the app
    theme still picks the shade so light mode gets its own. Defaults = light. */
@@ -1927,6 +1960,8 @@ html, body { max-width: 100%; }
 .agent-tree-row .tw { flex: 0 0 auto; width: 1em; text-align: center; font-size: 10px;
   color: var(--muted, #8b949e); user-select: none; -webkit-user-select: none; }
 .agent-tree-row .tn { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; color: var(--fg, #cfd3d8); }
+.agent-tree-row .tcx { flex: 0 0 auto; color: var(--muted, #8b949e); font-size: 10px; opacity: .65; margin-left: .3rem; font-variant-numeric: tabular-nums; }
+.agent-tree-row:hover .tcx { opacity: .85; }
 .agent-tree-row .ta { flex: 0 0 auto; display: inline-flex; gap: .25rem; opacity: 0; }
 .agent-tree-row:hover .ta { opacity: 1; }
 .agent-tree-btn { all: unset; cursor: pointer; opacity: .7; font-size: 12px; padding: 0 .1rem; color: var(--fg, #cfd3d8); }
@@ -1939,6 +1974,64 @@ html, body { max-width: 100%; }
   background: var(--panel, #23262b); color: var(--muted, #8b949e); cursor: pointer; font-size: 11px;
   writing-mode: vertical-rl; text-orientation: mixed; padding: .5rem .15rem; letter-spacing: .05em; }
 .agent-tree-reveal:hover { color: var(--fg, #cfd3d8); background: var(--hover, #2b2f34); }
+
+/* ── scc code-census pane (js/features/scc.js): sortable language table +
+   complexity hotspots, dark-surfaced like the diff/tree panes. ── */
+.agent-scc { flex: 0 0 340px; min-width: 0; display: flex; flex-direction: column;
+  border-left: 1px solid var(--border, #333); background: var(--bg, #1b1d21); overflow: hidden; }
+.agent-scc-head { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--border, #333); flex: 0 0 auto; }
+.agent-scc-head .btn.active { background: var(--accent, #0d6efd); color: #fff; }
+.agent-scc-sel { flex: 1 1 auto; min-width: 0; max-width: 210px; background: #23262b; color: var(--fg, #cfd3d8);
+  border: 1px solid var(--border, #333); border-radius: 4px; font-size: 12px; padding: .15rem .3rem; }
+.agent-scc-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.agent-scc-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.agent-scc-loading { padding: .75rem; color: var(--muted, #8b949e); font-size: 12px; }
+.agent-scc-install { padding: .6rem .7rem; color: var(--fg, #cfd3d8); font-size: 12px; overflow: auto; }
+.agent-scc-cmd { background: #0d1013; border: 1px solid var(--border, #333); border-radius: 4px; padding: .4rem .5rem;
+  color: #7ee787; font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; margin: .25rem 0; }
+.agent-scc-alt { color: var(--muted, #8b949e); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; margin: .1rem 0; word-break: break-all; }
+.agent-scc-manual { margin: .3rem 0; color: var(--muted, #8b949e); font-size: 11px; }
+.agent-scc-manual summary { cursor: pointer; }
+.agent-scc-table { width: 100%; border-collapse: collapse; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+.agent-scc-table thead th { position: sticky; top: 0; background: #1e2027; color: var(--muted, #8b949e); text-align: left;
+  padding: .3rem .5rem; border-bottom: 1px solid var(--border, #333); cursor: pointer; white-space: nowrap; user-select: none; }
+.agent-scc-table thead th.num { text-align: right; }
+.agent-scc-table thead th:hover { color: var(--fg, #cfd3d8); }
+.agent-scc-table td { padding: .25rem .5rem; border-bottom: 1px solid #23262b; color: var(--fg, #cfd3d8); white-space: nowrap; }
+.agent-scc-table td.num { text-align: right; }
+.agent-scc-table td.code { font-weight: 600; }
+.agent-scc-table td.lang { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+/* Tables with two filename columns (Duplication, Dependencies) need tighter
+   name columns so the trailing numeric column stays visible in the narrow pane;
+   the container still scrolls horizontally for anything wider. */
+.agent-scc-table.scc-wide td.lang { max-width: 95px; }
+.agent-scc-table tbody tr:hover td { background: var(--hover, #2b2f34); }
+.agent-scc-table tr.scc-total td { border-top: 2px solid var(--border, #333); border-bottom: 0; font-weight: 600; }
+.scc-kind { color: var(--muted, #8b949e); font-size: 9px; margin-left: .35rem; opacity: .8; }
+.scc-fn { color: var(--fg, #cfd3d8); }
+.scc-lang { color: var(--muted, #8b949e); font-size: 9px; margin-left: .4rem; }
+/* File-name cells that carry preview (👁) / edit (✎) actions: lay the cell out
+   as a flex row so the name still truncates, the language badge stays put, and
+   the action buttons sit at the right edge and reveal on row hover. */
+.agent-scc-table td.lang:has(.scc-fa) { display: flex; align-items: center; overflow: visible; max-width: 220px; }
+.agent-scc-table td.lang:has(.scc-fa) .scc-fn { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.scc-fa { flex: 0 0 auto; display: inline-flex; gap: .15rem; margin-left: auto; padding-left: .5rem; opacity: 0; }
+.agent-scc-table tbody tr:hover .scc-fa { opacity: 1; }
+.scc-fa button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; opacity: .7; }
+.scc-fa button:hover { opacity: 1; }
+/* Duplication table is two file columns + Lines; keep file cells compact so the
+   Lines column stays visible (matches the earlier scc-wide fix). */
+.agent-scc-table.scc-wide td.lang:has(.scc-fa) { max-width: 130px; }
+.agent-scc-covtotal { padding: .35rem .5rem; color: var(--muted, #8b949e); font-size: 11px; border-bottom: 1px solid var(--border, #333); word-break: break-all; }
+.agent-scc-table td.cov-low { color: #f85149; }
+.agent-scc-table td.cov-mid { color: #d29922; }
+.agent-scc-table td.cov-high { color: #56d364; }
+.agent-scc-reveal { flex: 0 0 auto; align-self: stretch; border: 0; border-left: 1px solid var(--border, #333);
+  background: var(--panel, #23262b); color: var(--muted, #8b949e); cursor: pointer; font-size: 11px;
+  writing-mode: vertical-rl; text-orientation: mixed; padding: .5rem .15rem; letter-spacing: .05em; }
+.agent-scc-reveal:hover { color: var(--fg, #cfd3d8); background: var(--hover, #2b2f34); }
+@media (max-width: 700px) { .agent-scc { flex-basis: 220px; border-left: 0; border-top: 1px solid var(--border, #333); } }
 
 /* ── Resume-session browser: project disclosure groups ── */
 .agent-proj-list { display: flex; flex-direction: column; gap: 6px; }

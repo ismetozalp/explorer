@@ -34,6 +34,7 @@
                     <div class="col mb-2"><label class="form-label">Claude scan depth</label><input type="number" class="form-control" x-model.number="settings.aiClaudeMaxDepth" @change="saveSettings()" min="1" max="12"><small class="form-text text-muted">How deep the Resume browser descends under the Claude directory (default 2).</small></div>
                     <div class="col mb-2"><label class="form-label">Codex scan depth</label><input type="number" class="form-control" x-model.number="settings.aiCodexMaxDepth" @change="saveSettings()" min="1" max="12"><small class="form-text text-muted">How deep it descends under the Codex directory — nested by date (default 5).</small></div>
                 </div>
+                <div class="mb-2"><label class="form-label">Code-census auto-refresh interval (minutes)</label><input type="number" class="form-control" x-model.number="settings.sccRefreshMins" @change="saveSettings()" min="5" max="1440"><small class="form-text text-muted">When you enable background auto-refresh for a repo (in the scc pane), a systemd timer re-runs the analysis this often. Default 60.</small></div>
                 <hr>
                 <div class="mb-2">
                     <label class="form-label">Update source (GitHub repo or releases URL)</label>

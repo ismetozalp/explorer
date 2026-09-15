@@ -11,6 +11,19 @@ window.ExplorerEditor = {
         return Array.from({ length: n }, (_, i) => i + 1).join('\n');
     },
 
+    // Bound the text preview so a big/minified file can't lock the tab (the
+    // <pre> renders every line at once, and Prism wraps every token in a span).
+    // PURE + unit-tested: cap the shown text at PV_TEXT_MAX and turn highlighting
+    // off past PV_HL_MAX; the editor handles the full file. Returns the content
+    // to render plus flags the template uses for the banner + highlight gate.
+    _pvTextPrep(text) {
+        const PV_TEXT_MAX = 512 * 1024, PV_HL_MAX = 100 * 1024;
+        const full = text == null ? '' : String(text);
+        const truncated = full.length > PV_TEXT_MAX;
+        const content = truncated ? full.slice(0, PV_TEXT_MAX) : full;
+        return { content, truncated, fullBytes: full.length, noHighlight: content.length > PV_HL_MAX };
+    },
+
     // Copy the text of the active text-preview window to the clipboard. Reuses
     // the terminal's execCommand-based helper so it also works over plain HTTP
     // (no secure-context clipboard). Shows a brief "Copied ✓" on the button.
@@ -233,8 +246,15 @@ window.ExplorerEditor = {
                 if (Util.looksBinary(txt)) set({ kind: 'binary', reason: 'This looks like a binary file and can’t be shown as text.' });
                 else {
                     const lang = Util.langFromExt(file.name);
-                    if (lang !== 'plain' && window.loadPrismLanguage) await window.loadPrismLanguage(lang);
-                    set({ kind: 'text', content: txt || '', lang });
+                    // The text preview renders the WHOLE file into one <pre> with no
+                    // virtualization, so a big or minified file (millions of Prism
+                    // spans to lay out) would lock the tab for many seconds — a
+                    // 3.7 MB file measured ~27 s. Cap what we render, and skip syntax
+                    // highlighting past a smaller size; the editor (Monaco, which is
+                    // virtualized) opens the full file fast, so we point there.
+                    const t = this._pvTextPrep(txt || '');
+                    if (!t.noHighlight && lang !== 'plain' && window.loadPrismLanguage) await window.loadPrismLanguage(lang);
+                    set({ kind: 'text', content: t.content, lang, noHighlight: t.noHighlight, truncated: t.truncated, fullBytes: t.fullBytes });
                 }
             } catch (e) { set({ kind: 'binary', reason: e.message || 'Could not read file.', permissionDenied: !admin && this._looksPermissionDenied(e) }); }
         } else if (Util.isImage(file) || Util.isPdf(file) || Util.isAudio(file)) {

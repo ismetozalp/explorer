@@ -875,6 +875,50 @@ edits files.
 The CLIs run as **you** (no root); Explorer just launches them and mirrors the
 working-tree diff.
 
+### Code census — scc + quality analyses (`scc ▶`)
+
+A third pane in the AI view (revealed by the **`scc ▶`** strip) is a code-census
+dashboard powered by [`scc`](https://github.com/boyter/scc) and a set of quality
+analyses, plus a one-click **PDF report**.
+
+![Code census — scc table, complexity, hotspots and the PDF report](screenshots/scc.svg)
+
+- **Analyses** (pick from the dropdown):
+  - **Language table** — scc's per-language breakdown (files, lines, comments,
+    code, complexity), every column **sortable**.
+  - **Complexity** — the top-50 files by cyclomatic complexity, with Cx / kloc.
+    The number also appears next to every file in the **repo tree**.
+  - **Hotspots** — **churn × complexity**: files ranked by how often they change
+    (git log) times how complex they are — the classic risk metric.
+  - **Coverage** — reads an existing **lcov** file and lists files by line
+    coverage, lowest first (red / amber / green).
+  - **TODO / FIXME** — a census of debt markers across the tree.
+  - **Scanners** — **secrets** ([gitleaks](https://github.com/gitleaks/gitleaks)),
+    **dependency vulnerabilities** ([osv-scanner](https://github.com/google/osv-scanner)),
+    **duplication** ([jscpd](https://github.com/kucherenko/jscpd)) and
+    **per-function complexity** ([lizard](https://github.com/terryyin/lizard)).
+- **One-click installs.** Any tool that isn't installed shows an **Install**
+  button that runs the right command for your Linux distro (native package,
+  GitHub-release binary, `npm` or `pip`) as administrator, streaming the output —
+  no manual steps. (Cockpit is Linux-only, so there's no macOS path.)
+- **PDF report.** The **Report** button generates a multi-page *Code Census* PDF
+  (cover stats, the full language table, composition charts, complexity and churn
+  hotspots, a quality page with coverage/TODO/scanner findings, and a McCabe risk
+  legend). It's produced **server-side with plain Python** — no browser, no extra
+  libraries. The default location is the repo root (the file is added to
+  `.gitignore`); an existing one is replaced, or you can pick another folder.
+- **Background auto-refresh (optional).** The **⏱** button enables a per-repo
+  **systemd user timer** that re-runs the analysis every N minutes (Settings →
+  *Code-census auto-refresh interval*) even when the page is closed; the pane
+  reloads when results update. Enabling it first explains exactly what it creates
+  and asks for your consent, and the same button turns it off.
+- **In the file browser too.** You don't need an AI session to get this: when a
+  folder tab is inside a git repository, a thin **`◈ repo`** strip on the right
+  opens a panel with a **[Diff | Census]** toggle — the same live diff and the
+  full census dashboard above, right beside the file list. It roots at the
+  repository toplevel (so it works from any subdirectory) and the diff refreshes
+  live while the tab is in front.
+
 ### Cached repositories
 
 ![Cached repositories](screenshots/cached-repos.svg)
@@ -1767,8 +1811,9 @@ explorer/
 │   │   ├── github.js   mounts.js   actions.js   terminal.js   upload.js
 │   │   ├── editor.js   grub.js     videoplayer.js  plugins.js  sudoers.js
 │   │   ├── deeplink.js             open a path/pane from a URL fragment
-│   │   ├── agent.js               AI CLI tabs — launch, live diff pane, move-to-AI, tmux
-│   │   └── agent-sessions.js      AI resume: parse the Claude/Codex session stores
+│   │   ├── agent.js               AI CLI tabs — launch, live diff pane, repo tree, move-to-AI, tmux
+│   │   ├── agent-sessions.js      AI resume: parse the Claude/Codex session stores
+│   │   └── scc.js                 code-census pane: scc + churn/coverage/todo/scanners, installs, report
 │   ├── core/                      core-shell method mixins (window.Explorer…)
 │   │   ├── tabs.js  filelist.js  fileops.js
 │   │   └── output.js  dialogs.js  settings.js
@@ -1776,6 +1821,7 @@ explorer/
 ├── actions/
 │   ├── example-actions.json  drop-in example custom actions
 │   └── system-actions.json   default system actions (incl. self-update), seeded by make install
+├── report/              census.py — pure-Python (stdlib) code-census PDF generator
 ├── tools/               dev-only checks (check-mixins.js, compose-test.js)
 ├── tests/               unit (node+vm), smoke, and Playwright e2e tests
 │   └── samples/             committed preview-fixture set (one sample per

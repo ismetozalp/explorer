@@ -178,7 +178,9 @@ window.ExplorerTabs = {
         // Clean up streaming output channel
         if (tab.outputChannel) try { tab.outputChannel.close(); } catch(e){}
         // Clean up all terminals owned by this tab (v1.2)
-        try { (tab.terminals || []).forEach(t => ExRT.term.del(t.id)); } catch(e){}
+        try { (tab.terminals || []).forEach(t => { ExRT.term.del(t.id); if (this._sccDisposeSession) this._sccDisposeSession(t); }); } catch(e){}
+        // Free the inline repo panel's diff poll + scc cache watcher (dir tabs).
+        try { if (this._repoPaneDispose) this._repoPaneDispose(tab); } catch(e){}
         this.tabs.splice(idx, 1);
         if (this.activeTabId === id) {
             this.activeTabId = this.tabs[Math.max(0, idx - 1)]?.id || null;
@@ -191,6 +193,11 @@ window.ExplorerTabs = {
                     this._ensureTerminalsMounted(nt);
                     if (nt.kind === 'agent' && this.aiResumePollForActive) this.aiResumePollForActive();
                 });
+            } else if (nt && nt.kind === 'dir' && nt.repoPanelOpen && this.aiResumePollForActive) {
+                // A revealed dir tab with the inline Diff panel: restart its poll
+                // too (aiResumePollForActive handles dir tabs) — otherwise it stays
+                // frozen despite being visible.
+                this.$nextTick(() => this.aiResumePollForActive());
             }
         }
         if (this.tabs.length === 0) this.newTab(this.homePath);
@@ -201,6 +208,9 @@ window.ExplorerTabs = {
         const tab = this.tabs.find(t => t.id === id);
         if (!tab) return;
         if (tab.kind === 'dir' && !tab.loaded && !tab.loading) this._loadDir(tab);
+        // Restart the inline repo panel's diff poll now the dir tab is visible
+        // again (the tick self-terminates while the tab is backgrounded).
+        if (tab.kind === 'dir' && tab.repoPanelOpen && this._repoStartPoll) this._repoStartPoll(tab);
         // Safety: a terminal-kind tab with no shells inside (e.g. restored
         // from a buggy state, or addTerminalToTab silently failed earlier)
         // is useless. Spawn one so the user always sees a working shell.
@@ -449,6 +459,7 @@ window.ExplorerTabs = {
         // stale/moved cached repo instead of leaving a false bar up until
         // the next 8s poll tick.
         this._refreshTabGit(tab);
+        if (this._repoPaneReconcile) this._repoPaneReconcile(tab); // re-root an open inline repo panel
         await this._loadDir(tab, opts);
     },
 
@@ -458,6 +469,7 @@ window.ExplorerTabs = {
         tab.path = tab.history[tab.historyIdx];
         tab.selection = [];
         this._refreshTabGit(tab); // authoritative reconcile — see newTab()
+        if (this._repoPaneReconcile) this._repoPaneReconcile(tab);
         this._loadDir(tab);
     },
     goForward(tab) {
@@ -466,6 +478,7 @@ window.ExplorerTabs = {
         tab.path = tab.history[tab.historyIdx];
         tab.selection = [];
         this._refreshTabGit(tab); // authoritative reconcile — see newTab()
+        if (this._repoPaneReconcile) this._repoPaneReconcile(tab);
         this._loadDir(tab);
     },
     goUp(tab) { this.navigate(tab, Util.dirname(tab.path)); },

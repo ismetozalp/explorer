@@ -18,6 +18,8 @@ Alpine.data('explorer', () => ({
     ...window.ExplorerSudoers,   // js/features/sudoers.js
     ...window.ExplorerAgent,        // js/features/agent.js
     ...window.ExplorerAgentSessions, // js/features/agent-sessions.js
+    ...window.ExplorerScc,          // js/features/scc.js
+
     ...window.ExplorerTabs,      // js/core/tabs.js
     ...window.ExplorerFileList,  // js/core/filelist.js
     ...window.ExplorerFileOps,   // js/core/fileops.js
