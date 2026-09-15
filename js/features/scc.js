@@ -1185,23 +1185,27 @@ window.ExplorerScc = {
         // below and the folder dialog can take a while, and without this the
         // user sees nothing happen. Cleared on every exit path.
         scc.reporting = true;
-        // Need the analyses for a full report (table = languages, complexity =
-        // hotspots, churn = risk hotspots). Hotspots are best-effort (no git → skip).
-        if (!scc.table.ranAt) await this.aiSccRefreshTable(session);
-        if (!scc.cx.ranAt) await this.aiSccRefreshComplexity(session);
-        if (!scc.hot.ranAt) await this.aiSccRefreshHotspots(session);
-        if (!scc.cov.ranAt) await this.aiSccRefreshCoverage(session);   // best-effort (no lcov → skipped)
-        if (!scc.todo.ranAt) await this.aiSccRefreshTodos(session);
-        this._sccSaveAnalyses(session);   // persist whatever the report just computed
-        if (scc.table.err || scc.cx.err) { scc.reporting = false; this.toast('scc analysis failed — ' + (scc.table.err || scc.cx.err), 'danger'); return; }
-
-        // Where to save: default the repo root (report is git-ignored); the picker
-        // lets the user pick another folder.
-        const dir = await this.askDirectory('Save code-census report to…', root);
-        if (!dir) { scc.reporting = false; return; }
-        const outPath = Util.joinPath(dir, this._sccReportFilename());
-
+        // EVERYTHING below runs inside this try/finally so the button's loading
+        // state is ALWAYS cleared — even if an analysis throws, the folder dialog
+        // is dismissed, or generation fails. Otherwise `reporting` could stay
+        // true and leave the Report button permanently disabled.
         try {
+            // Need the analyses for a full report (table = languages, complexity =
+            // hotspots, churn = risk hotspots). Hotspots are best-effort (no git → skip).
+            if (!scc.table.ranAt) await this.aiSccRefreshTable(session);
+            if (!scc.cx.ranAt) await this.aiSccRefreshComplexity(session);
+            if (!scc.hot.ranAt) await this.aiSccRefreshHotspots(session);
+            if (!scc.cov.ranAt) await this.aiSccRefreshCoverage(session);   // best-effort (no lcov → skipped)
+            if (!scc.todo.ranAt) await this.aiSccRefreshTodos(session);
+            this._sccSaveAnalyses(session);   // persist whatever the report just computed
+            if (scc.table.err || scc.cx.err) { this.toast('scc analysis failed — ' + (scc.table.err || scc.cx.err), 'danger'); return; }
+
+            // Where to save: default the repo root (report is git-ignored); the
+            // picker lets the user pick another folder.
+            const dir = await this.askDirectory('Save code-census report to…', root);
+            if (!dir) return;
+            const outPath = Util.joinPath(dir, this._sccReportFilename());
+
             // Meta (branch/commit/date/scc version) for the cover + headers.
             const q = async (argv) => { try { return (await cockpit.spawn(argv, { err: 'ignore', directory: root })).trim(); } catch (e) { return ''; } };
             const meta = {

@@ -357,4 +357,95 @@ assert.ok(S._sccToolInstallCmd('fn', '').includes('lizard') && S._sccToolInstall
     assert.strictEqual(e.totals.cxPerKloc, 0);
 }
 
+// aiSccReport must ALWAYS clear scc.reporting — otherwise the Report button
+// stays disabled forever. Covers dialog-cancel and an analysis that throws.
+{
+    const mk = () => { const s = {}; S._sccEnsure(s); s.scc.installed = true;
+        // pretend every analysis already ran so none re-run on the happy paths
+        s.scc.table.ranAt = s.scc.cx.ranAt = s.scc.hot.ranAt = s.scc.cov.ranAt = s.scc.todo.ranAt = 1;
+        return s; };
+    const base = {
+        _sccEnsure: (x) => x.scc, _sccRoot: () => '/x', toast() {}, _sccSaveAnalyses() {},
+        aiSccRefreshTable() {}, aiSccRefreshComplexity() {}, aiSccRefreshHotspots() {},
+        aiSccRefreshCoverage() {}, aiSccRefreshTodos() {},
+    };
+    // 1) user dismisses the folder picker → reporting cleared
+    {
+        const s = mk();
+        const ctx = Object.assign(Object.create(S), base, { askDirectory: () => Promise.resolve(null) });
+        await S.aiSccReport.call(ctx, s);
+        assert.strictEqual(s.scc.reporting, false, 'dialog cancel clears reporting');
+    }
+    // 2) an analysis throws → reporting still cleared (was the stuck-disabled bug)
+    {
+        const s = mk(); s.scc.cx.ranAt = 0;   // force complexity to run
+        const ctx = Object.assign(Object.create(S), base, {
+            aiSccRefreshComplexity() { throw new Error('boom'); },
+            askDirectory: () => Promise.resolve(null),
+        });
+        await S.aiSccReport.call(ctx, s);
+        assert.strictEqual(s.scc.reporting, false, 'a thrown analysis must not leave reporting stuck true');
+    }
+    // 3) double-click while generating is ignored (no second run)
+    {
+        const s = mk(); s.scc.reporting = true;
+        let dialogs = 0;
+        const ctx = Object.assign(Object.create(S), base, { askDirectory: () => { dialogs++; return Promise.resolve(null); } });
+        await S.aiSccReport.call(ctx, s);
+        assert.strictEqual(dialogs, 0, 'a click while already reporting is ignored');
+        assert.strictEqual(s.scc.reporting, true, 'the in-flight report keeps its own flag');
+    }
+}
+
+// _sccInstallHint: the remaining distro branches (id and ID_LIKE fallbacks)
+{
+    assert.strictEqual(S._sccInstallHint('ID=manjaro').primary, 'sudo pacman -S scc', 'manjaro → pacman');
+    assert.strictEqual(S._sccInstallHint('ID=linuxmint').primary, 'sudo snap install scc', 'mint → snap');
+    assert.strictEqual(S._sccInstallHint('ID=raspbian').primary, 'sudo snap install scc', 'raspbian → snap');
+    assert.ok(/go install/.test(S._sccInstallHint('ID=rocky').primary), 'rocky → go');
+    assert.ok(/go install/.test(S._sccInstallHint('ID=almalinux').primary), 'almalinux → go');
+    const suse = S._sccInstallHint('ID=opensuse-leap\nID_LIKE="suse opensuse"');
+    assert.strictEqual(suse.label, 'openSUSE', 'opensuse → SUSE label');
+    assert.ok(/go install/.test(S._sccInstallHint('ID=sles').primary), 'sles → go');
+    // per-tool install commands: npm (jscpd) and pip (lizard) branches
+    assert.strictEqual(S._sccToolInstallCmd('dup', ''), 'npm install -g jscpd', 'jscpd → npm -g');
+    const fn = S._sccToolInstallCmd('fn', '');
+    assert.ok(fn.includes('python3 -m pip install') && fn.includes('lizard') && fn.includes('--break-system-packages'),
+        'lizard → python3 -m pip, PEP668-safe');
+    assert.ok(fn.includes('--prefix=/usr/local'), 'pip install targets /usr/local (on PATH)');
+    // turnkey install command for the same families
+    assert.strictEqual(S._sccInstallCmd('ID=manjaro'), 'pacman -S --noconfirm scc');
+    assert.ok(S._sccInstallCmd('ID=opensuse-tumbleweed\nID_LIKE=suse').includes('zypper')
+        || S._sccInstallCmd('ID=opensuse-tumbleweed\nID_LIKE=suse').includes('releases/latest/download'),
+        'suse install cmd is a package or a binary download');
+}
+
+// aiSccBusy: reports the ACTIVE sub-pane's loading flag
+{
+    assert.strictEqual(S.aiSccBusy(null), false, 'no session → not busy');
+    const s = {}; S._sccEnsure(s);
+    s.scc.sub = 'cx'; s.scc.cx.loading = true; assert.strictEqual(S.aiSccBusy(s), true, 'cx loading');
+    s.scc.sub = 'hot'; assert.strictEqual(S.aiSccBusy(s), false, 'hot not loading');
+    s.scc.sub = 'todo'; s.scc.todo.loading = true; assert.strictEqual(S.aiSccBusy(s), true, 'todo loading');
+    s.scc.sub = 'secrets'; s.scc.tools.secrets.loading = true; assert.strictEqual(S.aiSccBusy(s), true, 'tool loading');
+    s.scc.sub = 'table'; s.scc.table.loading = true; assert.strictEqual(S.aiSccBusy(s), true, 'table loading');
+}
+
+// aiSccRefreshActive: dispatches to the refresher for the active sub, then saves
+{
+    const calls = [];
+    const mk = (sub) => { const s = {}; S._sccEnsure(s); s.scc.sub = sub; return s; };
+    const ctx = Object.assign(Object.create(S), {
+        aiSccRefreshComplexity() { calls.push('cx'); }, aiSccRefreshHotspots() { calls.push('hot'); },
+        aiSccRefreshCoverage() { calls.push('cov'); }, aiSccRefreshTodos() { calls.push('todo'); },
+        aiSccRunTool(_s, k) { calls.push('tool:' + k); }, aiSccRefreshTable() { calls.push('table'); },
+        _sccSaveAnalyses() { calls.push('save'); },
+    });
+    for (const [sub, want] of [['cx', 'cx'], ['hot', 'hot'], ['cov', 'cov'], ['todo', 'todo'], ['deps', 'tool:deps'], ['table', 'table']]) {
+        calls.length = 0;
+        await ctx.aiSccRefreshActive(mk(sub));
+        assert.deepStrictEqual([...calls], [want, 'save'], sub + ' → ' + want + ' then save');
+    }
+}
+
 console.log('scc-unit: OK');

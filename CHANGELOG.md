@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.2.2
+
+- **Fixed the code-census Report button getting stuck disabled.** The button's
+  “generating” state was cleared only on the success/cancel paths, so if an
+  analysis threw (or the flow was interrupted) the busy flag stayed set and the
+  button stayed disabled. Report generation now runs inside a single
+  try/finally, so the button is always re-enabled when it finishes — however it
+  finishes. (The flag was never persisted, so a stuck button also clears on
+  reload.)
+
 ## 4.2.1
 
 - **Code-census report: fixed the unreadable dependency-vulnerabilities table.**
