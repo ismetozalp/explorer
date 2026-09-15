@@ -803,9 +803,17 @@ window.ExplorerScc = {
                 const vulns = p.vulnerabilities || [];
                 if (vulns.length) pkgs++;
                 for (const v of vulns) {
+                    // Prefer a SHORT qualitative rating (HIGH/MODERATE/…). OSV's
+                    // severity[].score is usually a full CVSS vector string
+                    // ("CVSS:4.0/AV:N/AC:H/…") — too long for the table/report and
+                    // not a rating — so only use it when it's a short bare score,
+                    // else fall back to the compact CVSS-version label.
+                    const so = (Array.isArray(v.severity) && v.severity[0]) ? v.severity[0] : null;
+                    const raw = so ? String(so.score || '') : '';
                     let sev = '';
-                    if (Array.isArray(v.severity) && v.severity[0]) sev = v.severity[0].score || v.severity[0].type || '';
-                    else if (v.database_specific && v.database_specific.severity) sev = v.database_specific.severity;
+                    if (v.database_specific && v.database_specific.severity) sev = v.database_specific.severity;
+                    else if (raw && !/^CVSS:/i.test(raw)) sev = raw;
+                    else if (so) sev = String(so.type || '').replace(/_/g, ' ');
                     findings.push({ package: pkg.name || '?', version: pkg.version || '', ecosystem: pkg.ecosystem || '', id: v.id || '', severity: sev, summary: v.summary || '' });
                 }
             }
@@ -1172,6 +1180,11 @@ window.ExplorerScc = {
         if (!scc.installed) { this.toast('scc isn’t installed — see the scc pane for install steps.', 'warning'); return; }
         const root = this._sccRoot(session);
         if (!root) { this.toast('No folder to analyze.', 'warning'); return; }
+        if (scc.reporting) return;               // already generating — ignore a double-click
+        // Show the Report button's loading state from the click — the analyses
+        // below and the folder dialog can take a while, and without this the
+        // user sees nothing happen. Cleared on every exit path.
+        scc.reporting = true;
         // Need the analyses for a full report (table = languages, complexity =
         // hotspots, churn = risk hotspots). Hotspots are best-effort (no git → skip).
         if (!scc.table.ranAt) await this.aiSccRefreshTable(session);
@@ -1180,15 +1193,14 @@ window.ExplorerScc = {
         if (!scc.cov.ranAt) await this.aiSccRefreshCoverage(session);   // best-effort (no lcov → skipped)
         if (!scc.todo.ranAt) await this.aiSccRefreshTodos(session);
         this._sccSaveAnalyses(session);   // persist whatever the report just computed
-        if (scc.table.err || scc.cx.err) { this.toast('scc analysis failed — ' + (scc.table.err || scc.cx.err), 'danger'); return; }
+        if (scc.table.err || scc.cx.err) { scc.reporting = false; this.toast('scc analysis failed — ' + (scc.table.err || scc.cx.err), 'danger'); return; }
 
         // Where to save: default the repo root (report is git-ignored); the picker
         // lets the user pick another folder.
         const dir = await this.askDirectory('Save code-census report to…', root);
-        if (!dir) return;
+        if (!dir) { scc.reporting = false; return; }
         const outPath = Util.joinPath(dir, this._sccReportFilename());
 
-        scc.reporting = true;
         try {
             // Meta (branch/commit/date/scc version) for the cover + headers.
             const q = async (argv) => { try { return (await cockpit.spawn(argv, { err: 'ignore', directory: root })).trim(); } catch (e) { return ''; } };

@@ -40,6 +40,29 @@ def _text_width(s, size):
     return sum(_HELV_W.get(c, 556) for c in s) * size / 1000.0
 
 
+def _clip(s, size, maxw):
+    """Truncate s (adding an ellipsis) to fit maxw points at font size — Helvetica
+    is proportional, so a fixed character count doesn't bound the pixel width and
+    long cells (CVSS vectors, GHSA ids, paths) would overrun into the next column."""
+    s = str(s)
+    if maxw <= 0:
+        return ''
+    if _text_width(s, size) <= maxw:
+        return s
+    ell = '...'
+    budget = maxw - _text_width(ell, size)
+    if budget <= 0:
+        return ell
+    out, w = [], 0.0
+    for c in s:
+        cw = _text_width(c, size)
+        if w + cw > budget:
+            break
+        out.append(c)
+        w += cw
+    return ''.join(out) + ell
+
+
 def _esc(s):
     return s.replace('\\', r'\\').replace('(', r'\(').replace(')', r'\)')
 
@@ -575,8 +598,9 @@ def _detail_table(pdf, y, title, cols, rows, empty):
         for (h, k, al, w) in cols:
             v = r.get(k, '')
             s = _num(v) if isinstance(v, (int, float)) else str(v)
-            if al == 'left' and len(s) > 46:
-                s = s[:45] + '…'
+            # Fit the cell to its column's pixel width so nothing overruns into
+            # the neighbouring column (proportional font — a char count won't do).
+            s = _clip(s, 8, w - 6)
             pdf.text(cx if al == 'left' else cx + w - 4, y, s, 8, INK if al == 'left' else MUT, align=al)
             cx += w
         y += 14

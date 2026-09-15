@@ -158,6 +158,13 @@ assert.deepStrictEqual([...sn].map(r => r.name), ['Java', 'JSON'], 'name asc →
     const r = S._sccParseOsv(osv);
     assert.strictEqual(r.findings.length, 1); assert.strictEqual(r.findings[0].package, 'lodash'); assert.strictEqual(r.findings[0].id, 'GHSA-x'); assert.strictEqual(r.findings[0].severity, 'HIGH');
     assert.strictEqual(S._sccParseOsv('{}').findings.length, 0);
+    // A long CVSS vector must NOT become the severity value (it overran the table
+    // in the report) — fall back to the compact CVSS-version label instead.
+    const vec = JSON.stringify({ results: [{ packages: [{ package: { name: 'logback', version: '1.5.12' }, vulnerabilities: [{ id: 'GHSA-y', severity: [{ type: 'CVSS_V4', score: 'CVSS:4.0/AV:N/AC:H/AT:P/PR:P/UI:N/VC:L/VI:L/VA:N/SC:L/SI:L/SA:L' }] }] }] }] });
+    assert.strictEqual(S._sccParseOsv(vec).findings[0].severity, 'CVSS V4', 'CVSS vector → compact version label');
+    // A short bare score (not a vector) is kept as-is.
+    const num = JSON.stringify({ results: [{ packages: [{ package: { name: 'p', version: '1' }, vulnerabilities: [{ id: 'CVE-1', severity: [{ type: 'CVSS_V3', score: '9.8' }] }] }] }] });
+    assert.strictEqual(S._sccParseOsv(num).findings[0].severity, '9.8', 'short bare score kept');
 }
 {
     const j = JSON.stringify({ statistics: { total: { percentage: 3.4 } }, duplicates: [{ firstFile: { name: 'a.js', start: 1 }, secondFile: { name: 'b.js', start: 5 }, lines: 20 }] });
