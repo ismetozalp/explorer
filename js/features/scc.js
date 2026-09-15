@@ -166,7 +166,12 @@ window.ExplorerScc = {
     },
     _sccEnsure(session) {
         if (!session.scc) session.scc = {
-            sub: 'table', installed: null, hint: null, installing: false, installLog: '',
+            // reporting/exporting MUST start false (not undefined): the Report/Zip
+            // buttons bind :disabled to `… && scc.reporting`, which yields
+            // `undefined` when the flag is undefined — and Alpine sets a boolean
+            // attribute for an undefined value, leaving the button wrongly disabled
+            // before any report/export has run.
+            sub: 'table', installed: null, hint: null, installing: false, installLog: '', reporting: false, exporting: false,
             table: { rows: [], total: null, loading: false, err: '', ranAt: 0 },
             cx: { files: [], top: [], loading: false, err: '', ranAt: 0 },
             hot: { files: [], churn: {}, loading: false, err: '', ranAt: 0, window: '1 year ago' },
@@ -1180,7 +1185,7 @@ window.ExplorerScc = {
         if (!scc.installed) { this.toast('scc isn’t installed — see the scc pane for install steps.', 'warning'); return; }
         const root = this._sccRoot(session);
         if (!root) { this.toast('No folder to analyze.', 'warning'); return; }
-        if (scc.reporting) return;               // already generating — ignore a double-click
+        if (scc.reporting || scc.exporting) return;   // a report/export is already using the folder dialog
         // Show the Report button's loading state from the click — the analyses
         // below and the folder dialog can take a while, and without this the
         // user sees nothing happen. Cleared on every exit path.
@@ -1288,6 +1293,7 @@ window.ExplorerScc = {
     async aiSccExport(session) {
         if (!session) return;
         const scc = this._sccEnsure(session);
+        if (scc.reporting || scc.exporting) { this.toast('Busy — wait for the current report/export to finish.', 'warning'); return; }
         const sub = scc.sub || 'table';
         const data = this._sccExportData(scc, sub);
         if (!data) { this.toast('Nothing to export yet — run this analysis first (⟳).', 'warning'); return; }
@@ -1312,7 +1318,7 @@ window.ExplorerScc = {
         if (!scc.installed) { this.toast('scc isn’t installed — see the scc pane for install steps.', 'warning'); return; }
         const root = this._sccRoot(session);
         if (!root) { this.toast('No folder to analyze.', 'warning'); return; }
-        if (scc.exporting) return;
+        if (scc.exporting || scc.reporting) return;   // a report/export is already using the folder dialog
         scc.exporting = true;
         try {
             if (!scc.table.ranAt) await this.aiSccRefreshTable(session);

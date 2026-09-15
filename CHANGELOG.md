@@ -2,6 +2,20 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.3.1
+
+- **Fixed the census Report / Zip-all buttons showing up disabled.** Their busy
+  flags were left uninitialized, so the `:disabled` binding evaluated to
+  `undefined` — which Alpine renders as a *set* boolean attribute — leaving the
+  buttons disabled before any report/export had run. The flags now start as
+  `false` (and the bindings are coerced to booleans).
+- **Hardened the folder-picker against concurrent use.** Opening a second
+  folder dialog while a first was still open silently dropped the first call's
+  result (leaving its operation hung). The picker now cancels a still-open
+  picker before opening a new one, and the census Report / JSON / Zip-all
+  actions are mutually exclusive while one is running.
+- Both covered by a new end-to-end test (`tests/scc-export-e2e.mjs`).
+
 ## 4.3.0
 
 - **JSON export for the code-census tables.** Two new buttons in the census

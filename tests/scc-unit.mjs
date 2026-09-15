@@ -479,4 +479,14 @@ assert.ok(S._sccToolInstallCmd('fn', '').includes('lizard') && S._sccToolInstall
     scc.sub = 'hot'; assert.strictEqual(S.aiSccCanExport({ scc }), false, 'active un-run table → cannot export');
 }
 
+// _sccEnsure MUST initialize reporting/exporting to false (not leave them
+// undefined): the Report/Zip :disabled bindings resolve to `undefined` when the
+// flag is undefined, and Alpine sets a boolean attribute for undefined — which
+// left the buttons wrongly disabled before any report/export ran.
+{
+    const s = {}; S._sccEnsure(s);
+    assert.strictEqual(s.scc.reporting, false, 'reporting must start as boolean false, not undefined');
+    assert.strictEqual(s.scc.exporting, false, 'exporting must start as boolean false, not undefined');
+}
+
 console.log('scc-unit: OK');

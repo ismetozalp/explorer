@@ -104,6 +104,12 @@ window.ExplorerDialogs = {
     // Returns a Promise<string|null> resolving to the chosen directory path.
     askDirectory(title, startPath) {
         return new Promise(resolve => {
+            // A second askDirectory while one is still open would silently drop the
+            // first call's resolve (the shared dirPicker is overwritten), leaving
+            // its awaiting caller hung forever — which left the census Report / Zip
+            // buttons stuck disabled. Cancel the pending picker (resolve it null) so
+            // its caller unwinds cleanly before we open the new one.
+            if (this.dirPicker && this.dirPicker.resolve) { const r = this.dirPicker.resolve; this.dirPicker.resolve = null; try { r(null); } catch (e) {} }
             this.dirPicker = { open: true, title: title || 'Select a folder', path: '', entries: [], loading: true, resolve, pathInput: '', filter: '' };
             bootstrap.Modal.getOrCreateInstance(this.dirPickerEl).show();
             this._dpLoad(startPath || this.homePath);
