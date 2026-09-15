@@ -79,9 +79,15 @@
                 </div>
                 <!-- Preview surfaces -->
                 <template x-if="activeWin() && activeWin().kind === 'preview' && (activeWin().pv.kind === 'text' || (activeWin().pv.kind === 'html' && activeWin().pv.htmlMode === 'source'))">
-                    <div class="preview-code-wrap">
-                        <pre class="preview-gutter" aria-hidden="true" x-text="pvLineNumbers(activeWin().pv.content)"></pre>
-                        <pre class="preview-code"><code :class="'language-' + (activeWin().pv.lang || 'plain')" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && Prism.highlightElement($el)"></code></pre>
+                    <div class="preview-text-host">
+                        <div class="preview-trunc-banner" x-show="activeWin().pv.truncated">
+                            Showing the first <span x-text="Util.humanSize(activeWin().pv.content.length)"></span> of <span x-text="Util.humanSize(activeWin().pv.fullBytes)"></span> —
+                            <a href="#" @click.prevent="openEditor(activeWin()._file)">open in the editor</a> for the whole file.
+                        </div>
+                        <div class="preview-code-wrap">
+                            <pre class="preview-gutter" aria-hidden="true" x-text="pvLineNumbers(activeWin().pv.content)"></pre>
+                            <pre class="preview-code"><code :class="'language-' + (activeWin().pv.noHighlight ? 'plain' : (activeWin().pv.lang || 'plain'))" x-text="activeWin().pv.content" x-effect="activeWin() && activeWin().pv && activeWin().pv.content && !activeWin().pv.noHighlight && activeWin().pv.content.length <= 102400 && Prism.highlightElement($el)"></code></pre>
+                        </div>
                     </div>
                 </template>
                 <!-- HTML file, rendered. Two branches so toggling scripts recreates the

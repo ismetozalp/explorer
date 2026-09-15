@@ -459,6 +459,7 @@ window.ExplorerTerminal = {
         if (idx < 0) return;
 
         ExRT.term.del(termId);   // also removes the per-terminal resize listener
+        if (this._sccDisposeSession) this._sccDisposeSession(tab.terminals[idx]);   // close any scc cache watcher
 
         tab.terminals.splice(idx, 1);
 

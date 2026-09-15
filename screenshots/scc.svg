@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="440" fill="#1b1d21"/>
+  <!-- tab bar -->
+  <rect x="0" y="0" width="900" height="30" fill="#141517"/>
+  <rect x="8" y="5" width="120" height="20" rx="4" fill="#23262b"/><text x="18" y="19" fill="#cfd3d8" font-size="11">✦ claude</text>
+  <text x="740" y="19" fill="#8ab4f8" font-size="11">✦ AI ▾</text>
+  <!-- sub-tab bar -->
+  <rect x="0" y="30" width="900" height="26" fill="#202226"/>
+  <rect x="8" y="34" width="90" height="18" rx="3" fill="#2b3138"/><text x="16" y="47" fill="#e8e8e8" font-size="11">✦ claude</text>
+
+  <!-- terminal -->
+  <rect x="0" y="56" width="230" height="384" fill="#0d1013"/>
+  <text x="12" y="80" fill="#6ee7b7" font-size="11" font-family="ui-monospace,Menlo,Consolas,monospace">~/project $ claude</text>
+  <text x="12" y="100" fill="#9aa0a8" font-size="11" font-family="ui-monospace,Menlo,Consolas,monospace">● Editing files …</text>
+
+  <!-- tree (with complexity badges) -->
+  <rect x="230" y="56" width="180" height="384" fill="#1b1d21"/>
+  <line x1="230" y1="56" x2="230" y2="440" stroke="#2e3037"/>
+  <text x="242" y="75" fill="#8b949e" font-size="11" letter-spacing="0.6">REPO</text>
+  <line x1="230" y1="84" x2="410" y2="84" stroke="#2e3037"/>
+  <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12">
+    <text x="240" y="104" fill="#8b949e">▾</text><text x="256" y="104" fill="#cfd3d8">project</text>
+    <text x="254" y="124" fill="#58a6ff">parser.js</text><text x="392" y="124" fill="#8b949e" font-size="10" text-anchor="end">112</text>
+    <text x="254" y="144" fill="#cfd3d8">lexer.js</text><text x="392" y="144" fill="#8b949e" font-size="10" text-anchor="end">44</text>
+    <text x="254" y="164" fill="#56d364">newfile.js</text><text x="392" y="164" fill="#8b949e" font-size="10" text-anchor="end">8</text>
+    <text x="254" y="184" fill="#cfd3d8">app.js</text><text x="392" y="184" fill="#8b949e" font-size="10" text-anchor="end">112</text>
+  </g>
+  <text x="240" y="420" fill="#5c5f6b" font-size="9" font-family="ui-monospace,Menlo,monospace">numbers = cyclomatic complexity</text>
+
+  <!-- scc pane -->
+  <rect x="410" y="56" width="490" height="384" fill="#1b1d21"/>
+  <line x1="410" y1="56" x2="410" y2="440" stroke="#2e3037"/>
+  <!-- head: dropdown + buttons -->
+  <rect x="420" y="62" width="150" height="20" rx="3" fill="#23262b" stroke="#333"/><text x="428" y="76" fill="#cfd3d8" font-size="11">Language table ▾</text>
+  <rect x="578" y="62" width="22" height="20" rx="3" fill="#2b2f34"/><text x="585" y="76" fill="#cfd3d8" font-size="11">⟳</text>
+  <rect x="606" y="62" width="22" height="20" rx="3" fill="#238636"/><text x="612" y="76" fill="#fff" font-size="11">⏱</text>
+  <rect x="634" y="62" width="52" height="20" rx="3" fill="#2b2f34"/><text x="642" y="76" fill="#cfd3d8" font-size="11">Report</text>
+  <text x="880" y="76" fill="#8b949e" font-size="12" text-anchor="end">▶</text>
+  <line x1="410" y1="90" x2="900" y2="90" stroke="#2e3037"/>
+  <!-- table -->
+  <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11">
+    <rect x="410" y="90" width="490" height="20" fill="#1e2027"/>
+    <text x="420" y="104" fill="#8b949e">LANGUAGE</text>
+    <text x="640" y="104" fill="#8b949e" text-anchor="end">FILES</text>
+    <text x="730" y="104" fill="#8b949e" text-anchor="end">CODE</text>
+    <text x="880" y="104" fill="#8b949e" text-anchor="end">CX</text>
+    <g fill="#cfd3d8">
+      <text x="420" y="126">JavaScript</text><text x="640" y="126" text-anchor="end">208</text><text x="730" y="126" text-anchor="end" font-weight="600">45,571</text><text x="880" y="126" text-anchor="end">18,756</text>
+      <text x="420" y="146">CSS</text><text x="640" y="146" text-anchor="end">8</text><text x="730" y="146" text-anchor="end" font-weight="600">1,983</text><text x="880" y="146" text-anchor="end">5</text>
+      <text x="420" y="166">Python</text><text x="640" y="166" text-anchor="end">2</text><text x="730" y="166" text-anchor="end" font-weight="600">368</text><text x="880" y="166" text-anchor="end">94</text>
+      <text x="420" y="186" fill="#8b949e">JSON <tspan font-size="9">data</tspan></text><text x="640" y="186" text-anchor="end" fill="#8b949e">6</text><text x="730" y="186" text-anchor="end" fill="#8b949e" font-weight="600">299</text><text x="880" y="186" text-anchor="end" fill="#8b949e">0</text>
+    </g>
+    <line x1="410" y1="198" x2="900" y2="198" stroke="#cfd3d8"/>
+    <text x="420" y="216" fill="#cfd3d8" font-weight="600">Total</text><text x="640" y="216" text-anchor="end" fill="#cfd3d8" font-weight="600">290</text><text x="730" y="216" text-anchor="end" fill="#cfd3d8" font-weight="600">55,470</text><text x="880" y="216" text-anchor="end" fill="#cfd3d8" font-weight="600">18,870</text>
+  </g>
+  <!-- analyses legend -->
+  <text x="420" y="250" fill="#8b949e" font-size="11">Also: Complexity · Hotspots (churn × cx) · Coverage · TODO ·</text>
+  <text x="420" y="268" fill="#8b949e" font-size="11">Secrets · Dependencies · Duplication · Function complexity</text>
+  <text x="420" y="300" fill="#7ee787" font-size="11">Report → a multi-page PDF, generated server-side with plain Python.</text>
+  <text x="420" y="318" fill="#7ee787" font-size="11">⏱ → optional background auto-refresh (systemd user timer).</text>
+
+  <text x="12" y="430" fill="#5c5f6b" font-size="11">Terminal · repo tree (complexity badges) · scc code-census with sortable analyses, one-click tool installs and a PDF report</text>
+</svg>

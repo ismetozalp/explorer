@@ -2,6 +2,34 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.2.0
+
+- **New: code-census pane in the AI view (`scc ▶`).** A quality dashboard powered
+  by [`scc`](https://github.com/boyter/scc) plus a set of analyses, with a
+  one-click PDF report. Pick an analysis from the dropdown:
+  - **Language table** (sortable), **Complexity** (top-50 files; the number also
+    shows next to every file in the repo tree), **Hotspots** (churn × complexity
+    from git log), **Coverage** (from an existing lcov file), **TODO / FIXME**
+    census, and **Scanners**: secrets (gitleaks), dependency vulnerabilities
+    (osv-scanner), duplication (jscpd), per-function complexity (lizard).
+  - **One-click installs.** Any missing tool shows an **Install** button that runs
+    the right command for the host's Linux distro (native package, GitHub-release
+    binary, npm or pip) as administrator, streaming the output.
+  - **PDF report.** The **Report** button produces a multi-page *Code Census* PDF
+    (cover stats, language table, composition charts, complexity + churn hotspots,
+    a quality page, and a McCabe risk legend) — generated **server-side with plain
+    Python**, no browser and no extra libraries. Saved git-ignored in the repo by
+    default, or to a folder you pick.
+  - **Optional background auto-refresh** via a per-repo **systemd user timer**
+    (interval in Settings), enabled only after a consent prompt explaining exactly
+    what it creates; the pane reloads when results update.
+- **Inline Diff + Census panel in the file browser.** When a folder tab is inside
+  a git repository, a thin *◈ repo* strip opens a right-hand panel with a
+  **[Diff | Census]** toggle — the same live diff (with the changed-file strip and
+  editor jumps) and the full code-census dashboard above, now without leaving the
+  file manager. The panel roots at the repository toplevel, so it works from any
+  subdirectory, and its diff refreshes live while the tab is in front.
+
 ## 4.1.0
 
 - **New: repo tree panel in the AI view (`Terminal | Tree | Diff`).** A

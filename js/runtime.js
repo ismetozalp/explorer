@@ -20,6 +20,10 @@ window.ExRT = {
             // (files one level down → 2); Codex nests by YYYY/MM/DD (→ 5).
             aiClaudeMaxDepth: 2,
             aiCodexMaxDepth: 5,
+            // scc code-census: how often (minutes) a per-repo systemd timer
+            // re-runs the analysis in the background when auto-refresh is enabled
+            // for that repo. 0 disables the option. See js/features/scc.js.
+            sccRefreshMins: 60,
             columns: { size: true, modified: true, perms: true, owner: true, type: false },
             previewLimitMB: 10,
             outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)

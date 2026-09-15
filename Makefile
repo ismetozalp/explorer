@@ -19,7 +19,7 @@ export RELEASE_NOTES
 # plugin was tested, which is a fact about this repository and no business of an
 # installed copy.
 FILES = manifest.json index.html README.md VERSION Makefile \
-        css js html actions screenshots
+        css js html actions screenshots report
 
 # Coverage is measured over the shipped browser sources only (js/**). tests/ is
 # excluded because a test file's own coverage says nothing, and the e2e/smoke
