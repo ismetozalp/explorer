@@ -549,7 +549,7 @@
                         </select>
                         <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccRefreshActive(aiSccActive(tab))" :disabled="aiSccActive(tab) && aiSccBusy(aiSccActive(tab))" title="Re-run analysis">⟳</button>
                         <button class="btn btn-sm ms-1" :class="aiSccActive(tab) && aiSccActive(tab).scc.auto && aiSccActive(tab).scc.auto.enabled ? 'btn-success' : 'btn-outline-secondary'" @click="aiSccToggleAuto(aiSccActive(tab))" title="Background auto-refresh (systemd timer)">⏱</button>
-                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccReport(aiSccActive(tab))" title="Generate report">Report</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccReport(aiSccActive(tab))" :disabled="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting" title="Generate report"><span x-show="!(aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting)">Report</span><span x-show="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting">Generating…</span></button>
                     </div>
                     <template x-if="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.installed === false && aiSccActive(tab).scc.hint">
                         <div class="agent-scc-install">
@@ -966,7 +966,7 @@
                         </select>
                         <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccRefreshActive(aiSccActive(tab))" :disabled="aiSccActive(tab) && aiSccBusy(aiSccActive(tab))" title="Re-run analysis">⟳</button>
                         <button class="btn btn-sm ms-1" :class="aiSccActive(tab) && aiSccActive(tab).scc.auto && aiSccActive(tab).scc.auto.enabled ? 'btn-success' : 'btn-outline-secondary'" @click="aiSccToggleAuto(aiSccActive(tab))" title="Background auto-refresh (systemd timer)">⏱</button>
-                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccReport(aiSccActive(tab))" title="Generate report">Report</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" @click="aiSccReport(aiSccActive(tab))" :disabled="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting" title="Generate report"><span x-show="!(aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting)">Report</span><span x-show="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.reporting">Generating…</span></button>
                         <button class="btn btn-sm btn-outline-secondary ms-auto agent-diff-collapse" @click="aiToggleScc(tab)" title="Hide scc pane">▶</button>
                     </div>
                     <template x-if="aiSccActive(tab) && aiSccActive(tab).scc && aiSccActive(tab).scc.installed === false && aiSccActive(tab).scc.hint">

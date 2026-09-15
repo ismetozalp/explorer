@@ -2,6 +2,18 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.2.1
+
+- **Code-census report: fixed the unreadable dependency-vulnerabilities table.**
+  The scanner detail tables now clip each cell to its column's real (proportional-
+  font) width, so long GHSA ids, package names and CVSS strings no longer overrun
+  into the next column. The dependency severity now shows a short rating
+  (`HIGH` / `MODERATE` / …, or a compact `CVSS V4` label) instead of the full
+  CVSS vector string, in both the report and the pane.
+- **Report button now shows a loading state** (“Generating…”, disabled) from the
+  moment it's clicked — through the analyses and the folder dialog — so it's clear
+  the report is being generated.
+
 ## 4.2.0
 
 - **New: code-census pane in the AI view (`scc ▶`).** A quality dashboard powered
