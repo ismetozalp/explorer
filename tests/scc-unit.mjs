@@ -448,4 +448,35 @@ assert.ok(S._sccToolInstallCmd('fn', '').includes('lizard') && S._sccToolInstall
     }
 }
 
+// JSON export helpers (per-table + export-all manifest)
+{
+    const s = {}; S._sccEnsure(s); const scc = s.scc;
+    // nothing run yet → every table exports null, manifest empty
+    assert.strictEqual(S._sccExportData(scc, 'table'), null, 'un-run table → null');
+    assert.strictEqual(S._sccExportData(null, 'table'), null, 'no scc → null');
+    assert.strictEqual(Object.keys(S._sccExportAll(scc)).length, 0, 'nothing run → empty manifest');
+    assert.strictEqual(S.aiSccCanExport({ scc }), false, 'canExport false when active table un-run');
+
+    // populate a couple of tables
+    scc.table.ranAt = 1; scc.table.rows = [{ name: 'Go', code: 100 }]; scc.table.total = { code: 100, files: 2 };
+    scc.cx.ranAt = 1; scc.cx.top = [{ filename: 'a.go', complexity: 12 }];
+    scc.tools.secrets.ranAt = 1; scc.tools.secrets.findings = [{ file: 'x', line: 3 }]; scc.tools.secrets.summary = '1 potential secret';
+
+    const td = S._sccExportData(scc, 'table');
+    assert.strictEqual(td.table, 'languages'); assert.strictEqual(td.languages.length, 1); assert.strictEqual(td.total.code, 100);
+    const cd = S._sccExportData(scc, 'cx');
+    assert.strictEqual(cd.table, 'complexity'); assert.strictEqual(cd.files[0].filename, 'a.go');
+    const sd = S._sccExportData(scc, 'secrets');
+    assert.strictEqual(sd.table, 'secrets'); assert.strictEqual(sd.findings.length, 1);
+    assert.strictEqual(S._sccExportData(scc, 'hot'), null, 'un-run hotspots still null');
+
+    // manifest contains only the tables with data, keyed by friendly filename
+    const man = S._sccExportAll(scc);
+    assert.deepStrictEqual(Object.keys(man).sort(), ['census-complexity.json', 'census-languages.json', 'census-secrets.json']);
+    assert.deepStrictEqual(JSON.parse(man['census-languages.json']).languages, [{ name: 'Go', code: 100 }], 'manifest holds valid pretty JSON');
+
+    scc.sub = 'cx'; assert.strictEqual(S.aiSccCanExport({ scc }), true, 'canExport true when active table has data');
+    scc.sub = 'hot'; assert.strictEqual(S.aiSccCanExport({ scc }), false, 'active un-run table → cannot export');
+}
+
 console.log('scc-unit: OK');

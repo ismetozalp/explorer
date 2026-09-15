@@ -1253,6 +1253,95 @@ window.ExplorerScc = {
             scc.reporting = false;
         }
     },
+
+    // ── JSON export (per-table + export-all-as-zip) ────────────────────────────
+    // Friendly file-name stems per sub-pane.
+    _sccExportLabel: { table: 'languages', cx: 'complexity', hot: 'hotspots', cov: 'coverage', todo: 'todo', secrets: 'secrets', deps: 'dependencies', dup: 'duplication', fn: 'functions' },
+    // PURE (unit-tested): the JSON-serializable payload for one table, or null if
+    // that analysis hasn't been run yet (nothing to export).
+    _sccExportData(scc, sub) {
+        if (!scc) return null;
+        const label = this._sccExportLabel[sub] || sub;
+        if (sub === 'table') return scc.table.ranAt ? { table: label, total: scc.table.total, languages: scc.table.rows } : null;
+        if (sub === 'cx') return scc.cx.ranAt ? { table: label, files: scc.cx.top } : null;
+        if (sub === 'hot') return scc.hot.ranAt ? { table: label, window: scc.hot.window, files: scc.hot.files } : null;
+        if (sub === 'cov') return scc.cov.ranAt ? { table: label, total: scc.cov.total, path: scc.cov.path, files: scc.cov.files } : null;
+        if (sub === 'todo') return scc.todo.ranAt ? { table: label, counts: scc.todo.counts, items: scc.todo.items } : null;
+        const t = (scc.tools || {})[sub];
+        if (t) return t.ranAt ? { table: label, summary: t.summary, findings: t.findings } : null;
+        return null;
+    },
+    // PURE (unit-tested): { 'census-<label>.json': '<pretty json>' } for EVERY
+    // table that has data — the manifest the export-all zip is built from.
+    _sccExportAll(scc) {
+        const out = {};
+        for (const sub of ['table', 'cx', 'hot', 'cov', 'todo', 'secrets', 'deps', 'dup', 'fn']) {
+            const d = this._sccExportData(scc, sub);
+            if (d) out['census-' + (this._sccExportLabel[sub] || sub) + '.json'] = JSON.stringify(d, null, 2);
+        }
+        return out;
+    },
+    aiSccCanExport(session) { const scc = session && session.scc; return !!(scc && this._sccExportData(scc, scc.sub || 'table')); },
+
+    // Export the ACTIVE table to <folder>/census-<label>.json (like Report:
+    // pick a folder, write server-side, then open it in the preview pane).
+    async aiSccExport(session) {
+        if (!session) return;
+        const scc = this._sccEnsure(session);
+        const sub = scc.sub || 'table';
+        const data = this._sccExportData(scc, sub);
+        if (!data) { this.toast('Nothing to export yet — run this analysis first (⟳).', 'warning'); return; }
+        const root = this._sccRoot(session);
+        const dir = await this.askDirectory('Export this table as JSON to…', root || this.homePath);
+        if (!dir) return;
+        const name = 'census-' + (this._sccExportLabel[sub] || sub) + '.json';
+        const outPath = Util.joinPath(dir, name);
+        try {
+            await cockpit.file(outPath).replace(JSON.stringify(data, null, 2));
+            this.toast('Exported: ' + outPath, 'success');
+            try { const st = await FS.statOne(outPath); this.openPreview({ path: outPath, name, type: 'f', size: (st && st.size) || 0 }); } catch (e) {}
+        } catch (e) { this.toast('Export failed: ' + (e.message || e), 'danger'); }
+    },
+    // Export ALL tables: run the core analyses (so every core table is present —
+    // scanners are included when they've been run), then zip one JSON per table.
+    // The zip is built with python3 (always available for this plugin) so no `zip`
+    // binary is required. Wrapped in try/finally so the button never sticks.
+    async aiSccExportAll(session) {
+        if (!session) return;
+        const scc = this._sccEnsure(session);
+        if (!scc.installed) { this.toast('scc isn’t installed — see the scc pane for install steps.', 'warning'); return; }
+        const root = this._sccRoot(session);
+        if (!root) { this.toast('No folder to analyze.', 'warning'); return; }
+        if (scc.exporting) return;
+        scc.exporting = true;
+        try {
+            if (!scc.table.ranAt) await this.aiSccRefreshTable(session);
+            if (!scc.cx.ranAt) await this.aiSccRefreshComplexity(session);
+            if (!scc.hot.ranAt) await this.aiSccRefreshHotspots(session);
+            if (!scc.cov.ranAt) await this.aiSccRefreshCoverage(session);
+            if (!scc.todo.ranAt) await this.aiSccRefreshTodos(session);
+            this._sccSaveAnalyses(session);
+            const files = this._sccExportAll(scc);
+            const names = Object.keys(files);
+            if (!names.length) { this.toast('Nothing to export.', 'warning'); return; }
+            const dir = await this.askDirectory('Export all census tables (JSON zip) to…', root);
+            if (!dir) return;
+            const outPath = Util.joinPath(dir, 'census-export.zip');
+            const script = 'import sys, json, zipfile\n' +
+                'data = json.load(sys.stdin)\n' +
+                'z = zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED)\n' +
+                'for n, c in data.items():\n    z.writestr(n, c)\n' +
+                'z.close()\n';
+            const proc = cockpit.spawn(['python3', '-c', script, outPath], { err: 'message' });
+            proc.input(JSON.stringify(files));
+            await proc;
+            this.toast('Exported ' + names.length + ' tables → ' + outPath, 'success');
+        } catch (e) {
+            this.toast('Export failed: ' + (e.message || e), 'danger');
+        } finally {
+            scc.exporting = false;
+        }
+    },
     // Append the report filename to <root>/.gitignore if it's a repo and not
     // already ignored. Best-effort — a failure here doesn't fail the report.
     async _sccGitignore(root) {

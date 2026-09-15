@@ -1979,7 +1979,7 @@ html, body { max-width: 100%; }
    complexity hotspots, dark-surfaced like the diff/tree panes. ── */
 .agent-scc { flex: 0 0 340px; min-width: 0; display: flex; flex-direction: column;
   border-left: 1px solid var(--border, #333); background: var(--bg, #1b1d21); overflow: hidden; }
-.agent-scc-head { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem;
+.agent-scc-head { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; padding: .35rem .5rem;
   border-bottom: 1px solid var(--border, #333); flex: 0 0 auto; }
 .agent-scc-head .btn.active { background: var(--accent, #0d6efd); color: #fff; }
 .agent-scc-sel { flex: 1 1 auto; min-width: 0; max-width: 210px; background: #23262b; color: var(--fg, #cfd3d8);
