@@ -24,7 +24,17 @@
              @contextmenu.prevent="openTabMenu($event, tab.id)"
              @auxclick="$event.button === 1 && closeTabAsk(tab)"
              x-sort:item="tab.id">
-            <span class="tab-label" x-text="tabLabel(tab)"></span>
+            <template x-if="!tab._editingTitle">
+                <span class="tab-label" x-text="tabLabel(tab)" @dblclick.stop="startTabTitleEdit(tab)" title="Double-click to rename"></span>
+            </template>
+            <template x-if="tab._editingTitle">
+                <input class="tab-title-input" :value="tab._titleDraft"
+                       x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                       @click.stop @mousedown.stop @dblclick.stop @contextmenu.stop @auxclick.stop
+                       @keydown.enter.prevent.stop="commitTabTitle(tab, $event.target.value)"
+                       @keydown.escape.prevent.stop="cancelTabTitle(tab)"
+                       @blur="tab._editingTitle && commitTabTitle(tab, $event.target.value)">
+            </template>
             <span class="tab-admin-badge" x-show="tab.kind === 'dir' && tab.listAdminPath === tab.path" title="Listing as administrator">root</span>
             <span class="tab-git-badge" x-show="tab.gitInfo && tab.gitInfo.branch" :title="'git: ' + tab.gitInfo?.branch + (tab.gitInfo?.dirty ? ' (dirty)' : '')">⎇</span>
             <button class="tab-close" @click.stop="closeTabAsk(tab)" title="Close">×</button>
@@ -454,9 +464,19 @@
                              :class="{ active: tab.activeTermId === t.id }"
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
-                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)"
+                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="startTermTitleEdit(t)"
                              x-sort:item="t.id">
-                            <span class="term-subtab-label" x-text="termLabel(t)"></span>
+                            <template x-if="!t._editingTitle">
+                                <span class="term-subtab-label" x-text="termLabel(t)"></span>
+                            </template>
+                            <template x-if="t._editingTitle">
+                                <input class="term-subtab-input" :value="t._titleDraft"
+                                       x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                                       @click.stop @mousedown.stop @dblclick.stop @auxclick.stop
+                                       @keydown.enter.prevent.stop="commitTermTitle(t, $event.target.value)"
+                                       @keydown.escape.prevent.stop="cancelTermTitle(t)"
+                                       @blur="t._editingTitle && commitTermTitle(t, $event.target.value)">
+                            </template>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal (middle-click also)">×</button>
                         </div>
                     </template>
@@ -809,9 +829,19 @@
                              :class="{ active: tab.activeTermId === t.id }"
                              @click="selectTerminal(tab, t.id)"
                              @auxclick="$event.button === 1 && closeTerminal(tab, t.id)"
-                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="copyTermDir(t)"
+                             @mouseenter="showTermPath($event, t)" @mouseleave="hideTermPath()" @dblclick.stop="startTermTitleEdit(t)"
                              x-sort:item="t.id">
-                            <span class="term-subtab-label" x-text="termLabel(t)"></span>
+                            <template x-if="!t._editingTitle">
+                                <span class="term-subtab-label" x-text="termLabel(t)"></span>
+                            </template>
+                            <template x-if="t._editingTitle">
+                                <input class="term-subtab-input" :value="t._titleDraft"
+                                       x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                                       @click.stop @mousedown.stop @dblclick.stop @auxclick.stop
+                                       @keydown.enter.prevent.stop="commitTermTitle(t, $event.target.value)"
+                                       @keydown.escape.prevent.stop="cancelTermTitle(t)"
+                                       @blur="t._editingTitle && commitTermTitle(t, $event.target.value)">
+                            </template>
                             <button class="term-subtab-close" @click.stop="closeTerminal(tab, t.id)" title="Close terminal">×</button>
                         </div>
                     </template>
@@ -844,8 +874,21 @@
                         <div class="term-subtab" :class="{ active: tab.activeTermId === t.id }"
                              @click="aiSelectSession(tab, t.id)"
                              @auxclick="$event.button === 1 && aiCloseSession(tab, t.id)"
-                             @dblclick.stop="aiRenameSession(tab, t.id)">
-                            <span class="term-subtab-label"><span x-text="t.tool === 'codex' ? '◆' : '✦'"></span> <span x-text="t.label"></span></span>
+                             @dblclick.stop="startTermTitleEdit(t)">
+                            <template x-if="!t._editingTitle">
+                                <span class="term-subtab-label">
+                                    <template x-if="t.customTitle"><span x-text="t.customTitle"></span></template>
+                                    <template x-if="!t.customTitle"><span><span x-text="t.tool === 'codex' ? '◆' : '✦'"></span> <span x-text="t.label"></span></span></template>
+                                </span>
+                            </template>
+                            <template x-if="t._editingTitle">
+                                <input class="term-subtab-input" :value="t._titleDraft"
+                                       x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                                       @click.stop @mousedown.stop @dblclick.stop @auxclick.stop
+                                       @keydown.enter.prevent.stop="commitTermTitle(t, $event.target.value)"
+                                       @keydown.escape.prevent.stop="cancelTermTitle(t)"
+                                       @blur="t._editingTitle && commitTermTitle(t, $event.target.value)">
+                            </template>
                             <button class="term-subtab-close" @click.stop="aiCloseSession(tab, t.id)" title="Close session">×</button>
                         </div>
                     </template>

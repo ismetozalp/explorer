@@ -88,6 +88,32 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Inline title editor (double-click a tab / sub-tab to rename). Sized to blend
+   into the tab so editing reads as in-place text, not a popped-in form field. */
+.tab-title-input {
+    flex: 1;
+    min-width: 4ch;
+    max-width: 180px;
+    font: inherit;
+    color: var(--ex-text, inherit);
+    background: var(--ex-bg, #fff);
+    border: 1px solid var(--ex-accent, #0d6efd);
+    border-radius: 3px;
+    padding: 0 3px;
+    outline: none;
+}
+.term-subtab-input {
+    min-width: 4ch;
+    max-width: 200px;
+    font: inherit;
+    font-family: var(--bs-font-monospace, monospace);
+    color: var(--ex-text, inherit);
+    background: var(--ex-bg, #fff);
+    border: 1px solid var(--ex-accent, #0d6efd);
+    border-radius: 3px;
+    padding: 0 3px;
+    outline: none;
+}
 
 .tab-close {
     background: none;

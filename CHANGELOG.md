@@ -2,6 +2,15 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.4.0
+
+- **Editable tab and sub-tab titles.** Double-click any tab or sub-tab to rename
+  it inline — Enter commits, Esc cancels, and an empty value reverts to the
+  automatic name. Custom names are **saved to disk and restored on reload** for
+  the tabs that persist: folder tabs, tmux sessions (by session name), and AI
+  sessions. This unifies AI-session renaming (previously a pop-up) with the same
+  inline edit.
+
 ## 4.3.1
 
 - **Fixed the census Report / Zip-all buttons showing up disabled.** Their busy

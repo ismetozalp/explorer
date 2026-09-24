@@ -1050,6 +1050,7 @@
                 const sessions = (at && Array.isArray(at.sessions)) ? at.sessions.filter(s => s && (s.tool === 'claude' || s.tool === 'codex')) : [];
                 if (!sessions.length) continue;
                 const tab = { id: Util.uid(), kind: 'agent', title: '✦ ' + sessions[0].tool, path: sessions[0].dir || this.homePath || '/', terminals: [], activeTermId: null };
+                if (at.title) tab.customTitle = at.title;   // restore user-set tab title (double-click)
                 this.tabs.push(tab);
                 const rtab = this.tabs.find(t => t.id === tab.id);
                 for (const s of sessions) {
@@ -1057,6 +1058,9 @@
                         dir: s.dir, resumeId: s.resumeId || null, label: s.label || null,
                         restore: true, launch: s.launch === 'tmux' ? 'tmux' : 'shell', tmuxName: s.tmux || null,
                     });
+                    // aiAddSession appends the new session to rtab.terminals; restore
+                    // its user-set sub-tab title onto that record.
+                    if (s.title && rtab.terminals.length) rtab.terminals[rtab.terminals.length - 1].customTitle = s.title;
                 }
                 // Drop a tab that produced no sessions (e.g. addTerminalToTab failed).
                 if (!rtab.terminals || !rtab.terminals.length) {

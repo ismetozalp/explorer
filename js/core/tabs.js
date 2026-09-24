@@ -241,6 +241,9 @@ window.ExplorerTabs = {
     },
 
     tabLabel(tab) {
+        // A user-set custom title (double-click to edit) overrides the dynamic
+        // label entirely and is persisted, so it comes back verbatim on reload.
+        if (tab.customTitle) return tab.customTitle;
         if (tab.kind === 'output') return '▶ ' + (tab.outputActionLabel || 'output');
         if (tab.kind === 'terminal') {
             if (this.termKindOf(tab) === 'tmux') {
@@ -257,11 +260,46 @@ window.ExplorerTabs = {
         return Util.basename(tab.path) || tab.path;
     },
 
-    // Sub-tab label: tmux session name for tmux terminals, else the live cwd.
+    // Sub-tab label: a user-set custom title if any (double-click to edit,
+    // persisted), else the tmux session name for tmux terminals / the live cwd.
     termLabel(t) {
         if (!t) return '';
+        if (t.customTitle) return t.customTitle;
         return t.tmux ? ('⧉ ' + t.tmux) : ('❯ ' + this.shortenTermPath(t.dir));
     },
+
+    // ── Editable tab / sub-tab titles (double-click) ───────────────────────────
+    // The draft prefills with the current visible label so the user tweaks it;
+    // committing an empty string clears the custom title (back to the dynamic
+    // label). _persistTabs writes customTitle to disk so it survives reload.
+    startTabTitleEdit(tab) {
+        if (!tab) return;
+        tab._titleDraft = tab.customTitle || this.tabLabel(tab);
+        tab._editingTitle = true;
+    },
+    commitTabTitle(tab, value) {
+        if (!tab) return;
+        tab.customTitle = (value || '').trim();   // '' → falsy → dynamic label
+        tab._editingTitle = false;
+        this._persistTabs();
+    },
+    cancelTabTitle(tab) { if (tab) tab._editingTitle = false; },
+
+    startTermTitleEdit(t) {
+        if (!t) return;
+        // An AI session (has `tool`) shows its `label`; a plain/tmux terminal
+        // shows termLabel. Prefill the draft with whatever it currently shows.
+        const base = t.tool ? (t.label || '') : this.termLabel(t);
+        t._titleDraft = t.customTitle || base;
+        t._editingTitle = true;
+    },
+    commitTermTitle(t, value) {
+        if (!t) return;
+        t.customTitle = (value || '').trim();
+        t._editingTitle = false;
+        this._persistTabs();
+    },
+    cancelTermTitle(t) { if (t) t._editingTitle = false; },
 
     // Front-truncate a path to fit a sub-tab, keeping whole trailing segments:
     //   /home/ismet/Videos  →  /home/ismet/Videos  (fits)
@@ -333,10 +371,13 @@ window.ExplorerTabs = {
                 const agentTabs = this.tabs
                     .filter(t => t.kind === 'agent')
                     .map(t => ({
+                        title: t.customTitle || null,   // user-set tab title (double-click)
                         sessions: (t.terminals || []).map(x => ({
                             tool: x.tool === 'codex' ? 'codex' : 'claude',
                             dir: x.dir, tmux: x.tmux || null, resumeId: x.resumeId || null,
                             label: x.label || null,
+                            title: x.customTitle || null,   // user-set sub-tab title
+
                             // A tmux record ALWAYS restores as tmux (reattach), even
                             // if `launch` was never stamped — e.g. a terminal moved
                             // into AI view via moveTerminalToAiView. Deriving from
@@ -346,10 +387,17 @@ window.ExplorerTabs = {
                         })),
                     }))
                     .filter(t => t.sessions.length);
+                // The single tmux container tab's title + its sub-tab titles
+                // (keyed by tmux session name, which is stable across reloads).
+                const tmuxTab = this.tabs.find(t => t.kind === 'terminal' && this.termKindOf(t) === 'tmux');
+                const tmuxTitles = {};
+                if (tmuxTab) for (const x of (tmuxTab.terminals || [])) if (x.tmux && x.customTitle) tmuxTitles[x.tmux] = x.customTitle;
                 const data = {
-                    tabs: dirTabs.map(t => ({ path: t.path, kind: t.kind })),
+                    tabs: dirTabs.map(t => ({ path: t.path, kind: t.kind, title: t.customTitle || null })),
                     activeIdx: idx,
                     tmuxTabs: tmuxTabs,
+                    tmuxTitle: (tmuxTab && tmuxTab.customTitle) || null,
+                    tmuxTitles: tmuxTitles,
                     agentTabs: agentTabs,
                     windows: this.windows.filter(w => w.path).map(w => ({ kind: w.kind, path: w.path })),
                     activeWinPath: (this.activeWin() && this.activeWin().path) || null,

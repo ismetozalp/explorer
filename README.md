@@ -393,6 +393,9 @@ colour- and icon-coded, and the toolbar beneath drives the active one.
 - **Ctrl-W** or the `×` button closes the active tab.
 - **Middle-click** a tab to close it.
 - **Drag** tabs to reorder.
+- **Double-click** a tab (or a terminal / AI sub-tab) to **rename** it inline —
+  Enter commits, Esc cancels, an empty value restores the automatic name. Custom
+  names are saved and restored on reload (for folder tabs, tmux and AI sessions).
 - **Right-click** a tab for: *Duplicate*, *Close*, *Close others*,
   *Close to the left*, *Close to the right*.
 - Directory tabs are persisted to `~/.config/cockpit/explorer/tabs.yml`

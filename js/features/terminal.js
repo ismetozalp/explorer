@@ -347,6 +347,14 @@ window.ExplorerTerminal = {
             if (!container) container = this._newTmuxContainerTab(); // empty tmux tab
             this.addTmuxSessionToTab(container, name, { mount: false });
         }
+        // Restore user-set titles (double-click): the container tab's title and
+        // each sub-tab's, keyed by the stable tmux session name.
+        if (container) {
+            if (this._savedTmuxTitle) container.customTitle = this._savedTmuxTitle;
+            const titles = this._savedTmuxTitles || {};
+            for (const x of (container.terminals || [])) if (x.tmux && titles[x.tmux]) x.customTitle = titles[x.tmux];
+        }
+        this._savedTmuxTitle = null; this._savedTmuxTitles = null;
         // Rewrite tabs.yml so dead sessions fall out (rebuilt from open tabs).
         if (pruned) this._persistTabs();
     },

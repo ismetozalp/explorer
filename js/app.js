@@ -291,6 +291,8 @@ Alpine.data('explorer', () => ({
             // the array — left saved.windows undefined, so nothing ever reopened.)
             if (data && data.windows) savedWindows = data;
             if (data && Array.isArray(data.tmuxTabs)) this._savedTmuxTabs = data.tmuxTabs.slice();
+            if (data && data.tmuxTitle) this._savedTmuxTitle = data.tmuxTitle;
+            if (data && data.tmuxTitles) this._savedTmuxTitles = data.tmuxTitles;
             if (data && Array.isArray(data.agentTabs) && data.agentTabs.length) this._savedAgentData = data;
             if (data && Array.isArray(data.tabs) && data.tabs.length) {
                 const seen = new Set();
@@ -302,7 +304,9 @@ Alpine.data('explorer', () => ({
                     const key = `dir:${t.path}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
-                    this.tabs.push(this._buildTab(t.path, 'dir'));
+                    const dt = this._buildTab(t.path, 'dir');
+                    if (t.title) dt.customTitle = t.title;   // restore user-set tab title
+                    this.tabs.push(dt);
                 }
                 // Tab IDs are regenerated each session, so saved id is stale.
                 // Restore active tab by saved position; clamp into range.
