@@ -896,6 +896,34 @@ window.ExplorerTerminal = {
         ExRT.term.reconn.set(termId, rec);
     },
 
+    // Drag-resize an AI-view side column (repo tree / census). `key` is the
+    // settings field to update; `dir` is +1 when dragging right should GROW the
+    // column (handle on its right edge, e.g. the tree) or -1 when dragging left
+    // should grow it (handle on its left edge, e.g. the census). The width is
+    // saved to settings.yml on release so it persists across reloads.
+    _startColResize(ev, key, dir) {
+        ev.preventDefault();
+        const startX = ev.clientX;
+        const start = (this.settings && this.settings[key]) || (key === 'aiSccWidth' ? 340 : 220);
+        const onMove = (e) => {
+            const w = start + (e.clientX - startX) * dir;
+            this.settings[key] = Math.max(140, Math.min(900, Math.round(w)));
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (this.saveSettings) this.saveSettings();   // persist the new width
+            // The flexible middle (diff/terminal) changed size — refit the terminal.
+            try {
+                const tab = this.activeTab && this.activeTab();
+                const s = tab && this.aiActiveSession && this.aiActiveSession(tab);
+                const inst = s && ExRT.term.get(s.id);
+                if (inst && inst.fitAddon) inst.fitAddon.fit();
+            } catch (e) {}
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    },
     _startTermResize(ev, tab) {
         ev.preventDefault();
         const horizontal = !!tab.dual; // dual-pane → terminal docks at the bottom

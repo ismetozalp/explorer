@@ -24,6 +24,10 @@ window.ExRT = {
             // re-runs the analysis in the background when auto-refresh is enabled
             // for that repo. 0 disables the option. See js/features/scc.js.
             sccRefreshMins: 60,
+            // AI-view column widths (px) — drag the divider between the repo tree /
+            // diff / census panels to resize; persisted here so they stick.
+            aiTreeWidth: 220,
+            aiSccWidth: 340,
             columns: { size: true, modified: true, perms: true, owner: true, type: false },
             previewLimitMB: 10,
             outputMaxLines: 5000,      // streaming-pane line cap (0 = unlimited; oldest lines drop)

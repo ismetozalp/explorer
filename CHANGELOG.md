@@ -2,6 +2,16 @@
 
 All notable changes to the Explorer Cockpit plugin are recorded here.
 
+## 4.4.1
+
+- **Resizable AI-view columns.** Drag the divider on the inner edge of the repo
+  **tree** and the **code-census** panels to change their width. The widths are
+  saved (in Settings) and restored on reload; the diff pane in the middle flexes
+  to fill the rest.
+- **Fixed the census table clipping its last column.** The language table could
+  cut off the **Cx** column at the pane edge; it now scrolls horizontally when it
+  doesn't fit (and widening the pane reveals it directly).
+
 ## 4.4.0
 
 - **Editable tab and sub-tab titles.** Double-click any tab or sub-tab to rename

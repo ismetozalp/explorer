@@ -912,7 +912,7 @@
                      a thin strip reveals it. Git status colors each entry; a file
                      row shows its diff, ✎ opens it in the editor. -->
                 <button class="agent-tree-reveal" x-show="tab.aiTreeCollapsed !== false" @click="aiToggleTree(tab)" title="Show repo tree">tree ▶</button>
-                <div class="agent-tree" x-show="tab.aiTreeCollapsed === false">
+                <div class="agent-tree" x-show="tab.aiTreeCollapsed === false" :style="`width:${settings.aiTreeWidth || 220}px`">
                     <div class="agent-tree-head">
                         <span class="agent-tree-title">Repo</span>
                         <button class="btn btn-sm btn-outline-secondary agent-diff-collapse" @click="aiToggleTree(tab)" title="Hide repo tree">◀</button>
@@ -943,6 +943,8 @@
                         </div>
                     </template>
                 </div>
+                <!-- Drag to resize the repo-tree column (persisted). -->
+                <div class="col-resizer" x-show="tab.aiTreeCollapsed === false" @mousedown="_startColResize($event, 'aiTreeWidth', 1)" title="Drag to resize"></div>
                 <!-- Collapsed: a thin strip on the right to bring the diff back. -->
                 <button class="agent-diff-reveal" x-show="tab.aiDiffCollapsed" @click="aiToggleDiff(tab)" title="Show diff pane">◀ diff</button>
                 <div class="agent-diff" x-show="!tab.aiDiffCollapsed">
@@ -988,7 +990,9 @@
                      by default; the "scc ▶" strip reveals it. Table sub-pane =
                      sortable language breakdown; Complexity sub-pane = top-50 files. -->
                 <button class="agent-scc-reveal" x-show="tab.aiSccCollapsed !== false" @click="aiToggleScc(tab)" title="Show code census (scc)">scc ▶</button>
-                <div class="agent-scc" x-show="tab.aiSccCollapsed === false">
+                <!-- Drag to resize the census column (persisted). -->
+                <div class="col-resizer" x-show="tab.aiSccCollapsed === false" @mousedown="_startColResize($event, 'aiSccWidth', -1)" title="Drag to resize"></div>
+                <div class="agent-scc" x-show="tab.aiSccCollapsed === false" :style="`width:${settings.aiSccWidth || 340}px`">
                     <div class="agent-scc-head">
                         <select class="form-select form-select-sm agent-scc-sel" x-show="aiSccActive(tab) && aiSccActive(tab).scc"
                                 @change="aiSccSetSub(aiSccActive(tab), $event.target.value)"

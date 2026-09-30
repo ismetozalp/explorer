@@ -848,6 +848,8 @@ edits files.
   open it in the editor.
   The colors and the listing refresh live — as the agent edits, and across
   branch/commit switches.
+- **Resize the columns** — drag the divider on the inner edge of the tree and
+  the code-census panels to set their width; the widths are saved and restored.
 
 ![AI tab — terminal, repo tree with git-status colors, live diff](screenshots/ai-tree.svg)
 - **Move a running session in** — already running `claude`/`codex` in a plain
