@@ -1589,7 +1589,7 @@ is the user's answer:
 
 ```
 ===EXPLORER-PROMPT===
-type: radio          # radio (single-select) | text (free text / textbox)
+type: radio          # radio (single-select) | text (free text / textbox) | password (masked secret)
 title: Deploy        # dialog title (optional)
 message: Pick env    # text shown above the control (optional)
 options: [dev, staging, prod]   # required for type: radio
@@ -1617,6 +1617,13 @@ ANSWER="$(printf '%s' "$ANSWER_B64" | base64 -d)"
 (Single-line `type: text` is sent as-is, unchanged.) A multi-line `default:`
 is preserved as `\n` escapes inside the quoted scalar, so the textarea
 pre-fills with the full text.
+
+**Passwords** (`type: password`) show a masked input and send the entered
+value followed by a newline to stdin. The value is never written to the pane
+transcript, including when sending it fails. Password prompts ignore `default`
+and `multiline`; canceling still closes the script channel. The existing prompt
+dialog clears the password field and result when it closes. Scripts should not
+print the password themselves.
 
 User-scope scripts live in the **home** directory at
 `~/.config/cockpit/explorer/scripts` (next to the user `actions.json`) —
@@ -1677,7 +1684,8 @@ echo "===EXPLORER-END==="
 ```
 
 > Lines other than prompt blocks are shown in the pane as normal output;
-> the value the plugin sends back is echoed as a `‹ …` transcript line.
+> ordinary input values the plugin sends back are echoed as a `‹ …` transcript
+> line; password values are never included in the transcript.
 > If your script's stdout is buffered (e.g. Python), flush it before
 > reading so the prompt reaches the UI; `echo`/`printf` in `sh`/`bash`
 > are fine.
@@ -1926,4 +1934,3 @@ Explorer reads the `#open=<url-encoded absolute path>` hash on load and on every
 `hashchange`: a directory opens in a new focused tab, a file opens its parent folder with
 the file selected, and an inaccessible path shows a notification. The `open=` param is
 cleared after handling, so it never survives a reload or clobbers tab state.
-

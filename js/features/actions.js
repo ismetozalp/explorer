@@ -793,6 +793,13 @@ window.ExplorerActions = {
             const choice = await this.askChoice(title, message, buttons);
             if (choice == null || choice === false || choice === 'cancel') { try { channel.close('cancelled'); } catch (e) {} return; }
             answer = String(choice);
+        } else if (type === 'password') {
+            // EXPLORER-PASSWORD-PROMPT-V1
+            const val = await this.askPrompt(title, message || 'Enter a password', '', { password: true });
+            if (val == null) { try { channel.close('cancelled'); } catch (e) {} return; }
+            try { channel.send(String(val) + '\n'); }
+            catch (e) { this._pushOutputLine(rtab, '[explorer] could not send password input\n'); }
+            return;
         } else {
             const def = spec.default != null ? String(spec.default) : '';
             const multiline = (spec.multiline === true || spec.multiline === 'true');
