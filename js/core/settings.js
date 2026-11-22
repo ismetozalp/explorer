@@ -34,23 +34,23 @@ window.ExplorerSettings = {
         }
         if (!this.settings.columns) this.settings.columns = structuredClone(ExRT.const.DEFAULT_SETTINGS.columns);
 
-        // Apply theme & track system-preference changes if 'system' mode
+        // Follow Cockpit's appearance and the OS when using the default theme.
         this.applyTheme();
-        try {
-            const mq = window.matchMedia('(prefers-color-scheme: dark)');
-            mq.addEventListener('change', () => {
-                if ((this.settings.theme || 'system') === 'system') this.applyTheme();
-            });
-        } catch (e) {}
+        const followSystem = () => {
+            if ((this.settings.theme || 'system') === 'system') this.applyTheme();
+        };
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', followSystem);
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'shell:style' || event.key === null) followSystem();
+        });
     },
 
     applyTheme() {
-        const t = this.settings.theme || 'system';
-        const dark = t === 'dark'
-            || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        const theme = this.settings.theme;
+        const resolved = theme === 'dark' || theme === 'light' ? theme : window.explorerSystemTheme();
+        document.documentElement.setAttribute('data-bs-theme', resolved);
         if (window.monaco && window.monaco.editor) {
-            try { window.monaco.editor.setTheme(dark ? 'vs-dark' : 'vs'); } catch (e) {}
+            try { window.monaco.editor.setTheme(resolved === 'dark' ? 'vs-dark' : 'vs'); } catch (e) {}
         }
     },
 

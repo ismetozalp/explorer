@@ -194,7 +194,15 @@ Alpine.data('explorer', () => ({
 
 
     // ───── Init ──────────────────────────────────────────────────────────────
-    async init() {
+    init() {
+        return this._init().catch(error => {
+            if (!document.documentElement.classList.contains('explorer-loading')) throw error;
+            console.error('[explorer] could not initialize:', error);
+            document.getElementById('explorer-startup-error').hidden = false;
+        });
+    },
+
+    async _init() {
         this.homePath = await FS.homeDir();
         // Start the repo-cache read now, but DON'T await it here — see the
         // Promise.all beside _loadSettings() below for why. _prefillGitFromCache
@@ -207,10 +215,6 @@ Alpine.data('explorer', () => ({
         // it overlap reapOrphanPreviews() and the settings load below instead
         // of serializing in front of them.
         const repoCacheP = this._loadRepoCache();
-
-        // Awaited: it deletes under the very cache root the first preview may
-        // start a session in, so it must finish before anything else runs.
-        await this.reapOrphanPreviews();   // clean up segment dirs a prior crash left behind (in-use dirs are skipped)
 
         // Phone breakpoint drives the toolbar's ⋯ More collapse. CSS media
         // queries (max-width:640px) do the purely-visual reflow; this keeps the
@@ -258,13 +262,9 @@ Alpine.data('explorer', () => ({
 
         // Load settings from ~/.config/cockpit/explorer/settings.yml
         // Migrate from localStorage if the YAML file doesn't exist yet.
-        // Awaited together with the repo-cache read kicked off above (two
-        // independent small file reads, overlapped) — this is also the
-        // point by which repoCacheP MUST be settled, since tab restore and
-        // its first _loadDir()/_prefillGitFromCache follow immediately
-        // below. In practice repoCacheP has almost always already resolved
-        // by here (it had the whole reapOrphanPreviews() window to run).
-        await Promise.all([this._loadSettings(), repoCacheP]);
+        // The repo cache and preview cleanup need to finish before restoring
+        // tabs and preview sessions. Run both alongside the settings read.
+        await Promise.all([this._loadSettings(), repoCacheP, this.reapOrphanPreviews()]);
 
         // restore or create initial tab
         let restored = false;
@@ -330,8 +330,9 @@ Alpine.data('explorer', () => ({
             this.activeTabId = this.tabs[0]?.id || null;
         }
 
-        // Load active tab
+        // Reveal the themed interface once Alpine has bound the initial tabs.
         this.$nextTick(() => {
+            document.documentElement.classList.remove('explorer-loading');
             const tab = this.activeTab();
             if (!tab) return;
             if (tab.kind === 'dir') this._loadDir(tab);
