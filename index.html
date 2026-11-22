@@ -1,9 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="explorer-loading">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Explorer</title>
+    <!-- Paint the correct background before stylesheets and Alpine load. -->
+    <style>
+        html { background-color: #fff; }
+        html[data-bs-theme="dark"] { background-color: #1b1d21; }
+        html.explorer-loading body { visibility: hidden; }
+        #explorer-startup-error { visibility: visible; }
+    </style>
+    <script>
+        window.explorerSystemTheme = function () {
+            let preference;
+            try { preference = window.localStorage.getItem('shell:style'); } catch (e) {}
+            if (preference === 'light' || preference === 'dark') return preference;
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        };
+        document.documentElement.setAttribute('data-bs-theme', window.explorerSystemTheme());
+    </script>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/prism.css">
     <link rel="stylesheet" href="css/quill.snow.css">
@@ -13,6 +29,9 @@
     <script src="../base1/cockpit.js"></script>
 </head>
 <body x-data="explorer" @keydown.window="onKey($event)" @click.window="closeContextMenu()">
+<p id="explorer-startup-error" class="alert alert-danger m-3" role="alert" hidden>
+    Explorer could not load. Reload Cockpit or check the browser console.
+</p>
 
 <!-- ============== TAB BAR ============== -->
 <div class="tab-bar">

@@ -67,5 +67,6 @@
         console.error('[explorer] partial injection error:', e);
     }).then(startAlpine).catch(function (e) {
         console.error('[explorer] Alpine failed to start:', e);
+        document.getElementById('explorer-startup-error').hidden = false;
     });
 })();
